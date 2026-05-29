@@ -137,8 +137,8 @@ function emitScores(room) {
 }
 
 // ---------- Advance mode: power-ups ----------
-const POWERS = ["cluster", "cross", "double", "reveal", "barrage", "mine"];
-function newInv() { return { cluster: 0, cross: 0, double: 0, reveal: 0, barrage: 0, mine: 0 }; }
+const POWERS = ["cluster", "cross", "double", "reveal", "mine"];
+function newInv() { return { cluster: 0, cross: 0, double: 0, reveal: 0, mine: 0 }; }
 function expandCells(power, r, c) {
   if (power === "cluster") {
     const r0 = Math.min(r, BOARD - 2), c0 = Math.min(c, BOARD - 2);
@@ -482,20 +482,6 @@ io.on("connection", (socket) => {
       room.mines[clientId].add(k);
       emitInv(room, clientId);
       return cb && cb({ ok: true, type: "mine", r, c });
-    }
-    if (type === "barrage") {
-      const cand = [];
-      for (let rr = 0; rr < BOARD; rr++) for (let cc = 0; cc < BOARD; cc++) {
-        const k = rr + "," + cc;
-        if (!me.hits.has(k)) cand.push([rr, cc]);
-      }
-      if (!cand.length) return cb && cb({ ok: false, error: "Hết ô để bắn" });
-      me.inv.barrage--;
-      const pick = [];
-      for (let i = 0; i < 3 && cand.length; i++) pick.push(cand.splice(Math.floor(Math.random() * cand.length), 1)[0]);
-      emitInv(room, clientId);
-      const summary = doShot(room, clientId, pick);
-      return cb && cb(Object.assign({ type: "barrage" }, summary));
     }
     cb && cb({ ok: false });
   });

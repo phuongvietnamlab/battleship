@@ -116,8 +116,8 @@ function Lobby({ onCreate, onJoin, onBot, error }) {
 }
 
 // ---------- Grid ----------
-const POWER_ICON = { cluster: "\u{1F4A5}", cross: "➕", double: "\u{1F501}", reveal: "\u{1F50D}", barrage: "\u{1F4A3}", mine: "\u{1F6A7}" };
-const POWER_NAME = { cluster: "Bắn chùm 2x2", cross: "Tên lửa chữ thập", double: "Bắn lại", reveal: "Lộ ô thuyền", barrage: "Pháo kích", mine: "Mìn nước" };
+const POWER_ICON = { cluster: "\u{1F4A5}", cross: "➕", double: "\u{1F501}", reveal: "\u{1F50D}", mine: "\u{1F6A7}" };
+const POWER_NAME = { cluster: "Bắn chùm 2x2", cross: "Tên lửa chữ thập", double: "Thêm lượt", reveal: "Lộ ô thuyền", mine: "Mìn nước" };
 function Grid({ enemy, occ, hits, incoming, onCellClick, hoverCells, onCellHover, shootable, sunk, flash, powerups, revealed, aimCells, mines, placeable }) {
   // occ: Set of "r,c" your ships (own board)
   // hits: Set of "r,c" shots you fired at enemy (enemy board)
@@ -453,7 +453,7 @@ function Counter({ label, value, cls }) {
   );
 }
 function PowerBar({ inv, aim, onPower, myTurn }) {
-  const items = ["cluster", "cross", "double", "reveal", "barrage", "mine"];
+  const items = ["cluster", "cross", "double", "reveal", "mine"];
   return (
     <div className="powerbar">
       {items.map((t) => (
@@ -467,7 +467,7 @@ function PowerBar({ inv, aim, onPower, myTurn }) {
     </div>
   );
 }
-function Battle({ myTurn, occ, incoming, myShots, onFire, log, sunkOpp, sunkMine, sunkEnemyCells, sunkMyCells, myScore, oppScore, oppLabel, flashEnemy, flashMine, mode, inv, powerups, revealedEnemy, aim, onPower, myMines, onPlaceMine }) {
+function Battle({ myTurn, vsBot, occ, incoming, myShots, onFire, log, sunkOpp, sunkMine, sunkEnemyCells, sunkMyCells, myScore, oppScore, oppLabel, flashEnemy, flashMine, mode, inv, powerups, revealedEnemy, aim, onPower, myMines, onPlaceMine }) {
   const [tab, setTab] = useState("enemy"); // enemy | own (mobile)
   // tự động chuyển tab theo lượt, delay ~2s để kịp nhìn địch bắn vào đâu rồi mới đổi bản đồ
   useEffect(() => {
@@ -499,6 +499,11 @@ function Battle({ myTurn, occ, incoming, myShots, onFire, log, sunkOpp, sunkMine
       {aim === "mine" && (
         <div className="aim-banner">Đang đặt <b>Mìn nước</b> — chạm vào ô trống trên hạm đội của bạn để đặt (chạm lại nút để hủy).</div>
       )}
+      <div className="turn-indicator">
+        <div className={"status-pill " + (myTurn ? "pill-turn" : "pill-enemy")}>
+          {myTurn ? "🎯 Lượt của bạn" : (vsBot ? "⏳ Lượt của máy" : "⏳ Lượt đối thủ")}
+        </div>
+      </div>
       <div className={"boards tab-" + tab}>
         <div className="board-wrap wrap-enemy">
           <div className="board-title enemy">Vùng biển địch {myTurn ? "— BẮN!" : ""}</div>
@@ -541,7 +546,7 @@ function App() {
   const [sunkOpp, setSunkOpp] = useState(0);   // địch bị ta đánh chìm
   const [sunkMine, setSunkMine] = useState(0); // thuyền của ta bị chìm
   const [mode, setMode] = useState("classic"); // classic | advance
-  const [inv, setInv] = useState({ cluster: 0, cross: 0, double: 0, reveal: 0, barrage: 0, mine: 0 });
+  const [inv, setInv] = useState({ cluster: 0, cross: 0, double: 0, reveal: 0, mine: 0 });
   const [myMines, setMyMines] = useState(new Set()); // mìn ta đã đặt trên hạm đội mình
   const [powerups, setPowerups] = useState(new Map()); // ô power-up trên biển địch: key->type
   const [revealedEnemy, setRevealedEnemy] = useState(new Set()); // ô thuyền địch đã bị lộ
@@ -552,6 +557,7 @@ function App() {
   const [sunkMyCells, setSunkMyCells] = useState(new Set());       // ô thuyền ta đã chìm
   const [myScore, setMyScore] = useState(0);
   const [oppScore, setOppScore] = useState(0);
+  const [notice, setNotice] = useState(null); // thông báo nổi (vd: dẫm mìn)
   const [vsBot, setVsBot] = useState(false);   // chế độ chơi với máy
   const botData = useRef(null);                // {occ:Set, ships:[Set]}
   const myShipsRef = useRef([]);               // [Set] thuyền của ta (để máy dò chìm)
@@ -560,6 +566,7 @@ function App() {
   const myShotsRef = useRef(new Set());         // ô ta đã bắn (đồng bộ tức thời cho bot)
 
   const addLog = useCallback((s) => setLog((l) => [s, ...l].slice(0, 40)), []);
+  const showNotice = useCallback((s) => { setNotice(s); setTimeout(() => setNotice((n) => (n === s ? null : n)), 4000); }, []);
 
   useEffect(() => {
     socket.on("opponentJoined", () => {
@@ -606,7 +613,7 @@ function App() {
     socket.on("gameStart", ({ yourTurn, mode: m }) => {
       setScreen("battle"); setMyTurn(yourTurn);
       setMode(m || "classic");
-      setInv({ cluster: 0, cross: 0, double: 0, reveal: 0, barrage: 0, mine: 0 });
+      setInv({ cluster: 0, cross: 0, double: 0, reveal: 0, mine: 0 });
       setPowerups(new Map()); setRevealedEnemy(new Set()); setAim(null); setMyMines(new Set());
       addLog(yourTurn ? "Bạn đi trước. Khai hỏa!" : "Đối thủ đi trước.");
     });
@@ -621,7 +628,7 @@ function App() {
       if (sunkCells) setSunkMyCells((s) => { const n = new Set(s); sunkCells.forEach((k) => n.add(k)); return n; });
       if (mineHit) setMyMines((s) => { const n = new Set(s); list.forEach((c) => n.delete(key(c.r, c.c))); return n; });
       const anyHit = list.some((s) => s.hit);
-      if (mineHit) addLog("Địch bắn trúng MÌN của bạn — địch mất lượt kế tiếp!");
+      if (mineHit) { addLog("Địch bắn trúng MÌN của bạn — địch mất lượt kế tiếp!"); showNotice("💥 Địch dẫm phải MÌN của bạn! Địch mất lượt kế tiếp."); }
       if (newSunk > 0) addLog(`Địch ĐÁNH CHÌM ${newSunk} thuyền của bạn!`);
       else if (list.length > 1) addLog(anyHit ? `Địch dùng power-up — TRÚNG tàu bạn!` : `Địch dùng power-up — trượt.`);
       else if (list.length === 1) addLog(anyHit ? `Địch bắn ${ROWS[list[0].r]}${list[0].c + 1} — TRÚNG tàu bạn!` : `Địch bắn ${ROWS[list[0].r]}${list[0].c + 1} — trượt.`);
@@ -634,7 +641,7 @@ function App() {
       setOcc(new Set()); setIncoming(new Map()); setMyShots(new Map()); setOver(null); setLog([]);
       setSunkOpp(0); setSunkMine(0);
       setSunkEnemyCells(new Set()); setSunkMyCells(new Set()); // giữ nguyên tỉ số
-      setInv({ cluster: 0, cross: 0, double: 0, reveal: 0, barrage: 0, mine: 0 });
+      setInv({ cluster: 0, cross: 0, double: 0, reveal: 0, mine: 0 });
       setPowerups(new Map()); setRevealedEnemy(new Set()); setAim(null); setMyMines(new Set());
     });
     // if already connected when listeners attach, attempt rejoin now
@@ -807,7 +814,7 @@ function App() {
     const anyHit = cells.some((s) => s.hit);
     if (res.newSunk > 0) addLog(`Bạn ĐÁNH CHÌM ${res.newSunk} thuyền! Bắn tiếp!`);
     else addLog(anyHit ? `${label} — TRÚNG! Bắn tiếp!` : `${label} — trượt.`);
-    if (res.mineHit) { addLog("Bạn bắn trúng MÌN của địch — bạn mất lượt kế tiếp!"); return; }
+    if (res.mineHit) { addLog("Bạn bắn trúng MÌN của địch — bạn mất lượt kế tiếp!"); showNotice("💥 Bạn dẫm phải MÌN của địch! Bạn mất lượt kế tiếp."); return; }
     if (anyHit && !res.win) setMyTurn(true);
   }
 
@@ -838,14 +845,10 @@ function App() {
     if (type === "cluster" || type === "cross" || type === "mine") { setAim((a) => (a === type ? null : type)); return; }
     socket.emit("useAbility", { type }, (res) => {
       if (!res.ok) { if (res.error) addLog(res.error); return; }
-      if (res.type === "double") addLog("Kích hoạt Bắn lại — phát trượt kế tiếp vẫn giữ lượt!");
+      if (res.type === "double") addLog("Kích hoạt Thêm lượt — phát trượt kế tiếp vẫn giữ lượt!");
       else if (res.type === "reveal") {
         setRevealedEnemy((s) => new Set(s).add(key(res.r, res.c)));
         addLog(`Lộ 1 ô thuyền địch tại ${ROWS[res.r]}${res.c + 1}!`);
-      }
-      else if (res.type === "barrage") {
-        setAim(null);
-        applyShotResult(res, "Pháo kích 3 phát");
       }
     });
   }
@@ -857,7 +860,7 @@ function App() {
     setSunkOpp(0); setSunkMine(0); setVsBot(false);
     setSunkEnemyCells(new Set()); setSunkMyCells(new Set());
     setMyScore(0); setOppScore(0);
-    setMode("classic"); setInv({ cluster: 0, cross: 0, double: 0, reveal: 0, barrage: 0, mine: 0 });
+    setMode("classic"); setInv({ cluster: 0, cross: 0, double: 0, reveal: 0, mine: 0 });
     setPowerups(new Map()); setRevealedEnemy(new Set()); setAim(null); setMyMines(new Set());
     setScreen("lobby");
   }
@@ -886,6 +889,8 @@ function App() {
           </div>
         )}
       </div>
+
+      {notice && <div className="notice-toast">{notice}</div>}
 
       {screen === "lobby" && <Lobby onCreate={createRoom} onJoin={joinRoom} onBot={startBot} error={error} />}
 
@@ -928,13 +933,7 @@ function App() {
 
       {screen === "battle" && (
         <div>
-          <div className="room-banner">
-            <div className="room-code-box"><span>{vsBot ? "🤖 Chế độ" : "Mã phòng:"}</span><div className="code" style={{fontSize:vsBot?18:22}}>{vsBot ? "VỚI MÁY" : code}</div></div>
-            <div className={"status-pill " + (myTurn ? "pill-turn" : "pill-enemy")}>
-              {myTurn ? "🎯 Lượt của bạn" : (vsBot ? "⏳ Lượt của máy" : "⏳ Lượt đối thủ")}
-            </div>
-          </div>
-          <Battle myTurn={myTurn} occ={occ} incoming={incoming} myShots={myShots} onFire={fire} log={log} sunkOpp={sunkOpp} sunkMine={sunkMine} sunkEnemyCells={sunkEnemyCells} sunkMyCells={sunkMyCells} myScore={myScore} oppScore={oppScore} oppLabel={vsBot ? "Máy" : "Đối thủ"} flashEnemy={flashEnemy} flashMine={flashMine} mode={vsBot ? "classic" : mode} inv={inv} powerups={powerups} revealedEnemy={revealedEnemy} aim={aim} onPower={activatePower} myMines={myMines} onPlaceMine={placeMine} />
+          <Battle myTurn={myTurn} vsBot={vsBot} occ={occ} incoming={incoming} myShots={myShots} onFire={fire} log={log} sunkOpp={sunkOpp} sunkMine={sunkMine} sunkEnemyCells={sunkEnemyCells} sunkMyCells={sunkMyCells} myScore={myScore} oppScore={oppScore} oppLabel={vsBot ? "Máy" : "Đối thủ"} flashEnemy={flashEnemy} flashMine={flashMine} mode={vsBot ? "classic" : mode} inv={inv} powerups={powerups} revealedEnemy={revealedEnemy} aim={aim} onPower={activatePower} myMines={myMines} onPlaceMine={placeMine} />
         </div>
       )}
 
