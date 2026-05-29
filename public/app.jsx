@@ -1,8 +1,8 @@
 const { useState, useEffect, useRef, useCallback } = React;
 
-const BOARD = 10;
-const COLS = ["1","2","3","4","5","6","7","8","9","10"];
-const ROWS = ["A","B","C","D","E","F","G","H","I","J"];
+const BOARD = 11;
+const COLS = ["1","2","3","4","5","6","7","8","9","10","11"];
+const ROWS = ["A","B","C","D","E","F","G","H","I","J","K"];
 // fleet definitions
 const FLEET_DEF = [
   { id: "carrier", name: "Tàu sân bay", size: 5 },
@@ -86,6 +86,7 @@ function inBounds(cells) {
 // ---------- Lobby ----------
 function Lobby({ onCreate, onJoin, onBot, error }) {
   const [code, setCode] = useState("");
+  const [mode, setMode] = useState("classic");
   return (
     <div className="lobby">
       <h2>Trận hải chiến</h2>
@@ -93,7 +94,15 @@ function Lobby({ onCreate, onJoin, onBot, error }) {
       {error && <div className="error">{error}</div>}
       <button className="btn primary" onClick={onBot}>🤖 Chơi với máy</button>
       <div style={{ height: 10 }} />
-      <button className="btn steel" onClick={onCreate}>⚓ Tạo phòng mới</button>
+      <div className="mode-pick">
+        <button className={"mode-opt" + (mode === "classic" ? " on" : "")} onClick={() => setMode("classic")}>
+          <b>Classic</b><span>Cổ điển, không power-up</span>
+        </button>
+        <button className={"mode-opt" + (mode === "advance" ? " on" : "")} onClick={() => setMode("advance")}>
+          <b>Advance ⚡</b><span>Nhặt &amp; dùng power-up</span>
+        </button>
+      </div>
+      <button className="btn steel" onClick={() => onCreate(mode)}>⚓ Tạo phòng mới</button>
       <div className="divider">HOẶC</div>
       <div className="field">
         <label>Nhập mã phòng</label>
@@ -107,7 +116,9 @@ function Lobby({ onCreate, onJoin, onBot, error }) {
 }
 
 // ---------- Grid ----------
-function Grid({ enemy, occ, hits, incoming, onCellClick, hoverCells, onCellHover, shootable, sunk, flash }) {
+const POWER_ICON = { cluster: "\u{1F4A5}", cross: "➕", double: "\u{1F501}", reveal: "\u{1F50D}", barrage: "\u{1F4A3}", mine: "\u{1F6A7}" };
+const POWER_NAME = { cluster: "Bắn chùm 2x2", cross: "Tên lửa chữ thập", double: "Bắn lại", reveal: "Lộ ô thuyền", barrage: "Pháo kích", mine: "Mìn nước" };
+function Grid({ enemy, occ, hits, incoming, onCellClick, hoverCells, onCellHover, shootable, sunk, flash, powerups, revealed, aimCells, mines, placeable }) {
   // occ: Set of "r,c" your ships (own board)
   // hits: Set of "r,c" shots you fired at enemy (enemy board)
   // incoming: Map "r,c" -> hit boolean (shots enemy fired at you, own board)
@@ -123,10 +134,17 @@ function Grid({ enemy, occ, hits, incoming, onCellClick, hoverCells, onCellHover
         } else if (shootable) {
           cls += " shootable";
         }
+        if (powerups && powerups.has(k) && !(hits && hits.has(k))) {
+          cls += " powerup"; content = POWER_ICON[powerups.get(k)] || "⭐";
+        }
+        if (revealed && revealed.has(k) && !(hits && hits.has(k))) cls += " revealed";
+        if (aimCells && aimCells.has(k)) cls += " aim";
         if (hoverCells && hoverCells.has(k)) cls += " ship";
       } else {
         if (occ && occ.has(k)) cls += " ship";
         if (incoming && incoming.has(k)) cls += incoming.get(k) ? " hit" : " miss";
+        if (mines && mines.has(k)) { cls += " mine"; content = POWER_ICON.mine; }
+        if (placeable && !(occ && occ.has(k)) && !(incoming && incoming.has(k)) && !(mines && mines.has(k))) cls += " selectable";
         if (hoverCells && hoverCells.has(k)) cls += " ship";
       }
       if (sunk && sunk.has(k)) cls += " sunk";
@@ -135,7 +153,7 @@ function Grid({ enemy, occ, hits, incoming, onCellClick, hoverCells, onCellHover
         <div key={k} className={cls}
           onClick={() => onCellClick && onCellClick(r, c)}
           onMouseEnter={() => onCellHover && onCellHover(r, c)}
-          onMouseLeave={() => onCellHover && onCellHover(-1, -1)} />
+          onMouseLeave={() => onCellHover && onCellHover(-1, -1)}>{content}</div>
       );
     }
   }
@@ -434,13 +452,29 @@ function Counter({ label, value, cls }) {
     </div>
   );
 }
-function Battle({ myTurn, occ, incoming, myShots, onFire, log, sunkOpp, sunkMine, sunkEnemyCells, sunkMyCells, myScore, oppScore, oppLabel, flashEnemy, flashMine }) {
+function PowerBar({ inv, aim, onPower, myTurn }) {
+  const items = ["cluster", "cross", "double", "reveal", "barrage", "mine"];
+  return (
+    <div className="powerbar">
+      {items.map((t) => (
+        <button key={t} disabled={!myTurn || (inv[t] || 0) <= 0}
+          className={"power-btn" + (aim === t ? " aiming" : "")} onClick={() => onPower(t)}>
+          <span className="pi">{POWER_ICON[t]}</span>
+          <span className="pn">{POWER_NAME[t]}</span>
+          <span className="pc">{inv[t] || 0}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+function Battle({ myTurn, occ, incoming, myShots, onFire, log, sunkOpp, sunkMine, sunkEnemyCells, sunkMyCells, myScore, oppScore, oppLabel, flashEnemy, flashMine, mode, inv, powerups, revealedEnemy, aim, onPower, myMines, onPlaceMine }) {
   const [tab, setTab] = useState("enemy"); // enemy | own (mobile)
   // tự động chuyển tab theo lượt, delay ~2s để kịp nhìn địch bắn vào đâu rồi mới đổi bản đồ
   useEffect(() => {
+    if (aim === "mine") { setTab("own"); return; }
     const t = setTimeout(() => setTab(myTurn ? "enemy" : "own"), 2000);
     return () => clearTimeout(t);
-  }, [myTurn]);
+  }, [myTurn, aim]);
   return (
     <div>
       <div className="scoreboard">
@@ -456,16 +490,28 @@ function Battle({ myTurn, occ, incoming, myShots, onFire, log, sunkOpp, sunkMine
           ⚓ Hạm đội bạn
         </button>
       </div>
+      {mode === "advance" && (
+        <PowerBar inv={inv} aim={aim} onPower={onPower} myTurn={myTurn} />
+      )}
+      {aim && aim !== "mine" && (
+        <div className="aim-banner">Đang ngắm <b>{POWER_NAME[aim]}</b> — chạm vào biển địch để khai hỏa (chạm lại nút để hủy).</div>
+      )}
+      {aim === "mine" && (
+        <div className="aim-banner">Đang đặt <b>Mìn nước</b> — chạm vào ô trống trên hạm đội của bạn để đặt (chạm lại nút để hủy).</div>
+      )}
       <div className={"boards tab-" + tab}>
         <div className="board-wrap wrap-enemy">
           <div className="board-title enemy">Vùng biển địch {myTurn ? "— BẮN!" : ""}</div>
           <Grid enemy hits={myShots} shootable={myTurn} sunk={sunkEnemyCells} flash={flashEnemy}
+            powerups={powerups} revealed={revealedEnemy}
             onCellClick={(r, c) => myTurn && onFire(r, c)} />
           <Counter label="Đã đánh chìm" value={sunkOpp} cls="enemy" />
         </div>
         <div className="board-wrap wrap-own">
           <div className="board-title own">Hạm đội của bạn</div>
-          <Grid occ={occ} incoming={incoming} sunk={sunkMyCells} flash={flashMine} />
+          <Grid occ={occ} incoming={incoming} sunk={sunkMyCells} flash={flashMine}
+            mines={myMines} placeable={aim === "mine"}
+            onCellClick={(r, c) => aim === "mine" && onPlaceMine(r, c)} />
           <Counter label="Thuyền bị chìm" value={sunkMine} cls="own" />
         </div>
       </div>
@@ -494,6 +540,12 @@ function App() {
   const [copied, setCopied] = useState(false);
   const [sunkOpp, setSunkOpp] = useState(0);   // địch bị ta đánh chìm
   const [sunkMine, setSunkMine] = useState(0); // thuyền của ta bị chìm
+  const [mode, setMode] = useState("classic"); // classic | advance
+  const [inv, setInv] = useState({ cluster: 0, cross: 0, double: 0, reveal: 0, barrage: 0, mine: 0 });
+  const [myMines, setMyMines] = useState(new Set()); // mìn ta đã đặt trên hạm đội mình
+  const [powerups, setPowerups] = useState(new Map()); // ô power-up trên biển địch: key->type
+  const [revealedEnemy, setRevealedEnemy] = useState(new Set()); // ô thuyền địch đã bị lộ
+  const [aim, setAim] = useState(null); // power-up đang ngắm: null | "cluster" | "cross"
   const [flashEnemy, setFlashEnemy] = useState(null); // ô mình vừa bắn (biển địch)
   const [flashMine, setFlashMine] = useState(null);   // ô địch vừa bắn (hạm đội mình)
   const [sunkEnemyCells, setSunkEnemyCells] = useState(new Set()); // ô thuyền địch đã chìm
@@ -517,6 +569,7 @@ function App() {
     socket.on("roomUpdate", (r) => {
       const has = r.playerCount >= 2;
       setOppPresent(has);
+      if (r.mode) setMode(r.mode);
       if (has) setScreen((s) => (s === "room" ? "placement" : s));
     });
     socket.on("opponentReady", () => { setOppReady(true); addLog("Đối thủ đã sẵn sàng."); });
@@ -535,6 +588,10 @@ function App() {
       setSunkEnemyCells(new Set(st.sunkOppCells || []));
       setSunkMyCells(new Set(st.sunkMyCells || []));
       setMyScore(st.myScore || 0); setOppScore(st.oppScore || 0);
+      setMode(st.mode || "classic");
+      if (st.inv) setInv(st.inv);
+      setMyMines(new Set(st.myMines || []));
+      setPowerups(new Map((st.powerups || []).map((p) => [key(p.r, p.c), p.type])));
       if (st.started) { setMyTurn(st.yourTurn); setScreen("battle"); }
       else if (st.youReady) { setIReady(true); setScreen("placement"); }
       else { setScreen(st.oppPresent ? "placement" : "room"); }
@@ -546,20 +603,28 @@ function App() {
         if (!res || !res.ok) { saveRoom(null); }
       });
     });
-    socket.on("gameStart", ({ yourTurn }) => {
+    socket.on("gameStart", ({ yourTurn, mode: m }) => {
       setScreen("battle"); setMyTurn(yourTurn);
+      setMode(m || "classic");
+      setInv({ cluster: 0, cross: 0, double: 0, reveal: 0, barrage: 0, mine: 0 });
+      setPowerups(new Map()); setRevealedEnemy(new Set()); setAim(null); setMyMines(new Set());
       addLog(yourTurn ? "Bạn đi trước. Khai hỏa!" : "Đối thủ đi trước.");
     });
+    socket.on("inventory", (i) => setInv(i));
+    socket.on("powerups", (list) => setPowerups(new Map((list || []).map((p) => [key(p.r, p.c), p.type]))));
     socket.on("turnUpdate", ({ yourTurn }) => setMyTurn(yourTurn));
-    socket.on("incoming", ({ r, c, hit, sunk, sunkSize, sunkCells }) => {
-      setIncoming((m) => new Map(m).set(key(r, c), hit));
-      setFlashMine(key(r, c));
-      if (sunk) {
-        setSunkMine((n) => n + 1);
-        if (sunkCells) setSunkMyCells((s) => { const n = new Set(s); sunkCells.forEach((k) => n.add(k)); return n; });
-        addLog(`Địch bắn ${ROWS[r]}${c+1} — ĐÁNH CHÌM thuyền ${sunkSize} ô của bạn!`);
-      }
-      else addLog(hit ? `Địch bắn ${ROWS[r]}${c+1} — TRÚNG tàu bạn!` : `Địch bắn ${ROWS[r]}${c+1} — trượt.`);
+    socket.on("incoming", ({ cells, sunkCells, sunkMineCount, newSunk, mineHit }) => {
+      const list = cells || [];
+      setIncoming((m) => { const n = new Map(m); list.forEach((s) => n.set(key(s.r, s.c), s.hit)); return n; });
+      if (list.length) setFlashMine(key(list[list.length - 1].r, list[list.length - 1].c));
+      if (typeof sunkMineCount === "number") setSunkMine(sunkMineCount);
+      if (sunkCells) setSunkMyCells((s) => { const n = new Set(s); sunkCells.forEach((k) => n.add(k)); return n; });
+      if (mineHit) setMyMines((s) => { const n = new Set(s); list.forEach((c) => n.delete(key(c.r, c.c))); return n; });
+      const anyHit = list.some((s) => s.hit);
+      if (mineHit) addLog("Địch bắn trúng MÌN của bạn — địch mất lượt kế tiếp!");
+      if (newSunk > 0) addLog(`Địch ĐÁNH CHÌM ${newSunk} thuyền của bạn!`);
+      else if (list.length > 1) addLog(anyHit ? `Địch dùng power-up — TRÚNG tàu bạn!` : `Địch dùng power-up — trượt.`);
+      else if (list.length === 1) addLog(anyHit ? `Địch bắn ${ROWS[list[0].r]}${list[0].c + 1} — TRÚNG tàu bạn!` : `Địch bắn ${ROWS[list[0].r]}${list[0].c + 1} — trượt.`);
     });
     socket.on("scoreUpdate", ({ you, opp }) => { setMyScore(you); setOppScore(opp); });
     socket.on("gameOver", ({ win }) => setOver({ win }));
@@ -569,6 +634,8 @@ function App() {
       setOcc(new Set()); setIncoming(new Map()); setMyShots(new Map()); setOver(null); setLog([]);
       setSunkOpp(0); setSunkMine(0);
       setSunkEnemyCells(new Set()); setSunkMyCells(new Set()); // giữ nguyên tỉ số
+      setInv({ cluster: 0, cross: 0, double: 0, reveal: 0, barrage: 0, mine: 0 });
+      setPowerups(new Map()); setRevealedEnemy(new Set()); setAim(null); setMyMines(new Set());
     });
     // if already connected when listeners attach, attempt rejoin now
     if (socket.connected) {
@@ -578,10 +645,11 @@ function App() {
     return () => socket.off();
   }, [addLog]);
 
-  function createRoom() {
+  function createRoom(mode) {
     setError(null);
     setMyScore(0); setOppScore(0); // phòng mới: tỉ số về 0-0
-    socket.emit("createRoom", { clientId }, (res) => {
+    setVsBot(false); setMode(mode === "advance" ? "advance" : "classic");
+    socket.emit("createRoom", { clientId, mode }, (res) => {
       if (res.ok) { setCode(res.code); saveRoom(res.code); setScreen("room"); }
     });
   }
@@ -728,20 +796,57 @@ function App() {
     }
   }
 
+  // áp dụng kết quả một loạt bắn (dùng chung cho fire + pháo kích)
+  function applyShotResult(res, label) {
+    const cells = res.cells || [];
+    setMyShots((m) => { const n = new Map(m); cells.forEach((s) => n.set(key(s.r, s.c), s.hit)); return n; });
+    if (cells.length) setFlashEnemy(key(cells[cells.length - 1].r, cells[cells.length - 1].c));
+    if (typeof res.sunkCount === "number") setSunkOpp(res.sunkCount);
+    if (res.sunkCells) setSunkEnemyCells((s) => { const n = new Set(s); res.sunkCells.forEach((k) => n.add(k)); return n; });
+    if (res.collected && res.collected.length) addLog(`Bạn nhặt được power-up: ${res.collected.map((t) => POWER_NAME[t]).join(", ")}!`);
+    const anyHit = cells.some((s) => s.hit);
+    if (res.newSunk > 0) addLog(`Bạn ĐÁNH CHÌM ${res.newSunk} thuyền! Bắn tiếp!`);
+    else addLog(anyHit ? `${label} — TRÚNG! Bắn tiếp!` : `${label} — trượt.`);
+    if (res.mineHit) { addLog("Bạn bắn trúng MÌN của địch — bạn mất lượt kế tiếp!"); return; }
+    if (anyHit && !res.win) setMyTurn(true);
+  }
+
   function fire(r, c) {
     if (vsBot) { if (myTurn) fireLocal(r, c); return; }
-    if (myShots.has(key(r, c))) return;
-    socket.emit("fire", { r, c }, (res) => {
-      if (!res.ok) return;
-      setMyShots((m) => new Map(m).set(key(r, c), res.hit));
-      setFlashEnemy(key(r, c));
-      if (res.sunk) {
-        setSunkOpp(res.sunkCount);
-        if (res.sunkCells) setSunkEnemyCells((s) => { const n = new Set(s); res.sunkCells.forEach((k) => n.add(k)); return n; });
-        addLog(`Bạn bắn ${ROWS[r]}${c+1} — ĐÁNH CHÌM 1 thuyền (${res.sunkSize} ô)! Bắn tiếp!`);
+    if (!myTurn) return;
+    if (aim === "mine") { placeMine(r, c); return; }
+    const power = aim; // null | "cluster" | "cross"
+    if (!power && myShots.has(key(r, c))) return;
+    socket.emit("fire", { r, c, power }, (res) => {
+      if (!res.ok) { if (res.error) addLog(res.error); return; }
+      setAim(null);
+      const label = power ? `Power-up ${POWER_NAME[power]}` : `Bạn bắn ${ROWS[r]}${c + 1}`;
+      applyShotResult(res, label);
+    });
+  }
+  function placeMine(r, c) {
+    socket.emit("useAbility", { type: "mine", r, c }, (res) => {
+      if (!res.ok) { if (res.error) addLog(res.error); return; }
+      setMyMines((s) => new Set(s).add(key(res.r, res.c)));
+      setAim(null);
+      addLog(`Đã đặt mìn tại ${ROWS[res.r]}${res.c + 1}. Địch bắn trúng sẽ mất lượt!`);
+    });
+  }
+  // dùng power-up trong kho
+  function activatePower(type) {
+    if (!myTurn || (inv[type] || 0) <= 0) return;
+    if (type === "cluster" || type === "cross" || type === "mine") { setAim((a) => (a === type ? null : type)); return; }
+    socket.emit("useAbility", { type }, (res) => {
+      if (!res.ok) { if (res.error) addLog(res.error); return; }
+      if (res.type === "double") addLog("Kích hoạt Bắn lại — phát trượt kế tiếp vẫn giữ lượt!");
+      else if (res.type === "reveal") {
+        setRevealedEnemy((s) => new Set(s).add(key(res.r, res.c)));
+        addLog(`Lộ 1 ô thuyền địch tại ${ROWS[res.r]}${res.c + 1}!`);
       }
-      else addLog(res.hit ? `Bạn bắn ${ROWS[r]}${c+1} — TRÚNG! Bắn tiếp!` : `Bạn bắn ${ROWS[r]}${c+1} — trượt.`);
-      if (res.hit && !res.win) setMyTurn(true);
+      else if (res.type === "barrage") {
+        setAim(null);
+        applyShotResult(res, "Pháo kích 3 phát");
+      }
     });
   }
   function resetToLobby() {
@@ -752,6 +857,8 @@ function App() {
     setSunkOpp(0); setSunkMine(0); setVsBot(false);
     setSunkEnemyCells(new Set()); setSunkMyCells(new Set());
     setMyScore(0); setOppScore(0);
+    setMode("classic"); setInv({ cluster: 0, cross: 0, double: 0, reveal: 0, barrage: 0, mine: 0 });
+    setPowerups(new Map()); setRevealedEnemy(new Set()); setAim(null); setMyMines(new Set());
     setScreen("lobby");
   }
   function leaveRoom() {
@@ -827,7 +934,7 @@ function App() {
               {myTurn ? "🎯 Lượt của bạn" : (vsBot ? "⏳ Lượt của máy" : "⏳ Lượt đối thủ")}
             </div>
           </div>
-          <Battle myTurn={myTurn} occ={occ} incoming={incoming} myShots={myShots} onFire={fire} log={log} sunkOpp={sunkOpp} sunkMine={sunkMine} sunkEnemyCells={sunkEnemyCells} sunkMyCells={sunkMyCells} myScore={myScore} oppScore={oppScore} oppLabel={vsBot ? "Máy" : "Đối thủ"} flashEnemy={flashEnemy} flashMine={flashMine} />
+          <Battle myTurn={myTurn} occ={occ} incoming={incoming} myShots={myShots} onFire={fire} log={log} sunkOpp={sunkOpp} sunkMine={sunkMine} sunkEnemyCells={sunkEnemyCells} sunkMyCells={sunkMyCells} myScore={myScore} oppScore={oppScore} oppLabel={vsBot ? "Máy" : "Đối thủ"} flashEnemy={flashEnemy} flashMine={flashMine} mode={vsBot ? "classic" : mode} inv={inv} powerups={powerups} revealedEnemy={revealedEnemy} aim={aim} onPower={activatePower} myMines={myMines} onPlaceMine={placeMine} />
         </div>
       )}
 

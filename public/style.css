@@ -190,6 +190,41 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
   100% { opacity:0; transform:scale(1); }
 }
 
+/* chọn chế độ khi tạo phòng */
+.mode-pick { display:flex; gap:10px; margin:6px 0 12px; }
+.mode-opt {
+  flex:1; display:flex; flex-direction:column; gap:2px; align-items:flex-start;
+  padding:10px 12px; border-radius:10px; cursor:pointer; text-align:left;
+  background:rgba(8,30,58,.6); border:1px solid rgba(120,190,255,.25); color:#cfe8ff;
+}
+.mode-opt b { font-size:15px; }
+.mode-opt span { font-size:11px; opacity:.7; }
+.mode-opt.on { border-color:var(--gold); box-shadow:0 0 14px rgba(240,193,75,.4); background:rgba(240,193,75,.12); }
+
+/* ô power-up trên biển địch */
+.cell.powerup { cursor:pointer; }
+.cell.powerup { font-size:17px; animation: pulsepow 1.4s ease-in-out infinite; }
+@keyframes pulsepow { 0%,100%{ box-shadow: inset 0 0 0 2px rgba(240,193,75,.6); } 50%{ box-shadow: inset 0 0 0 2px var(--gold), 0 0 14px rgba(240,193,75,.7); } }
+.cell.revealed::after { content:"\1F6A2"; font-size:15px; opacity:.55; filter: drop-shadow(0 0 4px rgba(255,90,110,.8)); }
+.cell.aim { box-shadow: inset 0 0 0 2px var(--gold), 0 0 12px rgba(240,193,75,.6) !important; }
+/* mìn nước trên hạm đội của mình */
+.cell.mine { font-size:16px; box-shadow: inset 0 0 0 2px rgba(255,140,60,.7); }
+.cell.selectable { cursor:pointer; box-shadow: inset 0 0 0 1px rgba(240,193,75,.45); }
+
+/* thanh power-up trong kho */
+.powerbar { display:flex; gap:6px; justify-content:center; margin:0 auto 10px; flex-wrap:wrap; max-width:520px; }
+.power-btn {
+  position:relative; display:flex; flex-direction:column; align-items:center; gap:1px;
+  padding:6px 10px; min-width:70px; border-radius:10px; cursor:pointer;
+  background:rgba(8,30,58,.7); border:1px solid rgba(120,190,255,.3); color:#cfe8ff;
+}
+.power-btn .pi { font-size:18px; }
+.power-btn .pn { font-size:10px; opacity:.85; }
+.power-btn .pc { position:absolute; top:-6px; right:-6px; background:var(--gold); color:#06203f; font-size:11px; font-weight:700; border-radius:10px; padding:0 6px; }
+.power-btn:disabled { opacity:.4; cursor:default; }
+.power-btn.aiming { border-color:var(--gold); box-shadow:0 0 14px rgba(240,193,75,.6); background:rgba(240,193,75,.15); }
+.aim-banner { background:rgba(240,193,75,.16); border:1px solid var(--gold); color:#ffe9b0; padding:8px 12px; border-radius:10px; font-size:13px; margin-bottom:10px; text-align:center; }
+
 /* bảng điểm 2 người trong room */
 .scoreboard {
   display:flex; align-items:center; justify-content:center; gap:14px;

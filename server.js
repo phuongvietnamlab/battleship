@@ -17,7 +17,7 @@ app.use(express.static(path.join(__dirname, "public")));
 const PORT = process.env.PORT || 4000;
 
 // Game config
-const BOARD = 10;
+const BOARD = 11;
 const FLEET = [5, 4, 3, 3, 2];
 const TOTAL_CELLS = FLEET.reduce((a, b) => a + b, 0); // 17
 const GRACE_MS = 60000; // keep a disconnected player's seat for 60s
@@ -104,6 +104,7 @@ function roomPublic(room) {
     started: room.started,
     playerCount: room.order.length,
     onlineCount: present.length,
+    mode: room.mode || "classic",
   };
 }
 
@@ -133,6 +134,62 @@ function emitScores(room) {
       opp: (oppId && room.scores[oppId]) || 0,
     });
   }
+}
+
+// ---------- Advance mode: power-ups ----------
+const POWERS = ["cluster", "cross", "double", "reveal", "barrage", "mine"];
+function newInv() { return { cluster: 0, cross: 0, double: 0, reveal: 0, barrage: 0, mine: 0 }; }
+function expandCells(power, r, c) {
+  if (power === "cluster") {
+    const r0 = Math.min(r, BOARD - 2), c0 = Math.min(c, BOARD - 2);
+    return [[r0, c0], [r0, c0 + 1], [r0 + 1, c0], [r0 + 1, c0 + 1]];
+  }
+  if (power === "cross") {
+    const out = [[r, c]];
+    [[r - 1, c], [r + 1, c], [r, c - 1], [r, c + 1]].forEach(([nr, nc]) => {
+      if (nr >= 0 && nr < BOARD && nc >= 0 && nc < BOARD) out.push([nr, nc]);
+    });
+    return out;
+  }
+  return [[r, c]];
+}
+// power-ups sitting on the board that `attackerId` shoots (their opponent's board)
+function powerupsForAttacker(room, attackerId) {
+  const defId = opponentOf(room, attackerId);
+  const map = room.powerups && room.powerups[defId];
+  if (!map) return [];
+  return Object.keys(map).map((k) => {
+    const [r, c] = k.split(",").map(Number);
+    return { r, c, type: map[k] };
+  });
+}
+function emitInv(room, clientId) {
+  const p = room.players[clientId];
+  emitToClient(room, clientId, "inventory", (p && p.inv) || newInv());
+}
+// maybe drop a new power-up on defenderId's board (visible to the attacker)
+function maybeSpawn(room, defenderId) {
+  if (room.mode !== "advance") return;
+  if (Math.random() > 0.27) return; // ~1 power-up mỗi 3-4 lượt
+  const defData = room.players[defenderId];
+  const attackerId = opponentOf(room, defenderId);
+  const attacker = attackerId && room.players[attackerId];
+  if (!defData || !attacker) return;
+  room.powerups = room.powerups || {};
+  room.powerups[defenderId] = room.powerups[defenderId] || {};
+  const taken = room.powerups[defenderId];
+  const free = [];
+  for (let r = 0; r < BOARD; r++) for (let c = 0; c < BOARD; c++) {
+    const k = r + "," + c;
+    if (defData.occ && defData.occ.has(k)) continue; // not on a ship
+    if (attacker.hits.has(k)) continue;              // not an already-shot cell
+    if (taken[k]) continue;
+    free.push(k);
+  }
+  if (!free.length) return;
+  const k = free[Math.floor(Math.random() * free.length)];
+  taken[k] = POWERS[Math.floor(Math.random() * POWERS.length)];
+  emitToClient(room, attackerId, "powerups", powerupsForAttacker(room, attackerId));
 }
 
 // Build a full state snapshot so a (re)connecting client can restore its screen.
@@ -173,6 +230,10 @@ function syncPayload(room, code, clientId) {
     sunkMyCells: me ? sunkCellsList(me, opp ? opp.hits : new Set()) : [],
     myScore: (room.scores && room.scores[clientId]) || 0,
     oppScore: (room.scores && oppId && room.scores[oppId]) || 0,
+    mode: room.mode || "classic",
+    inv: me && me.inv ? me.inv : newInv(),
+    powerups: powerupsForAttacker(room, clientId),
+    myMines: (room.mines && room.mines[clientId]) ? [...room.mines[clientId]] : [],
   };
 }
 
@@ -186,6 +247,65 @@ function checkWin(room, attackerId) {
   return count >= TOTAL_CELLS;
 }
 
+// Give the turn to `toId`, unless they owe a skipped turn (e.g. hit a mine), in which case it bounces back.
+function giveTurn(room, toId, otherId) {
+  const p = room.players[toId];
+  if (p && p.skipNext) { p.skipNext = false; room.turn = otherId; }
+  else room.turn = toId;
+}
+
+// Resolve a set of shots fired by clientId at their opponent. Handles power-up pickup,
+// mines, sunk/win detection, turn handover and all emits. Returns a summary for the caller's cb.
+function doShot(room, clientId, cells) {
+  const opp = opponentOf(room, clientId);
+  const oppData = room.players[opp];
+  const me = room.players[clientId];
+  me.inv = me.inv || newInv();
+  const before = sunkShipCount(oppData, me.hits);
+  room.powerups = room.powerups || {};
+  const pmap = room.powerups[opp] || {};
+  room.mines = room.mines || {};
+  const mineSet = room.mines[opp] || null;
+  const results = [], collected = [];
+  let anyHit = false, mineHit = false;
+  for (const [rr, cc] of cells) {
+    const k = rr + "," + cc;
+    const hit = oppData.occ.has(k);
+    if (me.hits.has(k)) { results.push({ r: rr, c: cc, hit }); continue; }
+    me.hits.add(k);
+    if (hit) anyHit = true;
+    if (pmap[k]) { collected.push(pmap[k]); me.inv[pmap[k]] = (me.inv[pmap[k]] || 0) + 1; delete pmap[k]; }
+    if (mineSet && mineSet.has(k)) { mineHit = true; mineSet.delete(k); }
+    results.push({ r: rr, c: cc, hit });
+  }
+  const sunkCount = sunkShipCount(oppData, me.hits);
+  const newSunk = sunkCount - before;
+  const sunkCells = sunkCellsList(oppData, me.hits);
+  const win = sunkCount >= FLEET.length;
+
+  if (collected.length) emitToClient(room, clientId, "powerups", powerupsForAttacker(room, clientId));
+  emitInv(room, clientId);
+  emitToClient(room, opp, "incoming", { cells: results, sunkCells, sunkMineCount: sunkCount, newSunk, mineHit });
+
+  if (win) {
+    room.scores = room.scores || {};
+    room.scores[clientId] = (room.scores[clientId] || 0) + 1;
+    emitScores(room);
+    emitToClient(room, clientId, "gameOver", { win: true });
+    emitToClient(room, opp, "gameOver", { win: false });
+    room.started = false;
+    return { ok: true, cells: results, collected, sunkCells, sunkCount, newSunk, win, anyHit, mineHit };
+  }
+  // turn: a hit keeps it; a clean miss can be saved by a bonus shot; a mine forces a loss + skip
+  let keep = anyHit;
+  if (!keep && (me.bonus || 0) > 0) { me.bonus--; keep = true; }
+  if (mineHit) { me.skipNext = true; keep = false; }
+  if (!keep) giveTurn(room, opp, clientId);
+  maybeSpawn(room, opp);
+  for (const id of room.order) emitToClient(room, id, "turnUpdate", { yourTurn: room.turn === id });
+  return { ok: true, cells: results, collected, sunkCells, sunkCount, newSunk, win, anyHit, mineHit };
+}
+
 io.on("connection", (socket) => {
   socket.data.code = null;
   socket.data.clientId = null;
@@ -194,9 +314,10 @@ io.on("connection", (socket) => {
     if (typeof arg === "function") { cb = arg; arg = {}; }
     const clientId = (arg && arg.clientId) || socket.id;
     const code = newCode();
-    rooms[code] = { players: {}, order: [], started: false, turn: null, scores: {}, lastStarter: null };
+    const mode = (arg && arg.mode) === "advance" ? "advance" : "classic";
+    rooms[code] = { players: {}, order: [], started: false, turn: null, scores: {}, lastStarter: null, mode, powerups: {} };
     rooms[code].players[clientId] = {
-      sid: socket.id, ready: false, occ: null, hits: new Set(), online: true, timer: null,
+      sid: socket.id, ready: false, occ: null, hits: new Set(), online: true, timer: null, inv: newInv(), bonus: 0,
     };
     rooms[code].order.push(clientId);
     socket.join(code);
@@ -231,7 +352,7 @@ io.on("connection", (socket) => {
     if (room.order.length >= 2) return cb && cb({ ok: false, error: "Phòng đã đủ người" });
     if (room.started) return cb && cb({ ok: false, error: "Ván đấu đã bắt đầu" });
     room.players[clientId] = {
-      sid: socket.id, ready: false, occ: null, hits: new Set(), online: true, timer: null,
+      sid: socket.id, ready: false, occ: null, hits: new Set(), online: true, timer: null, inv: newInv(), bonus: 0,
     };
     room.order.push(clientId);
     socket.join(code);
@@ -289,51 +410,94 @@ io.on("connection", (socket) => {
         room.turn = ids[Math.floor(Math.random() * 2)];
       }
       room.lastStarter = room.turn;
+      room.powerups = {}; room.mines = {};
+      for (const id of ids) { room.players[id].inv = newInv(); room.players[id].bonus = 0; room.players[id].skipNext = false; }
       for (const id of ids) {
-        emitToClient(room, id, "gameStart", { yourTurn: room.turn === id });
+        emitToClient(room, id, "gameStart", { yourTurn: room.turn === id, mode: room.mode || "classic" });
+        emitInv(room, id);
+        emitToClient(room, id, "powerups", []);
       }
     }
   });
 
-  socket.on("fire", ({ r, c }, cb) => {
+  socket.on("fire", ({ r, c, power }, cb) => {
     const code = socket.data.code;
     const clientId = socket.data.clientId;
     const room = rooms[code];
     if (!room || !room.started) return cb && cb({ ok: false });
     if (room.turn !== clientId) return cb && cb({ ok: false, error: "Chưa tới lượt bạn" });
-    const opp = opponentOf(room, clientId);
-    if (!opp) return cb && cb({ ok: false });
-    const oppData = room.players[opp];
     const me = room.players[clientId];
-    const key = r + "," + c;
-    if (me.hits.has(key)) return cb && cb({ ok: false, error: "Đã bắn ô này" });
-    me.hits.add(key);
-    const hit = oppData.occ.has(key);
+    me.inv = me.inv || newInv();
 
-    let sunkShip = null, sunkCount = 0, sunkSize = 0;
-    if (hit) {
-      const ship = shipSunkByHit(oppData, me.hits, key);
-      if (ship) { sunkShip = ship; sunkSize = ship.size; }
-      sunkCount = sunkShipCount(oppData, me.hits);
+    // aimed power-up shots consume inventory; classic mode ignores power entirely
+    if (room.mode === "advance" && (power === "cluster" || power === "cross")) {
+      if ((me.inv[power] || 0) <= 0) return cb && cb({ ok: false, error: "Không có power-up" });
+      me.inv[power]--;
+    } else {
+      power = null;
     }
-    const win = sunkCount >= FLEET.length;
-    const sunkCells = sunkShip ? [...sunkShip] : null;
-    cb && cb({ ok: true, r, c, hit, win, sunk: !!sunkShip, sunkSize, sunkCount, sunkCells });
-    emitToClient(room, opp, "incoming", { r, c, hit, sunk: !!sunkShip, sunkSize, sunkCells });
+    const summary = doShot(room, clientId, expandCells(power, r, c));
+    cb && cb(summary);
+  });
 
-    if (win) {
-      room.scores = room.scores || {};
-      room.scores[clientId] = (room.scores[clientId] || 0) + 1;
-      emitScores(room);
-      emitToClient(room, clientId, "gameOver", { win: true });
-      emitToClient(room, opp, "gameOver", { win: false });
-      room.started = false;
-      return;
+  // Advance abilities that aren't an aimed shot
+  socket.on("useAbility", ({ type, r, c }, cb) => {
+    const code = socket.data.code;
+    const clientId = socket.data.clientId;
+    const room = rooms[code];
+    if (!room || !room.started) return cb && cb({ ok: false });
+    if (room.turn !== clientId) return cb && cb({ ok: false, error: "Chưa tới lượt bạn" });
+    const me = room.players[clientId];
+    me.inv = me.inv || newInv();
+    if ((me.inv[type] || 0) <= 0) return cb && cb({ ok: false, error: "Không có power-up" });
+
+    if (type === "double") {
+      me.inv.double--; me.bonus = (me.bonus || 0) + 1;
+      emitInv(room, clientId);
+      return cb && cb({ ok: true, type: "double" });
     }
-    if (!hit) room.turn = opp;
-    for (const id of room.order) {
-      emitToClient(room, id, "turnUpdate", { yourTurn: room.turn === id });
+    if (type === "reveal") {
+      const opp = opponentOf(room, clientId);
+      const oppData = opp && room.players[opp];
+      const cand = [];
+      if (oppData && oppData.occ) for (const k of oppData.occ) if (!me.hits.has(k)) cand.push(k);
+      if (!cand.length) return cb && cb({ ok: false, error: "Không còn ô để lộ" });
+      me.inv.reveal--;
+      const k = cand[Math.floor(Math.random() * cand.length)];
+      const [rr, cc] = k.split(",").map(Number);
+      emitInv(room, clientId);
+      return cb && cb({ ok: true, type: "reveal", r: rr, c: cc });
     }
+    if (type === "mine") {
+      // đặt mìn lên ô trống của chính mình
+      const k = r + "," + c;
+      const opp = opponentOf(room, clientId);
+      const oppHits = opp && room.players[opp] ? room.players[opp].hits : new Set();
+      if (me.occ && me.occ.has(k)) return cb && cb({ ok: false, error: "Không đặt mìn lên thuyền" });
+      if (oppHits.has(k)) return cb && cb({ ok: false, error: "Ô này đã bị bắn" });
+      room.mines = room.mines || {};
+      room.mines[clientId] = room.mines[clientId] || new Set();
+      if (room.mines[clientId].has(k)) return cb && cb({ ok: false, error: "Đã có mìn ở đây" });
+      me.inv.mine--;
+      room.mines[clientId].add(k);
+      emitInv(room, clientId);
+      return cb && cb({ ok: true, type: "mine", r, c });
+    }
+    if (type === "barrage") {
+      const cand = [];
+      for (let rr = 0; rr < BOARD; rr++) for (let cc = 0; cc < BOARD; cc++) {
+        const k = rr + "," + cc;
+        if (!me.hits.has(k)) cand.push([rr, cc]);
+      }
+      if (!cand.length) return cb && cb({ ok: false, error: "Hết ô để bắn" });
+      me.inv.barrage--;
+      const pick = [];
+      for (let i = 0; i < 3 && cand.length; i++) pick.push(cand.splice(Math.floor(Math.random() * cand.length), 1)[0]);
+      emitInv(room, clientId);
+      const summary = doShot(room, clientId, pick);
+      return cb && cb(Object.assign({ type: "barrage" }, summary));
+    }
+    cb && cb({ ok: false });
   });
 
   socket.on("rematch", () => {
@@ -344,7 +508,11 @@ io.on("connection", (socket) => {
       room.players[id].ready = false;
       room.players[id].occ = null;
       room.players[id].hits = new Set();
+      room.players[id].inv = newInv();
+      room.players[id].bonus = 0;
+      room.players[id].skipNext = false;
     }
+    room.powerups = {}; room.mines = {};
     room.started = false;
     room.turn = null;
     io.to(code).emit("rematchStart");
