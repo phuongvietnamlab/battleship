@@ -84,14 +84,16 @@ function inBounds(cells) {
 }
 
 // ---------- Lobby ----------
-function Lobby({ onCreate, onJoin, error }) {
+function Lobby({ onCreate, onJoin, onBot, error }) {
   const [code, setCode] = useState("");
   return (
     <div className="lobby">
       <h2>Trận hải chiến</h2>
-      <p className="sub">Tạo phòng rồi gửi mã cho bạn bè, hoặc nhập mã để vào phòng.</p>
+      <p className="sub">Chơi với máy, hoặc tạo phòng rồi gửi mã cho bạn bè.</p>
       {error && <div className="error">{error}</div>}
-      <button className="btn primary" onClick={onCreate}>⚓ Tạo phòng mới</button>
+      <button className="btn primary" onClick={onBot}>🤖 Chơi với máy</button>
+      <div style={{ height: 10 }} />
+      <button className="btn steel" onClick={onCreate}>⚓ Tạo phòng mới</button>
       <div className="divider">HOẶC</div>
       <div className="field">
         <label>Nhập mã phòng</label>
@@ -155,7 +157,10 @@ function Placement({ onConfirm, ready, waiting }) {
   const [dir, setDir] = useState("h");      // orientation for ships dragged from the dock
   const [drag, setDrag] = useState(null);    // {id, dir, offset, dx, dy, sz, fromBoard}
   const [pos, setPos] = useState({ x: 0, y: 0 });
+  const [sel, setSel] = useState(null);      // tap-to-place: {id, fromBoard}
   const gridRef = useRef(null);
+  const movedRef = useRef(false);
+  const startRef = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
     function onKey(e) { if (e.key === "r" || e.key === "R") setDir((d) => (d === "h" ? "v" : "h")); }
@@ -198,6 +203,8 @@ function Placement({ onConfirm, ready, waiting }) {
     const dy = e.clientY - rect.top;
     const along = useDir === "h" ? dx : dy;
     const offset = Math.min(sz - 1, Math.max(0, Math.floor(along / PITCH)));
+    movedRef.current = false;
+    startRef.current = { x: e.clientX, y: e.clientY };
     setDrag({ id, dir: useDir, offset, dx, dy, sz, fromBoard });
     setPos({ x: e.clientX, y: e.clientY });
   }
@@ -207,13 +214,24 @@ function Placement({ onConfirm, ready, waiting }) {
     if (!drag) return;
     function move(e) {
       if (e.cancelable) e.preventDefault();
+      const dxm = e.clientX - startRef.current.x, dym = e.clientY - startRef.current.y;
+      if (Math.abs(dxm) > 8 || Math.abs(dym) > 8) movedRef.current = true;
       setPos({ x: e.clientX, y: e.clientY });
     }
     function up(e) {
-      const { r, c } = anchorFromPoint(e.clientX, e.clientY, drag);
-      const cells = cellsFor(r, c, drag.sz, drag.dir);
-      if (validAt(cells, drag.id)) {
-        setPlaced((p) => ({ ...p, [drag.id]: { r, c, dir: drag.dir } }));
+      const d = drag;
+      // a tap (barely moved): switch to tap-to-place / rotate instead of drop
+      if (!movedRef.current) {
+        if (d.fromBoard) rotatePlaced(d.id);
+        else setSel({ id: d.id, fromBoard: false });
+        setDrag(null);
+        return;
+      }
+      const { r, c } = anchorFromPoint(e.clientX, e.clientY, d);
+      const cells = cellsFor(r, c, d.sz, d.dir);
+      if (validAt(cells, d.id)) {
+        setPlaced((p) => ({ ...p, [d.id]: { r, c, dir: d.dir } }));
+        setSel(null);
       }
       setDrag(null);
     }
@@ -232,7 +250,19 @@ function Placement({ onConfirm, ready, waiting }) {
     const cells = cellsFor(p.r, p.c, sizeOf(id), nd);
     if (validAt(cells, id)) setPlaced((pl) => ({ ...pl, [id]: { ...p, dir: nd } }));
   }
-  function removeShip(id) { setPlaced((p) => { const n = { ...p }; delete n[id]; return n; }); }
+  function removeShip(id) { setPlaced((p) => { const n = { ...p }; delete n[id]; return n; }); if (sel && sel.id === id) setSel(null); }
+
+  // tap-to-place: clicked cell becomes the top-left anchor of the selected ship
+  function placeSelectedAt(r, c) {
+    if (!sel) return;
+    const sz = sizeOf(sel.id);
+    const useDir = sel.fromBoard ? placed[sel.id].dir : dir;
+    const cells = cellsFor(r, c, sz, useDir);
+    if (validAt(cells, sel.id)) {
+      setPlaced((p) => ({ ...p, [sel.id]: { r, c, dir: useDir } }));
+      setSel(null);
+    }
+  }
 
   function randomize() {
     const np = {}, taken = new Set();
@@ -277,7 +307,12 @@ function Placement({ onConfirm, ready, waiting }) {
     let cls = "cell";
     if (hoverKeys.has(k)) cls += " preview-ok";
     if (hoverBad.has(k)) cls += " preview-bad";
-    gridCells.push(<div key={k} className={cls} />);
+    if (sel) cls += " selectable";
+    gridCells.push(
+      <div key={k} className={cls}
+        onClick={() => placeSelectedAt(r, c)}
+        onMouseEnter={() => {}} />
+    );
   }
 
   function ghostBox(d) {
@@ -321,7 +356,14 @@ function Placement({ onConfirm, ready, waiting }) {
 
       <div className="place-panel">
         <h3>Bố trí hạm đội</h3>
-        <p className="hint">Chạm giữ &amp; kéo tàu từ kho thả vào lưới ở <b>bất kỳ vị trí</b> nào. Kéo lại để dời, chạm <b>2 lần</b> (hoặc nút Xoay) để đổi ngang/dọc.</p>
+        <p className="hint">2 cách: <b>kéo-thả</b> tàu vào lưới, hoặc <b>chạm 1 tàu</b> trong kho rồi <b>chạm ô</b> trên lưới để đặt (ô bạn chạm là đầu tàu). Chạm tàu đã đặt để xoay.</p>
+
+        {sel && (
+          <div className="sel-banner">
+            Đã chọn: <b>{FLEET_DEF.find((f) => f.id === sel.id).name}</b> — chạm vào lưới để đặt.
+            <button className="btn ghost" style={{ width: "auto", padding: "3px 8px", fontSize: 11, marginLeft: 8 }} onClick={() => setSel(null)}>Hủy</button>
+          </div>
+        )}
 
         <div className="controls" style={{ marginBottom: 14 }}>
           <button className="btn steel" onClick={() => setDir(dir === "h" ? "v" : "h")}>⟳ Hướng kho: {dir === "h" ? "Ngang" : "Dọc"}</button>
@@ -341,7 +383,7 @@ function Placement({ onConfirm, ready, waiting }) {
                   <button className="btn ghost" style={{ width: "auto", padding: "5px 10px", fontSize: 11 }}
                     onClick={() => removeShip(f.id)}>↩ Gỡ về kho</button>
                 ) : (
-                  <div className={"dock-ship " + dir} onPointerDown={(e) => startDrag(e, f.id, false)}
+                  <div className={"dock-ship " + dir + (sel && sel.id === f.id ? " sel" : "")} onPointerDown={(e) => startDrag(e, f.id, false)}
                     style={Object.assign(
                       dir === "h"
                         ? { width: f.size * PITCH - GAP, height: CELL }
@@ -380,32 +422,39 @@ function Placement({ onConfirm, ready, waiting }) {
 }
 
 // ---------- Battle screen ----------
-const TOTAL_HITS = FLEET_DEF.reduce((a, f) => a + f.size, 0); // 17
+const TOTAL_SHIPS = FLEET_DEF.length; // 5
 function Counter({ label, value, cls }) {
-  const pct = Math.round((value / TOTAL_HITS) * 100);
+  const pct = Math.round((value / TOTAL_SHIPS) * 100);
   return (
     <div className="counter">
-      <span>{label} {value}/{TOTAL_HITS}</span>
+      <span>{label} {value}/{TOTAL_SHIPS} thuyền</span>
       <div className="bar"><div className={"fill " + cls} style={{ width: pct + "%" }} /></div>
     </div>
   );
 }
-function Battle({ myTurn, occ, incoming, myShots, onFire, log }) {
-  let myHitCount = 0; myShots.forEach((h) => h && myHitCount++);
-  let enemyHitCount = 0; incoming.forEach((h) => h && enemyHitCount++);
+function Battle({ myTurn, occ, incoming, myShots, onFire, log, sunkOpp, sunkMine }) {
+  const [tab, setTab] = useState("enemy"); // enemy | own (mobile)
   return (
     <div>
-      <div className="boards">
-        <div className="board-wrap">
+      <div className="battle-tabs">
+        <button className={"tab-btn" + (tab === "enemy" ? " active" : "")} onClick={() => setTab("enemy")}>
+          🎯 Biển địch {myTurn ? "· BẮN!" : ""}
+        </button>
+        <button className={"tab-btn" + (tab === "own" ? " active" : "")} onClick={() => setTab("own")}>
+          ⚓ Hạm đội bạn
+        </button>
+      </div>
+      <div className={"boards tab-" + tab}>
+        <div className="board-wrap wrap-enemy">
           <div className="board-title enemy">Vùng biển địch {myTurn ? "— BẮN!" : ""}</div>
           <Grid enemy hits={myShots} shootable={myTurn}
             onCellClick={(r, c) => myTurn && onFire(r, c)} />
-          <Counter label="Đã đánh chìm" value={myHitCount} cls="enemy" />
+          <Counter label="Đã đánh chìm" value={sunkOpp} cls="enemy" />
         </div>
-        <div className="board-wrap">
+        <div className="board-wrap wrap-own">
           <div className="board-title own">Hạm đội của bạn</div>
           <Grid occ={occ} incoming={incoming} />
-          <Counter label="Bị bắn trúng" value={enemyHitCount} cls="own" />
+          <Counter label="Thuyền bị chìm" value={sunkMine} cls="own" />
         </div>
       </div>
       <div className="log">
@@ -431,6 +480,14 @@ function App() {
   const [log, setLog] = useState([]);
   const [over, setOver] = useState(null); // {win}
   const [copied, setCopied] = useState(false);
+  const [sunkOpp, setSunkOpp] = useState(0);   // địch bị ta đánh chìm
+  const [sunkMine, setSunkMine] = useState(0); // thuyền của ta bị chìm
+  const [vsBot, setVsBot] = useState(false);   // chế độ chơi với máy
+  const botData = useRef(null);                // {occ:Set, ships:[Set]}
+  const myShipsRef = useRef([]);               // [Set] thuyền của ta (để máy dò chìm)
+  const botShotsRef = useRef(new Set());       // ô máy đã bắn
+  const botQueueRef = useRef([]);              // hàng đợi ô mục tiêu của máy
+  const myShotsRef = useRef(new Set());         // ô ta đã bắn (đồng bộ tức thời cho bot)
 
   const addLog = useCallback((s) => setLog((l) => [s, ...l].slice(0, 40)), []);
 
@@ -456,6 +513,7 @@ function App() {
       setMyShots(ms);
       const inc = new Map(); (st.incoming || []).forEach((s) => inc.set(key(s.r, s.c), s.hit));
       setIncoming(inc);
+      setSunkOpp(st.sunkOpp || 0); setSunkMine(st.sunkMine || 0);
       if (st.started) { setMyTurn(st.yourTurn); setScreen("battle"); }
       else if (st.youReady) { setIReady(true); setScreen("placement"); }
       else { setScreen(st.oppPresent ? "placement" : "room"); }
@@ -472,15 +530,17 @@ function App() {
       addLog(yourTurn ? "Bạn đi trước. Khai hỏa!" : "Đối thủ đi trước.");
     });
     socket.on("turnUpdate", ({ yourTurn }) => setMyTurn(yourTurn));
-    socket.on("incoming", ({ r, c, hit }) => {
+    socket.on("incoming", ({ r, c, hit, sunk, sunkSize }) => {
       setIncoming((m) => new Map(m).set(key(r, c), hit));
-      addLog(hit ? `Địch bắn ${ROWS[r]}${c+1} — TRÚNG tàu bạn!` : `Địch bắn ${ROWS[r]}${c+1} — trượt.`);
+      if (sunk) { setSunkMine((n) => n + 1); addLog(`Địch bắn ${ROWS[r]}${c+1} — ĐÁNH CHÌM thuyền ${sunkSize} ô của bạn!`); }
+      else addLog(hit ? `Địch bắn ${ROWS[r]}${c+1} — TRÚNG tàu bạn!` : `Địch bắn ${ROWS[r]}${c+1} — trượt.`);
     });
     socket.on("gameOver", ({ win }) => setOver({ win }));
     socket.on("opponentLeft", () => { addLog("Đối thủ đã rời đi."); setError("Đối thủ đã rời phòng."); });
     socket.on("rematchStart", () => {
       setScreen("placement"); setIReady(false); setOppReady(false); setMyTurn(false);
       setOcc(new Set()); setIncoming(new Map()); setMyShots(new Map()); setOver(null); setLog([]);
+      setSunkOpp(0); setSunkMine(0);
     });
     // if already connected when listeners attach, attempt rejoin now
     if (socket.connected) {
@@ -504,6 +564,23 @@ function App() {
     });
   }
   function confirmPlacement(ships) {
+    if (vsBot) {
+      const s = new Set();
+      myShipsRef.current = ships.map((sh) => {
+        const set = new Set();
+        sh.cells.forEach((x) => { const k = key(x.r, x.c); s.add(k); set.add(k); });
+        return set;
+      });
+      setOcc(s);
+      setIReady(true);
+      botData.current = genFleet();
+      const youFirst = Math.random() < 0.5;
+      setScreen("battle");
+      addLog(youFirst ? "Bạn đi trước. Khai hỏa!" : "Máy đi trước.");
+      if (youFirst) setMyTurn(true);
+      else { setMyTurn(false); setTimeout(botShoot, 700); }
+      return;
+    }
     socket.emit("placeShips", ships, (res) => {
       if (res.ok) {
         setIReady(true);
@@ -514,12 +591,111 @@ function App() {
       } else setError(res.error);
     });
   }
+  // ----- chế độ chơi với máy (toàn bộ ở client) -----
+  function genFleet() {
+    const occ = new Set(), ships = [];
+    for (const f of FLEET_DEF) {
+      let ok = false, t = 0;
+      while (!ok && t++ < 800) {
+        const d = Math.random() < 0.5 ? "h" : "v";
+        const r = Math.floor(Math.random() * BOARD), c = Math.floor(Math.random() * BOARD);
+        const cells = cellsFor(r, c, f.size, d);
+        if (inBounds(cells) && cells.every((x) => !occ.has(key(x.r, x.c)))) {
+          const set = new Set(); cells.forEach((x) => { const k = key(x.r, x.c); occ.add(k); set.add(k); });
+          ships.push(set); ok = true;
+        }
+      }
+    }
+    return { occ, ships };
+  }
+  function startBot() {
+    setError(null); setVsBot(true); saveRoom(null); setCode(null);
+    setOppPresent(true); setOppReady(false); setIReady(false); setMyTurn(false);
+    setOcc(new Set()); setIncoming(new Map()); setMyShots(new Map());
+    setLog([]); setOver(null); setSunkOpp(0); setSunkMine(0);
+    botData.current = null; myShipsRef.current = []; botShotsRef.current = new Set();
+    botQueueRef.current = []; myShotsRef.current = new Set();
+    setScreen("placement");
+  }
+  function rematchAction() {
+    if (vsBot) { startBot(); return; }
+    socket.emit("rematch");
+  }
+  function botPick() {
+    while (botQueueRef.current.length) {
+      const k = botQueueRef.current.pop();
+      if (!botShotsRef.current.has(k)) return k;
+    }
+    const parity = [], any = [];
+    for (let r = 0; r < BOARD; r++) for (let c = 0; c < BOARD; c++) {
+      const k = key(r, c);
+      if (botShotsRef.current.has(k)) continue;
+      any.push(k); if ((r + c) % 2 === 0) parity.push(k);
+    }
+    const pool = parity.length ? parity : any;
+    return pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
+  }
+  function botShoot() {
+    const k = botPick();
+    if (k == null) return;
+    botShotsRef.current.add(k);
+    const [r, c] = k.split(",").map(Number);
+    const hit = myShipsRef.current.some((ship) => ship.has(k));
+    setIncoming((m) => new Map(m).set(k, hit));
+    if (hit) {
+      [[r-1,c],[r+1,c],[r,c-1],[r,c+1]].forEach(([nr, nc]) => {
+        if (nr >= 0 && nr < BOARD && nc >= 0 && nc < BOARD) {
+          const nk = key(nr, nc); if (!botShotsRef.current.has(nk)) botQueueRef.current.push(nk);
+        }
+      });
+      let sunk = null;
+      for (const ship of myShipsRef.current) {
+        if (!ship.has(k)) continue;
+        if ([...ship].every((kk) => botShotsRef.current.has(kk))) { sunk = ship; break; }
+      }
+      if (sunk) { setSunkMine((n) => n + 1); addLog(`Máy ĐÁNH CHÌM thuyền ${sunk.size} ô của bạn!`); }
+      else addLog(`Máy bắn ${ROWS[r]}${c+1} — TRÚNG tàu bạn!`);
+    } else {
+      addLog(`Máy bắn ${ROWS[r]}${c+1} — trượt.`);
+    }
+    const allMineSunk = myShipsRef.current.every((ship) => [...ship].every((kk) => botShotsRef.current.has(kk)));
+    if (allMineSunk) { setOver({ win: false }); return; }
+    if (hit) setTimeout(botShoot, 600);   // trúng -> máy bắn tiếp
+    else setMyTurn(true);                  // trượt -> tới lượt bạn
+  }
+  function fireLocal(r, c) {
+    const k = key(r, c);
+    if (myShotsRef.current.has(k)) return;
+    myShotsRef.current.add(k);
+    const hit = botData.current.occ.has(k);
+    setMyShots((m) => new Map(m).set(k, hit));
+    if (hit) {
+      let sunk = null;
+      for (const ship of botData.current.ships) {
+        if (!ship.has(k)) continue;
+        if ([...ship].every((kk) => myShotsRef.current.has(kk))) { sunk = ship; break; }
+      }
+      const cnt = botData.current.ships.filter((ship) => [...ship].every((kk) => myShotsRef.current.has(kk))).length;
+      setSunkOpp(cnt);
+      if (sunk) addLog(`Bạn ĐÁNH CHÌM 1 thuyền (${sunk.size} ô)! Bắn tiếp!`);
+      else addLog(`Bạn bắn ${ROWS[r]}${c+1} — TRÚNG! Bắn tiếp!`);
+      if (cnt >= FLEET_DEF.length) { setOver({ win: true }); return; }
+      // trúng -> giữ lượt
+    } else {
+      addLog(`Bạn bắn ${ROWS[r]}${c+1} — trượt.`);
+      setMyTurn(false);
+      setTimeout(botShoot, 600);
+    }
+  }
+
   function fire(r, c) {
+    if (vsBot) { if (myTurn) fireLocal(r, c); return; }
     if (myShots.has(key(r, c))) return;
     socket.emit("fire", { r, c }, (res) => {
       if (!res.ok) return;
       setMyShots((m) => new Map(m).set(key(r, c), res.hit));
-      addLog(res.hit ? `Bạn bắn ${ROWS[r]}${c+1} — TRÚNG!` : `Bạn bắn ${ROWS[r]}${c+1} — trượt.`);
+      if (res.sunk) { setSunkOpp(res.sunkCount); addLog(`Bạn bắn ${ROWS[r]}${c+1} — ĐÁNH CHÌM 1 thuyền (${res.sunkSize} ô)! Bắn tiếp!`); }
+      else addLog(res.hit ? `Bạn bắn ${ROWS[r]}${c+1} — TRÚNG! Bắn tiếp!` : `Bạn bắn ${ROWS[r]}${c+1} — trượt.`);
       if (res.hit && !res.win) setMyTurn(true);
     });
   }
@@ -528,11 +704,12 @@ function App() {
     setCode(null); setError(null); setOppPresent(false); setOppReady(false);
     setIReady(false); setMyTurn(false); setOcc(new Set());
     setIncoming(new Map()); setMyShots(new Map()); setLog([]); setOver(null);
+    setSunkOpp(0); setSunkMine(0); setVsBot(false);
     setScreen("lobby");
   }
   function leaveRoom() {
     if (!window.confirm("Rời phòng và thoát ván đấu?")) return;
-    socket.emit("leaveRoom", () => {});
+    if (!vsBot) socket.emit("leaveRoom", () => {});
     resetToLobby();
   }
   function copyCode() {
@@ -548,15 +725,15 @@ function App() {
           <div className="badge">⚓</div>
           <div><h1>BATTLESHIP</h1><small>Online · Hải chiến</small></div>
         </div>
-        {code && screen !== "lobby" && (
+        {screen !== "lobby" && (code || vsBot) && (
           <div style={{display:"flex",alignItems:"center",gap:10}}>
-            <div className="status-pill pill-wait">Phòng: <b style={{letterSpacing:3}}>{code}</b></div>
-            <button className="btn ghost" style={{width:"auto",padding:"6px 12px",fontSize:12}} onClick={leaveRoom}>Rời phòng</button>
+            <div className="status-pill pill-wait">{vsBot ? <b>🤖 Với máy</b> : <span>Phòng: <b style={{letterSpacing:3}}>{code}</b></span>}</div>
+            <button className="btn ghost" style={{width:"auto",padding:"6px 12px",fontSize:12}} onClick={leaveRoom}>{vsBot ? "Thoát" : "Rời phòng"}</button>
           </div>
         )}
       </div>
 
-      {screen === "lobby" && <Lobby onCreate={createRoom} onJoin={joinRoom} error={error} />}
+      {screen === "lobby" && <Lobby onCreate={createRoom} onJoin={joinRoom} onBot={startBot} error={error} />}
 
       {screen === "room" && (
         <div className="lobby">
@@ -579,12 +756,16 @@ function App() {
         <div>
           {error && <div className="error">{error}</div>}
           <div className="room-banner">
-            <div className="room-code-box">
-              <span>Mã phòng:</span><div className="code" style={{fontSize:24}}>{code}</div>
-              <button className="btn steel copy-btn" onClick={copyCode}>{copied ? "✓" : "Chép"}</button>
-            </div>
-            <div className={"status-pill " + (oppReady ? "pill-ready" : "pill-wait")}>
-              {oppPresent ? (oppReady ? "Đối thủ đã sẵn sàng" : "Đối thủ đang bố trí...") : "Chờ đối thủ vào..."}
+            {vsBot ? (
+              <div className="room-code-box"><span>🤖 Chế độ</span><div className="code" style={{fontSize:20}}>CHƠI VỚI MÁY</div></div>
+            ) : (
+              <div className="room-code-box">
+                <span>Mã phòng:</span><div className="code" style={{fontSize:24}}>{code}</div>
+                <button className="btn steel copy-btn" onClick={copyCode}>{copied ? "✓" : "Chép"}</button>
+              </div>
+            )}
+            <div className={"status-pill " + (vsBot ? "pill-ready" : (oppReady ? "pill-ready" : "pill-wait"))}>
+              {vsBot ? "Máy đã sẵn sàng" : (oppPresent ? (oppReady ? "Đối thủ đã sẵn sàng" : "Đối thủ đang bố trí...") : "Chờ đối thủ vào...")}
             </div>
           </div>
           <Placement onConfirm={confirmPlacement} ready={iReady} waiting={iReady && !oppReady} />
@@ -594,12 +775,12 @@ function App() {
       {screen === "battle" && (
         <div>
           <div className="room-banner">
-            <div className="room-code-box"><span>Mã phòng:</span><div className="code" style={{fontSize:22}}>{code}</div></div>
+            <div className="room-code-box"><span>{vsBot ? "🤖 Chế độ" : "Mã phòng:"}</span><div className="code" style={{fontSize:vsBot?18:22}}>{vsBot ? "VỚI MÁY" : code}</div></div>
             <div className={"status-pill " + (myTurn ? "pill-turn" : "pill-enemy")}>
-              {myTurn ? "🎯 Lượt của bạn" : "⏳ Lượt đối thủ"}
+              {myTurn ? "🎯 Lượt của bạn" : (vsBot ? "⏳ Lượt của máy" : "⏳ Lượt đối thủ")}
             </div>
           </div>
-          <Battle myTurn={myTurn} occ={occ} incoming={incoming} myShots={myShots} onFire={fire} log={log} />
+          <Battle myTurn={myTurn} occ={occ} incoming={incoming} myShots={myShots} onFire={fire} log={log} sunkOpp={sunkOpp} sunkMine={sunkMine} />
         </div>
       )}
 
@@ -608,7 +789,7 @@ function App() {
           <div className={"modal " + (over.win ? "win" : "lose")}>
             <h2>{over.win ? "CHIẾN THẮNG!" : "THẤT BẠI"}</h2>
             <p>{over.win ? "Bạn đã đánh chìm toàn bộ hạm đội địch." : "Toàn bộ hạm đội của bạn đã bị đánh chìm."}</p>
-            <button className="btn primary" onClick={() => socket.emit("rematch")}>Chơi lại</button>
+            <button className="btn primary" onClick={rematchAction}>Chơi lại</button>
           </div>
         </div>
       )}

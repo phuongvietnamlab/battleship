@@ -245,8 +245,23 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 
 .footer-note { text-align:center; color:#5878a0; font-size:12px; margin-top:32px; }
 
+/* tap-to-place helpers */
+.sel-banner{ background:rgba(86,180,255,.16); border:1px solid rgba(86,180,255,.5); color:#cfe8ff; padding:8px 12px; border-radius:10px; font-size:13px; margin-bottom:12px; }
+.dock-ship.sel{ outline:3px solid #56b4ff; outline-offset:2px; border-radius:6px; box-shadow:0 0 14px rgba(86,180,255,.6); }
+.cell.selectable{ cursor:pointer; }
+
+/* battle board tabs — hidden on desktop (both boards shown side by side) */
+.battle-tabs{ display:none; gap:8px; margin:0 auto 14px; max-width:420px; }
+.tab-btn{ flex:1; padding:11px 8px; border-radius:10px; border:1px solid rgba(120,160,200,.35);
+  background:rgba(12,28,46,.6); color:#9fc0e0; font-family:"Oswald"; letter-spacing:1px; font-size:13px; cursor:pointer; }
+.tab-btn.active{ background:linear-gradient(180deg,#1b4a78,#0f3257); color:#fff; border-color:#56b4ff; box-shadow:0 0 12px rgba(86,180,255,.4); }
+
 @media (max-width:560px){
   /* keep cell pitch fixed (drag math depends on it); just tighten layout */
   .boards{gap:20px;}
   .place-panel{width:100%;}
+  /* show tab switcher; display only the active board to avoid scrolling */
+  .battle-tabs{ display:flex; }
+  .boards.tab-enemy .wrap-own{ display:none; }
+  .boards.tab-own .wrap-enemy{ display:none; }
 }

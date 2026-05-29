@@ -50,6 +50,7 @@ function validatePlacement(ships) {
   for (let i = 0; i < need.length; i++) if (sizes[i] !== need[i]) return null;
 
   const occ = new Set();
+  const shipSets = [];
   for (const s of ships) {
     if (!s.cells || !s.cells.length) return null;
     const rs = s.cells.map((x) => x.r);
@@ -57,15 +58,40 @@ function validatePlacement(ships) {
     const horiz = rs.every((r) => r === rs[0]);
     const vert = cs.every((c) => c === cs[0]);
     if (!horiz && !vert) return null;
+    const set = new Set();
     for (const cell of s.cells) {
       const { r, c } = cell;
       if (r < 0 || r >= BOARD || c < 0 || c >= BOARD) return null;
       const key = r + "," + c;
       if (occ.has(key)) return null;
       occ.add(key);
+      set.add(key);
     }
+    shipSets.push(set);
   }
-  return occ;
+  return { occ, ships: shipSets };
+}
+
+// returns the ship Set that contains key and is now fully sunk, else null
+function shipSunkByHit(playerData, attackerHits, key) {
+  if (!playerData.ships) return null;
+  for (const ship of playerData.ships) {
+    if (!ship.has(key)) continue;
+    for (const k of ship) if (!attackerHits.has(k)) return null;
+    return ship;
+  }
+  return null;
+}
+// how many of a player's ships are fully sunk given the attacker's hits
+function sunkShipCount(playerData, attackerHits) {
+  if (!playerData.ships) return 0;
+  let n = 0;
+  for (const ship of playerData.ships) {
+    let all = true;
+    for (const k of ship) if (!attackerHits.has(k)) { all = false; break; }
+    if (all) n++;
+  }
+  return n;
 }
 
 function opponentOf(room, clientId) {
@@ -118,6 +144,8 @@ function syncPayload(room, code, clientId) {
     occ: me && me.occ ? [...me.occ] : [],
     myShots,
     incoming,
+    sunkOpp: opp ? sunkShipCount(opp, me ? me.hits : new Set()) : 0,
+    sunkMine: me ? sunkShipCount(me, opp ? opp.hits : new Set()) : 0,
   };
 }
 
@@ -213,9 +241,10 @@ io.on("connection", (socket) => {
     const clientId = socket.data.clientId;
     const room = rooms[code];
     if (!room || !room.players[clientId]) return cb && cb({ ok: false, error: "Không có phòng" });
-    const occ = validatePlacement(ships);
-    if (!occ) return cb && cb({ ok: false, error: "Sắp xếp thuyền không hợp lệ" });
-    room.players[clientId].occ = occ;
+    const pv = validatePlacement(ships);
+    if (!pv) return cb && cb({ ok: false, error: "Sắp xếp thuyền không hợp lệ" });
+    room.players[clientId].occ = pv.occ;
+    room.players[clientId].ships = pv.ships;
     room.players[clientId].ready = true;
     cb && cb({ ok: true });
 
@@ -248,9 +277,15 @@ io.on("connection", (socket) => {
     me.hits.add(key);
     const hit = oppData.occ.has(key);
 
-    const win = hit && checkWin(room, clientId);
-    cb && cb({ ok: true, r, c, hit, win });
-    emitToClient(room, opp, "incoming", { r, c, hit });
+    let sunkShip = null, sunkCount = 0, sunkSize = 0;
+    if (hit) {
+      const ship = shipSunkByHit(oppData, me.hits, key);
+      if (ship) { sunkShip = ship; sunkSize = ship.size; }
+      sunkCount = sunkShipCount(oppData, me.hits);
+    }
+    const win = sunkCount >= FLEET.length;
+    cb && cb({ ok: true, r, c, hit, win, sunk: !!sunkShip, sunkSize, sunkCount });
+    emitToClient(room, opp, "incoming", { r, c, hit, sunk: !!sunkShip, sunkSize });
 
     if (win) {
       emitToClient(room, clientId, "gameOver", { win: true });
