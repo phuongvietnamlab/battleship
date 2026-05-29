@@ -194,7 +194,7 @@ io.on("connection", (socket) => {
     if (typeof arg === "function") { cb = arg; arg = {}; }
     const clientId = (arg && arg.clientId) || socket.id;
     const code = newCode();
-    rooms[code] = { players: {}, order: [], started: false, turn: null, scores: {} };
+    rooms[code] = { players: {}, order: [], started: false, turn: null, scores: {}, lastStarter: null };
     rooms[code].players[clientId] = {
       sid: socket.id, ready: false, occ: null, hits: new Set(), online: true, timer: null,
     };
@@ -282,7 +282,13 @@ io.on("connection", (socket) => {
 
     if (allReady) {
       room.started = true;
-      room.turn = ids[Math.floor(Math.random() * 2)];
+      // ván đầu chọn ngẫu nhiên; các ván sau đổi lượt người đi trước (so le)
+      if (room.lastStarter && ids.includes(room.lastStarter)) {
+        room.turn = ids.find((id) => id !== room.lastStarter);
+      } else {
+        room.turn = ids[Math.floor(Math.random() * 2)];
+      }
+      room.lastStarter = room.turn;
       for (const id of ids) {
         emitToClient(room, id, "gameStart", { yourTurn: room.turn === id });
       }
