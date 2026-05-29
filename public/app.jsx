@@ -523,6 +523,18 @@ function App() {
       if (res.hit && !res.win) setMyTurn(true);
     });
   }
+  function resetToLobby() {
+    saveRoom(null);
+    setCode(null); setError(null); setOppPresent(false); setOppReady(false);
+    setIReady(false); setMyTurn(false); setOcc(new Set());
+    setIncoming(new Map()); setMyShots(new Map()); setLog([]); setOver(null);
+    setScreen("lobby");
+  }
+  function leaveRoom() {
+    if (!window.confirm("Rời phòng và thoát ván đấu?")) return;
+    socket.emit("leaveRoom", () => {});
+    resetToLobby();
+  }
   function copyCode() {
     navigator.clipboard && navigator.clipboard.writeText(code);
     setCopied(true); setTimeout(() => setCopied(false), 1500);
@@ -537,7 +549,10 @@ function App() {
           <div><h1>BATTLESHIP</h1><small>Online · Hải chiến</small></div>
         </div>
         {code && screen !== "lobby" && (
-          <div className="status-pill pill-wait">Phòng: <b style={{letterSpacing:3}}>{code}</b></div>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <div className="status-pill pill-wait">Phòng: <b style={{letterSpacing:3}}>{code}</b></div>
+            <button className="btn ghost" style={{width:"auto",padding:"6px 12px",fontSize:12}} onClick={leaveRoom}>Rời phòng</button>
+          </div>
         )}
       </div>
 

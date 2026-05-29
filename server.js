@@ -91,7 +91,6 @@ function syncPayload(room, code, clientId) {
   const me = room.players[clientId];
   const oppId = opponentOf(room, clientId);
   const opp = oppId ? room.players[oppId] : null;
-  // my shots = hits I have fired, with hit info against opp occ
   const myShots = [];
   if (me) {
     for (const k of me.hits) {
@@ -100,7 +99,6 @@ function syncPayload(room, code, clientId) {
       myShots.push({ r, c, hit });
     }
   }
-  // incoming = shots opponent fired at me
   const incoming = [];
   if (opp) {
     for (const k of opp.hits) {
@@ -280,6 +278,28 @@ io.on("connection", (socket) => {
     io.to(code).emit("rematchStart");
   });
 
+  socket.on("leaveRoom", (cb) => {
+    const code = socket.data.code;
+    const clientId = socket.data.clientId;
+    const room = rooms[code];
+    if (room && clientId && room.players[clientId]) {
+      const p = room.players[clientId];
+      if (p.timer) { clearTimeout(p.timer); p.timer = null; }
+      room.order = room.order.filter((id) => id !== clientId);
+      delete room.players[clientId];
+      socket.leave(code);
+      if (room.order.length === 0) {
+        delete rooms[code];
+      } else {
+        io.to(code).emit("opponentLeft");
+        room.started = false;
+        io.to(code).emit("roomUpdate", roomPublic(room));
+      }
+    }
+    socket.data.code = null;
+    cb && cb({ ok: true });
+  });
+
   socket.on("disconnect", () => {
     const code = socket.data.code;
     const clientId = socket.data.clientId;
@@ -288,7 +308,6 @@ io.on("connection", (socket) => {
     const p = room.players[clientId];
     if (p.sid !== socket.id) return; // stale socket, newer one already took over
     p.online = false;
-    // notify opponent the player went offline (but keep the seat)
     const oppId = opponentOf(room, clientId);
     if (oppId) emitToClient(room, oppId, "opponentOffline");
     io.to(code).emit("roomUpdate", roomPublic(room));
