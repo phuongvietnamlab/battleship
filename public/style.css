@@ -144,12 +144,12 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 .grid {
   display:grid; gap:2px; padding:6px; border-radius:12px; position:relative;
   background:
-    repeating-linear-gradient(0deg, rgba(120,190,255,.05) 0 1px, transparent 1px 40px),
+    repeating-linear-gradient(0deg, rgba(120,190,255,.05) 0 1px, transparent 1px 34px),
     linear-gradient(180deg, #0c3a6e, #08284c);
   box-shadow: 0 18px 50px rgba(0,0,0,.5), inset 0 0 0 1px rgba(120,190,255,.18), inset 0 0 60px rgba(0,0,0,.4);
 }
 .cell {
-  width:38px; height:38px; border-radius:5px; display:grid; place-items:center; position:relative;
+  width:32px; height:32px; border-radius:5px; display:grid; place-items:center; position:relative;
   background: linear-gradient(180deg, rgba(46,110,170,.45), rgba(12,52,100,.7));
   box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
   transition: background .12s ease, box-shadow .12s ease;
@@ -178,8 +178,8 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 .col-labels, .row-labels { display:grid; gap:2px; }
 .col-labels { grid-auto-flow:column; padding-left:6px; }
 .row-labels { grid-auto-flow:row; padding-top:6px; }
-.lbl { color:#9fc1e6; font-size:12px; font-family:"Oswald"; display:grid; place-items:center; width:38px; height:24px; }
-.row-labels .lbl { width:24px; height:38px; }
+.lbl { color:#9fc1e6; font-size:12px; font-family:"Oswald"; display:grid; place-items:center; width:32px; height:24px; }
+.row-labels .lbl { width:24px; height:32px; }
 
 /* hit counter bar */
 .counter { display:flex; align-items:center; gap:8px; justify-content:center; margin-top:12px; font-size:12px; color:#a9ccec; font-family:"Oswald"; letter-spacing:1px; }
@@ -246,7 +246,7 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 .footer-note { text-align:center; color:#5878a0; font-size:12px; margin-top:32px; }
 
 @media (max-width:560px){
-  .cell,.lbl{width:30px;height:30px;}
-  .row-labels .lbl{width:20px;height:30px;} .lbl{font-size:11px;}
-  .boards{gap:22px;}
+  /* keep cell pitch fixed (drag math depends on it); just tighten layout */
+  .boards{gap:20px;}
+  .place-panel{width:100%;}
 }

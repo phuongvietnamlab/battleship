@@ -15,7 +15,7 @@ const FLEET_DEF = [
 const socket = io();
 
 // pixel geometry of a grid cell (must match style.css)
-const CELL = 38, GAP = 2, PAD = 6, PITCH = CELL + GAP; // 40
+const CELL = 32, GAP = 2, PAD = 6, PITCH = CELL + GAP; // 34
 
 // ---------- realistic warship SVG ----------
 function ShipSVG({ len }) {
@@ -130,7 +130,7 @@ function Grid({ enemy, occ, hits, incoming, onCellClick, hoverCells, onCellHover
       <div className="col-labels">{COLS.map((l) => <div key={l} className="lbl">{l}</div>)}</div>
       <div className="row-labels">{ROWS.map((l) => <div key={l} className="lbl">{l}</div>)}</div>
       <div className={"grid " + (enemy ? "enemy" : "own")}
-        style={{ gridTemplateColumns: `repeat(${BOARD}, 1fr)` }}>
+        style={{ gridTemplateColumns: `repeat(${BOARD}, ${CELL}px)` }}>
         {cells}
       </div>
     </div>
@@ -284,7 +284,7 @@ function Placement({ onConfirm, ready, waiting }) {
           <div className="col-labels">{COLS.map((l) => <div key={l} className="lbl">{l}</div>)}</div>
           <div className="row-labels">{ROWS.map((l) => <div key={l} className="lbl">{l}</div>)}</div>
           <div className="grid own" ref={gridRef}
-            style={{ gridTemplateColumns: `repeat(${BOARD}, 1fr)`, position: "relative" }}>
+            style={{ gridTemplateColumns: `repeat(${BOARD}, ${CELL}px)`, position: "relative" }}>
             {gridCells}
             {/* placed ships overlay */}
             {Object.entries(placed).map(([id, p]) => {
@@ -424,8 +424,15 @@ function App() {
   const addLog = useCallback((s) => setLog((l) => [s, ...l].slice(0, 40)), []);
 
   useEffect(() => {
-    socket.on("opponentJoined", () => { setOppPresent(true); addLog("Đối thủ đã vào phòng."); });
-    socket.on("roomUpdate", (r) => setOppPresent(r.playerCount >= 2));
+    socket.on("opponentJoined", () => {
+      setOppPresent(true); addLog("Đối thủ đã vào phòng.");
+      setScreen((s) => (s === "room" ? "placement" : s));
+    });
+    socket.on("roomUpdate", (r) => {
+      const has = r.playerCount >= 2;
+      setOppPresent(has);
+      if (has) setScreen((s) => (s === "room" ? "placement" : s));
+    });
     socket.on("opponentReady", () => { setOppReady(true); addLog("Đối thủ đã sẵn sàng."); });
     socket.on("gameStart", ({ yourTurn }) => {
       setScreen("battle"); setMyTurn(yourTurn);
