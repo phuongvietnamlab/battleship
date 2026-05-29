@@ -107,7 +107,7 @@ function Lobby({ onCreate, onJoin, onBot, error }) {
 }
 
 // ---------- Grid ----------
-function Grid({ enemy, occ, hits, incoming, onCellClick, hoverCells, onCellHover, shootable, sunk }) {
+function Grid({ enemy, occ, hits, incoming, onCellClick, hoverCells, onCellHover, shootable, sunk, flash }) {
   // occ: Set of "r,c" your ships (own board)
   // hits: Set of "r,c" shots you fired at enemy (enemy board)
   // incoming: Map "r,c" -> hit boolean (shots enemy fired at you, own board)
@@ -130,6 +130,7 @@ function Grid({ enemy, occ, hits, incoming, onCellClick, hoverCells, onCellHover
         if (hoverCells && hoverCells.has(k)) cls += " ship";
       }
       if (sunk && sunk.has(k)) cls += " sunk";
+      if (flash && flash === k) cls += " flash";
       cells.push(
         <div key={k} className={cls}
           onClick={() => onCellClick && onCellClick(r, c)}
@@ -433,11 +434,11 @@ function Counter({ label, value, cls }) {
     </div>
   );
 }
-function Battle({ myTurn, occ, incoming, myShots, onFire, log, sunkOpp, sunkMine, sunkEnemyCells, sunkMyCells, myScore, oppScore, oppLabel }) {
+function Battle({ myTurn, occ, incoming, myShots, onFire, log, sunkOpp, sunkMine, sunkEnemyCells, sunkMyCells, myScore, oppScore, oppLabel, flashEnemy, flashMine }) {
   const [tab, setTab] = useState("enemy"); // enemy | own (mobile)
-  // tự động chuyển tab theo lượt, có delay ~1.1s để kịp nhìn kết quả phát bắn trước khi đổi bản đồ
+  // tự động chuyển tab theo lượt, delay ~2s để kịp nhìn địch bắn vào đâu rồi mới đổi bản đồ
   useEffect(() => {
-    const t = setTimeout(() => setTab(myTurn ? "enemy" : "own"), 1100);
+    const t = setTimeout(() => setTab(myTurn ? "enemy" : "own"), 2000);
     return () => clearTimeout(t);
   }, [myTurn]);
   return (
@@ -458,13 +459,13 @@ function Battle({ myTurn, occ, incoming, myShots, onFire, log, sunkOpp, sunkMine
       <div className={"boards tab-" + tab}>
         <div className="board-wrap wrap-enemy">
           <div className="board-title enemy">Vùng biển địch {myTurn ? "— BẮN!" : ""}</div>
-          <Grid enemy hits={myShots} shootable={myTurn} sunk={sunkEnemyCells}
+          <Grid enemy hits={myShots} shootable={myTurn} sunk={sunkEnemyCells} flash={flashEnemy}
             onCellClick={(r, c) => myTurn && onFire(r, c)} />
           <Counter label="Đã đánh chìm" value={sunkOpp} cls="enemy" />
         </div>
         <div className="board-wrap wrap-own">
           <div className="board-title own">Hạm đội của bạn</div>
-          <Grid occ={occ} incoming={incoming} sunk={sunkMyCells} />
+          <Grid occ={occ} incoming={incoming} sunk={sunkMyCells} flash={flashMine} />
           <Counter label="Thuyền bị chìm" value={sunkMine} cls="own" />
         </div>
       </div>
@@ -493,6 +494,8 @@ function App() {
   const [copied, setCopied] = useState(false);
   const [sunkOpp, setSunkOpp] = useState(0);   // địch bị ta đánh chìm
   const [sunkMine, setSunkMine] = useState(0); // thuyền của ta bị chìm
+  const [flashEnemy, setFlashEnemy] = useState(null); // ô mình vừa bắn (biển địch)
+  const [flashMine, setFlashMine] = useState(null);   // ô địch vừa bắn (hạm đội mình)
   const [sunkEnemyCells, setSunkEnemyCells] = useState(new Set()); // ô thuyền địch đã chìm
   const [sunkMyCells, setSunkMyCells] = useState(new Set());       // ô thuyền ta đã chìm
   const [myScore, setMyScore] = useState(0);
@@ -550,6 +553,7 @@ function App() {
     socket.on("turnUpdate", ({ yourTurn }) => setMyTurn(yourTurn));
     socket.on("incoming", ({ r, c, hit, sunk, sunkSize, sunkCells }) => {
       setIncoming((m) => new Map(m).set(key(r, c), hit));
+      setFlashMine(key(r, c));
       if (sunk) {
         setSunkMine((n) => n + 1);
         if (sunkCells) setSunkMyCells((s) => { const n = new Set(s); sunkCells.forEach((k) => n.add(k)); return n; });
@@ -669,6 +673,7 @@ function App() {
     const [r, c] = k.split(",").map(Number);
     const hit = myShipsRef.current.some((ship) => ship.has(k));
     setIncoming((m) => new Map(m).set(k, hit));
+    setFlashMine(k);
     if (hit) {
       [[r-1,c],[r+1,c],[r,c-1],[r,c+1]].forEach(([nr, nc]) => {
         if (nr >= 0 && nr < BOARD && nc >= 0 && nc < BOARD) {
@@ -700,6 +705,7 @@ function App() {
     myShotsRef.current.add(k);
     const hit = botData.current.occ.has(k);
     setMyShots((m) => new Map(m).set(k, hit));
+    setFlashEnemy(k);
     if (hit) {
       let sunk = null;
       for (const ship of botData.current.ships) {
@@ -728,6 +734,7 @@ function App() {
     socket.emit("fire", { r, c }, (res) => {
       if (!res.ok) return;
       setMyShots((m) => new Map(m).set(key(r, c), res.hit));
+      setFlashEnemy(key(r, c));
       if (res.sunk) {
         setSunkOpp(res.sunkCount);
         if (res.sunkCells) setSunkEnemyCells((s) => { const n = new Set(s); res.sunkCells.forEach((k) => n.add(k)); return n; });
@@ -820,7 +827,7 @@ function App() {
               {myTurn ? "🎯 Lượt của bạn" : (vsBot ? "⏳ Lượt của máy" : "⏳ Lượt đối thủ")}
             </div>
           </div>
-          <Battle myTurn={myTurn} occ={occ} incoming={incoming} myShots={myShots} onFire={fire} log={log} sunkOpp={sunkOpp} sunkMine={sunkMine} sunkEnemyCells={sunkEnemyCells} sunkMyCells={sunkMyCells} myScore={myScore} oppScore={oppScore} oppLabel={vsBot ? "Máy" : "Đối thủ"} />
+          <Battle myTurn={myTurn} occ={occ} incoming={incoming} myShots={myShots} onFire={fire} log={log} sunkOpp={sunkOpp} sunkMine={sunkMine} sunkEnemyCells={sunkEnemyCells} sunkMyCells={sunkMyCells} myScore={myScore} oppScore={oppScore} oppLabel={vsBot ? "Máy" : "Đối thủ"} flashEnemy={flashEnemy} flashMine={flashMine} />
         </div>
       )}
 

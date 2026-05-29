@@ -177,6 +177,19 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 }
 .cell.miss { background: linear-gradient(180deg, rgba(46,110,170,.3), rgba(12,52,100,.5)); }
 
+/* ô vừa bị bắn — nhấp nháy vòng sáng để dễ thấy địch/mình đánh vào đâu */
+.cell.flash { z-index:2; }
+.cell.flash::before {
+  content:""; position:absolute; inset:-3px; border-radius:7px; pointer-events:none;
+  border:3px solid var(--gold); box-shadow:0 0 16px rgba(240,193,75,.9);
+  animation: flashring 2s ease-out forwards;
+}
+@keyframes flashring {
+  0%   { opacity:1; transform:scale(1.25); }
+  30%  { opacity:1; transform:scale(1); }
+  100% { opacity:0; transform:scale(1); }
+}
+
 /* bảng điểm 2 người trong room */
 .scoreboard {
   display:flex; align-items:center; justify-content:center; gap:14px;
