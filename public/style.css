@@ -165,7 +165,27 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 }
 .cell.hit { background: radial-gradient(circle, #ff5a67, #b71f2c); animation: boom .45s ease-out; }
 .cell.hit::after { content:"\1F525"; font-size:18px; }
+/* thuyền đã cháy rụi — thay đốm lửa bằng xác thuyền cháy đen */
+.cell.sunk {
+  background: linear-gradient(180deg, #3a3330, #181412) !important;
+  box-shadow: inset 0 0 0 1px rgba(120,90,70,.5), inset 0 2px 6px rgba(0,0,0,.7) !important;
+  animation: none !important;
+}
+.cell.sunk::after {
+  content:"\1F6A2" !important; font-size:17px;
+  filter: grayscale(1) brightness(.45) contrast(1.2); opacity:.9;
+}
 .cell.miss { background: linear-gradient(180deg, rgba(46,110,170,.3), rgba(12,52,100,.5)); }
+
+/* bảng điểm 2 người trong room */
+.scoreboard {
+  display:flex; align-items:center; justify-content:center; gap:14px;
+  margin:0 auto 14px; padding:8px 18px; max-width:360px;
+  background:rgba(8,30,58,.7); border:1px solid rgba(120,190,255,.25);
+  border-radius:12px; font-size:15px; color:#cfe8ff;
+}
+.scoreboard b { font-size:20px; color:var(--gold); margin:0 4px; }
+.sc-sep { opacity:.5; }
 .cell.miss::after {
   content:""; width:11px; height:11px; border-radius:50%;
   background: radial-gradient(circle, #fff, var(--miss)); opacity:.85;

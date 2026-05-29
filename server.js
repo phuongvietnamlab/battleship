@@ -112,6 +112,29 @@ function emitToClient(room, clientId, event, data) {
   if (p && p.sid) io.to(p.sid).emit(event, data);
 }
 
+// all cells belonging to the player's ships that are fully sunk by attackerHits
+function sunkCellsList(playerData, attackerHits) {
+  const out = [];
+  if (!playerData.ships) return out;
+  for (const ship of playerData.ships) {
+    let all = true;
+    for (const k of ship) if (!attackerHits.has(k)) { all = false; break; }
+    if (all) for (const k of ship) out.push(k);
+  }
+  return out;
+}
+
+function emitScores(room) {
+  room.scores = room.scores || {};
+  for (const id of room.order) {
+    const oppId = opponentOf(room, id);
+    emitToClient(room, id, "scoreUpdate", {
+      you: room.scores[id] || 0,
+      opp: (oppId && room.scores[oppId]) || 0,
+    });
+  }
+}
+
 // Build a full state snapshot so a (re)connecting client can restore its screen.
 function syncPayload(room, code, clientId) {
   const me = room.players[clientId];
@@ -146,6 +169,10 @@ function syncPayload(room, code, clientId) {
     incoming,
     sunkOpp: opp ? sunkShipCount(opp, me ? me.hits : new Set()) : 0,
     sunkMine: me ? sunkShipCount(me, opp ? opp.hits : new Set()) : 0,
+    sunkOppCells: opp ? sunkCellsList(opp, me ? me.hits : new Set()) : [],
+    sunkMyCells: me ? sunkCellsList(me, opp ? opp.hits : new Set()) : [],
+    myScore: (room.scores && room.scores[clientId]) || 0,
+    oppScore: (room.scores && oppId && room.scores[oppId]) || 0,
   };
 }
 
@@ -167,7 +194,7 @@ io.on("connection", (socket) => {
     if (typeof arg === "function") { cb = arg; arg = {}; }
     const clientId = (arg && arg.clientId) || socket.id;
     const code = newCode();
-    rooms[code] = { players: {}, order: [], started: false, turn: null };
+    rooms[code] = { players: {}, order: [], started: false, turn: null, scores: {} };
     rooms[code].players[clientId] = {
       sid: socket.id, ready: false, occ: null, hits: new Set(), online: true, timer: null,
     };
@@ -284,10 +311,14 @@ io.on("connection", (socket) => {
       sunkCount = sunkShipCount(oppData, me.hits);
     }
     const win = sunkCount >= FLEET.length;
-    cb && cb({ ok: true, r, c, hit, win, sunk: !!sunkShip, sunkSize, sunkCount });
-    emitToClient(room, opp, "incoming", { r, c, hit, sunk: !!sunkShip, sunkSize });
+    const sunkCells = sunkShip ? [...sunkShip] : null;
+    cb && cb({ ok: true, r, c, hit, win, sunk: !!sunkShip, sunkSize, sunkCount, sunkCells });
+    emitToClient(room, opp, "incoming", { r, c, hit, sunk: !!sunkShip, sunkSize, sunkCells });
 
     if (win) {
+      room.scores = room.scores || {};
+      room.scores[clientId] = (room.scores[clientId] || 0) + 1;
+      emitScores(room);
       emitToClient(room, clientId, "gameOver", { win: true });
       emitToClient(room, opp, "gameOver", { win: false });
       room.started = false;
