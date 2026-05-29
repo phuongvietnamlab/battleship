@@ -435,8 +435,11 @@ function Counter({ label, value, cls }) {
 }
 function Battle({ myTurn, occ, incoming, myShots, onFire, log, sunkOpp, sunkMine, sunkEnemyCells, sunkMyCells, myScore, oppScore, oppLabel }) {
   const [tab, setTab] = useState("enemy"); // enemy | own (mobile)
-  // tự động chuyển tab theo lượt: tới lượt mình -> biển địch để bắn; lượt đối thủ -> hạm đội mình để xem
-  useEffect(() => { setTab(myTurn ? "enemy" : "own"); }, [myTurn]);
+  // tự động chuyển tab theo lượt, có delay ~1.1s để kịp nhìn kết quả phát bắn trước khi đổi bản đồ
+  useEffect(() => {
+    const t = setTimeout(() => setTab(myTurn ? "enemy" : "own"), 1100);
+    return () => clearTimeout(t);
+  }, [myTurn]);
   return (
     <div>
       <div className="scoreboard">
