@@ -14,6 +14,17 @@ const FLEET_DEF = [
 
 const socket = io();
 
+// persistent client identity so reconnects (e.g. Safari backgrounding) keep our seat
+const clientId = (function () {
+  try {
+    let id = localStorage.getItem("bs_clientId");
+    if (!id) { id = "c" + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem("bs_clientId", id); }
+    return id;
+  } catch (e) { return "c" + Math.random().toString(36).slice(2) + Date.now().toString(36); }
+})();
+function saveRoom(c) { try { c ? localStorage.setItem("bs_room", c) : localStorage.removeItem("bs_room"); } catch (e) {} }
+function loadRoom() { try { return localStorage.getItem("bs_room"); } catch (e) { return null; } }
+
 // pixel geometry of a grid cell (must match style.css)
 const CELL = 32, GAP = 2, PAD = 6, PITCH = CELL + GAP; // 34
 
@@ -434,6 +445,28 @@ function App() {
       if (has) setScreen((s) => (s === "room" ? "placement" : s));
     });
     socket.on("opponentReady", () => { setOppReady(true); addLog("Đối thủ đã sẵn sàng."); });
+    socket.on("opponentOffline", () => { addLog("Đối thủ tạm mất kết nối, đang chờ kết nối lại..."); });
+    socket.on("opponentOnline", () => { setOppPresent(true); addLog("Đối thủ đã kết nối lại."); });
+    socket.on("sync", (st) => {
+      setCode(st.code); saveRoom(st.code);
+      setOppPresent(st.oppPresent);
+      setOppReady(st.oppReady);
+      setOcc(new Set(st.occ || []));
+      const ms = new Map(); (st.myShots || []).forEach((s) => ms.set(key(s.r, s.c), s.hit));
+      setMyShots(ms);
+      const inc = new Map(); (st.incoming || []).forEach((s) => inc.set(key(s.r, s.c), s.hit));
+      setIncoming(inc);
+      if (st.started) { setMyTurn(st.yourTurn); setScreen("battle"); }
+      else if (st.youReady) { setIReady(true); setScreen("placement"); }
+      else { setScreen(st.oppPresent ? "placement" : "room"); }
+    });
+    // on (re)connect, try to rejoin a stored room
+    socket.on("connect", () => {
+      const r = loadRoom();
+      if (r) socket.emit("rejoin", { code: r, clientId }, (res) => {
+        if (!res || !res.ok) { saveRoom(null); }
+      });
+    });
     socket.on("gameStart", ({ yourTurn }) => {
       setScreen("battle"); setMyTurn(yourTurn);
       addLog(yourTurn ? "Bạn đi trước. Khai hỏa!" : "Đối thủ đi trước.");
@@ -449,19 +482,24 @@ function App() {
       setScreen("placement"); setIReady(false); setOppReady(false); setMyTurn(false);
       setOcc(new Set()); setIncoming(new Map()); setMyShots(new Map()); setOver(null); setLog([]);
     });
+    // if already connected when listeners attach, attempt rejoin now
+    if (socket.connected) {
+      const r = loadRoom();
+      if (r) socket.emit("rejoin", { code: r, clientId }, (res) => { if (!res || !res.ok) saveRoom(null); });
+    }
     return () => socket.off();
   }, [addLog]);
 
   function createRoom() {
     setError(null);
-    socket.emit("createRoom", (res) => {
-      if (res.ok) { setCode(res.code); setScreen("room"); }
+    socket.emit("createRoom", { clientId }, (res) => {
+      if (res.ok) { setCode(res.code); saveRoom(res.code); setScreen("room"); }
     });
   }
   function joinRoom(c) {
     setError(null);
-    socket.emit("joinRoom", c, (res) => {
-      if (res.ok) { setCode(res.code); setOppPresent(true); setScreen("placement"); }
+    socket.emit("joinRoom", { code: c, clientId }, (res) => {
+      if (res.ok) { setCode(res.code); saveRoom(res.code); setOppPresent(true); setScreen("placement"); }
       else setError(res.error);
     });
   }
