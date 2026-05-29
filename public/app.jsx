@@ -14,6 +14,58 @@ const FLEET_DEF = [
 
 const socket = io();
 
+// ---------- âm thanh (Web Audio, không cần file) ----------
+const Sound = (function () {
+  let ctx = null, enabled = true;
+  function ac() {
+    if (!ctx) { try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { ctx = null; } }
+    if (ctx && ctx.state === "suspended") ctx.resume();
+    return ctx;
+  }
+  // mở khóa âm thanh sau cú chạm đầu tiên (bắt buộc trên iOS Safari)
+  function unlock() { const c = ac(); if (c) { const o = c.createOscillator(); const g = c.createGain(); g.gain.value = 0; o.connect(g); g.connect(c.destination); o.start(); o.stop(c.currentTime + 0.01); } }
+  window.addEventListener("pointerdown", unlock, { once: true });
+
+  function tone(freq, dur, type, vol, slideTo) {
+    const c = ac(); if (!c || !enabled) return;
+    const t = c.currentTime;
+    const o = c.createOscillator(), g = c.createGain();
+    o.type = type || "sine";
+    o.frequency.setValueAtTime(freq, t);
+    if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t + dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol || 0.3, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(c.destination);
+    o.start(t); o.stop(t + dur + 0.02);
+  }
+  function noise(dur, vol) {
+    const c = ac(); if (!c || !enabled) return;
+    const t = c.currentTime;
+    const n = Math.floor(c.sampleRate * dur);
+    const buf = c.createBuffer(1, n, c.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+    const src = c.createBufferSource(); src.buffer = buf;
+    const g = c.createGain(); g.gain.value = vol || 0.4;
+    const f = c.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = 1200;
+    src.connect(f); f.connect(g); g.connect(c.destination);
+    src.start(t);
+  }
+  return {
+    setEnabled(v) { enabled = v; },
+    isEnabled() { return enabled; },
+    hit() { tone(180, 0.18, "square", 0.35, 90); noise(0.18, 0.25); },
+    miss() { tone(320, 0.12, "sine", 0.18, 160); },
+    sunk() { noise(0.5, 0.5); tone(120, 0.5, "sawtooth", 0.35, 50); },
+    fire() { tone(220, 0.08, "triangle", 0.2, 120); },
+    powerup() { tone(660, 0.1, "sine", 0.3); setTimeout(() => tone(990, 0.12, "sine", 0.3), 90); },
+    mine() { noise(0.6, 0.6); tone(90, 0.6, "sawtooth", 0.45, 40); },
+    win() { [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => tone(f, 0.22, "triangle", 0.3), i * 130)); },
+    lose() { [400, 330, 262, 196].forEach((f, i) => setTimeout(() => tone(f, 0.28, "sawtooth", 0.25), i * 150)); },
+  };
+})();
+
 // persistent client identity so reconnects (e.g. Safari backgrounding) keep our seat
 const clientId = (function () {
   try {
@@ -558,6 +610,8 @@ function App() {
   const [myScore, setMyScore] = useState(0);
   const [oppScore, setOppScore] = useState(0);
   const [notice, setNotice] = useState(null); // thông báo nổi (vd: dẫm mìn)
+  const [soundOn, setSoundOn] = useState(true);
+  function toggleSound() { const v = !soundOn; setSoundOn(v); Sound.setEnabled(v); }
   const [vsBot, setVsBot] = useState(false);   // chế độ chơi với máy
   const botData = useRef(null);                // {occ:Set, ships:[Set]}
   const myShipsRef = useRef([]);               // [Set] thuyền của ta (để máy dò chìm)
@@ -628,13 +682,14 @@ function App() {
       if (sunkCells) setSunkMyCells((s) => { const n = new Set(s); sunkCells.forEach((k) => n.add(k)); return n; });
       if (mineHit) setMyMines((s) => { const n = new Set(s); list.forEach((c) => n.delete(key(c.r, c.c))); return n; });
       const anyHit = list.some((s) => s.hit);
-      if (mineHit) { addLog("Địch bắn trúng MÌN của bạn — địch mất lượt kế tiếp!"); showNotice("💥 Địch dẫm phải MÌN của bạn! Địch mất lượt kế tiếp."); }
+      if (mineHit) { addLog("Địch bắn trúng MÌN của bạn — địch mất lượt kế tiếp!"); showNotice("💥 Địch dẫm phải MÌN của bạn! Địch mất lượt kế tiếp."); Sound.mine(); }
       if (newSunk > 0) addLog(`Địch ĐÁNH CHÌM ${newSunk} thuyền của bạn!`);
       else if (list.length > 1) addLog(anyHit ? `Địch dùng power-up — TRÚNG tàu bạn!` : `Địch dùng power-up — trượt.`);
       else if (list.length === 1) addLog(anyHit ? `Địch bắn ${ROWS[list[0].r]}${list[0].c + 1} — TRÚNG tàu bạn!` : `Địch bắn ${ROWS[list[0].r]}${list[0].c + 1} — trượt.`);
+      if (newSunk > 0) Sound.sunk(); else if (anyHit) Sound.hit(); else if (list.length) Sound.miss();
     });
     socket.on("scoreUpdate", ({ you, opp }) => { setMyScore(you); setOppScore(opp); });
-    socket.on("gameOver", ({ win }) => setOver({ win }));
+    socket.on("gameOver", ({ win }) => { setOver({ win }); win ? Sound.win() : Sound.lose(); });
     socket.on("opponentLeft", () => { addLog("Đối thủ đã rời đi."); setError("Đối thủ đã rời phòng."); });
     socket.on("rematchStart", () => {
       setScreen("placement"); setIReady(false); setOppReady(false); setMyTurn(false);
@@ -763,14 +818,14 @@ function App() {
       if (sunk) {
         setSunkMine((n) => n + 1);
         setSunkMyCells((s) => { const n = new Set(s); sunk.forEach((kk) => n.add(kk)); return n; });
-        addLog(`Máy ĐÁNH CHÌM thuyền ${sunk.size} ô của bạn!`);
+        addLog(`Máy ĐÁNH CHÌM thuyền ${sunk.size} ô của bạn!`); Sound.sunk();
       }
-      else addLog(`Máy bắn ${ROWS[r]}${c+1} — TRÚNG tàu bạn!`);
+      else { addLog(`Máy bắn ${ROWS[r]}${c+1} — TRÚNG tàu bạn!`); Sound.hit(); }
     } else {
-      addLog(`Máy bắn ${ROWS[r]}${c+1} — trượt.`);
+      addLog(`Máy bắn ${ROWS[r]}${c+1} — trượt.`); Sound.miss();
     }
     const allMineSunk = myShipsRef.current.every((ship) => [...ship].every((kk) => botShotsRef.current.has(kk)));
-    if (allMineSunk) { setOppScore((n) => n + 1); setOver({ win: false }); return; }
+    if (allMineSunk) { setOppScore((n) => n + 1); setOver({ win: false }); Sound.lose(); return; }
     if (hit) setTimeout(botShoot, 600);   // trúng -> máy bắn tiếp
     else setMyTurn(true);                  // trượt -> tới lượt bạn
   }
@@ -780,7 +835,7 @@ function App() {
     myShotsRef.current.add(k);
     const hit = botData.current.occ.has(k);
     setMyShots((m) => new Map(m).set(k, hit));
-    setFlashEnemy(k);
+    setFlashEnemy(k); Sound.fire();
     if (hit) {
       let sunk = null;
       for (const ship of botData.current.ships) {
@@ -791,13 +846,13 @@ function App() {
       setSunkOpp(cnt);
       if (sunk) {
         setSunkEnemyCells((s) => { const n = new Set(s); sunk.forEach((kk) => n.add(kk)); return n; });
-        addLog(`Bạn ĐÁNH CHÌM 1 thuyền (${sunk.size} ô)! Bắn tiếp!`);
+        addLog(`Bạn ĐÁNH CHÌM 1 thuyền (${sunk.size} ô)! Bắn tiếp!`); Sound.sunk();
       }
-      else addLog(`Bạn bắn ${ROWS[r]}${c+1} — TRÚNG! Bắn tiếp!`);
-      if (cnt >= FLEET_DEF.length) { setMyScore((n) => n + 1); setOver({ win: true }); return; }
+      else { addLog(`Bạn bắn ${ROWS[r]}${c+1} — TRÚNG! Bắn tiếp!`); Sound.hit(); }
+      if (cnt >= FLEET_DEF.length) { setMyScore((n) => n + 1); setOver({ win: true }); Sound.win(); return; }
       // trúng -> giữ lượt
     } else {
-      addLog(`Bạn bắn ${ROWS[r]}${c+1} — trượt.`);
+      addLog(`Bạn bắn ${ROWS[r]}${c+1} — trượt.`); Sound.miss();
       setMyTurn(false);
       setTimeout(botShoot, 600);
     }
@@ -812,9 +867,10 @@ function App() {
     if (res.sunkCells) setSunkEnemyCells((s) => { const n = new Set(s); res.sunkCells.forEach((k) => n.add(k)); return n; });
     if (res.collected && res.collected.length) addLog(`Bạn nhặt được power-up: ${res.collected.map((t) => POWER_NAME[t]).join(", ")}!`);
     const anyHit = cells.some((s) => s.hit);
-    if (res.newSunk > 0) addLog(`Bạn ĐÁNH CHÌM ${res.newSunk} thuyền! Bắn tiếp!`);
-    else addLog(anyHit ? `${label} — TRÚNG! Bắn tiếp!` : `${label} — trượt.`);
-    if (res.mineHit) { addLog("Bạn bắn trúng MÌN của địch — bạn mất lượt kế tiếp!"); showNotice("💥 Bạn dẫm phải MÌN của địch! Bạn mất lượt kế tiếp."); return; }
+    if (res.newSunk > 0) { addLog(`Bạn ĐÁNH CHÌM ${res.newSunk} thuyền! Bắn tiếp!`); Sound.sunk(); }
+    else { addLog(anyHit ? `${label} — TRÚNG! Bắn tiếp!` : `${label} — trượt.`); anyHit ? Sound.hit() : Sound.miss(); }
+    if (res.collected && res.collected.length) Sound.powerup();
+    if (res.mineHit) { addLog("Bạn bắn trúng MÌN của địch — bạn mất lượt kế tiếp!"); showNotice("💥 Bạn dẫm phải MÌN của địch! Bạn mất lượt kế tiếp."); Sound.mine(); return; }
     if (anyHit && !res.win) setMyTurn(true);
   }
 
@@ -824,6 +880,7 @@ function App() {
     if (aim === "mine") { placeMine(r, c); return; }
     const power = aim; // null | "cluster" | "cross"
     if (!power && myShots.has(key(r, c))) return;
+    Sound.fire();
     socket.emit("fire", { r, c, power }, (res) => {
       if (!res.ok) { if (res.error) addLog(res.error); return; }
       setAim(null);
@@ -882,12 +939,13 @@ function App() {
           <div className="badge">⚓</div>
           <div><h1>BATTLESHIP</h1><small>Online · Hải chiến</small></div>
         </div>
-        {screen !== "lobby" && (code || vsBot) && (
-          <div style={{display:"flex",alignItems:"center",gap:10}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <button className="btn ghost" title="Bật/tắt âm thanh" style={{width:"auto",padding:"6px 10px",fontSize:14}} onClick={toggleSound}>{soundOn ? "🔊" : "🔇"}</button>
+          {screen !== "lobby" && (code || vsBot) && (<>
             <div className="status-pill pill-wait">{vsBot ? <b>🤖 Với máy</b> : <span>Phòng: <b style={{letterSpacing:3}}>{code}</b></span>}</div>
             <button className="btn ghost" style={{width:"auto",padding:"6px 12px",fontSize:12}} onClick={leaveRoom}>{vsBot ? "Thoát" : "Rời phòng"}</button>
-          </div>
-        )}
+          </>)}
+        </div>
       </div>
 
       {notice && <div className="notice-toast">{notice}</div>}
