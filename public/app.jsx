@@ -3,9 +3,9 @@ import * as ReactDOM from "react-dom/client";
 import { io } from "socket.io-client";
 const { useState, useEffect, useRef, useCallback } = React;
 
-const BOARD = 11;
-const COLS = ["1","2","3","4","5","6","7","8","9","10","11"];
-const ROWS = ["A","B","C","D","E","F","G","H","I","J","K"];
+const BOARD = 10;
+const COLS = ["1","2","3","4","5","6","7","8","9","10"];
+const ROWS = ["A","B","C","D","E","F","G","H","I","J"];
 // fleet definitions
 const FLEET_DEF = [
   { id: "carrier", name: "Tàu sân bay", size: 5 },
@@ -221,7 +221,7 @@ function Grid({ enemy, occ, hits, incoming, onCellClick, hoverCells, onCellHover
       <div className="col-labels">{COLS.map((l) => <div key={l} className="lbl">{l}</div>)}</div>
       <div className="row-labels">{ROWS.map((l) => <div key={l} className="lbl">{l}</div>)}</div>
       <div className={"grid " + (enemy ? "enemy" : "own")}
-        style={{ gridTemplateColumns: `repeat(${BOARD}, ${CELL}px)` }}>
+        style={{ gridTemplateColumns: `repeat(${BOARD}, var(--cell))` }}>
         {cells}
       </div>
     </div>
@@ -408,7 +408,7 @@ function Placement({ onConfirm, ready, waiting }) {
           <div className="col-labels">{COLS.map((l) => <div key={l} className="lbl">{l}</div>)}</div>
           <div className="row-labels">{ROWS.map((l) => <div key={l} className="lbl">{l}</div>)}</div>
           <div className="grid own" ref={gridRef}
-            style={{ gridTemplateColumns: `repeat(${BOARD}, ${CELL}px)`, position: "relative" }}>
+            style={{ gridTemplateColumns: `repeat(${BOARD}, var(--cell))`, position: "relative" }}>
             {gridCells}
             {/* placed ships overlay */}
             {Object.entries(placed).map(([id, p]) => {
@@ -616,6 +616,7 @@ function App() {
   const [myScore, setMyScore] = useState(0);
   const [oppScore, setOppScore] = useState(0);
   const [notice, setNotice] = useState(null); // thông báo nổi (vd: dẫm mìn)
+  const [oppLeft, setOppLeft] = useState(false); // đối thủ rời phòng -> hiện modal + về sảnh
   const [soundOn, setSoundOn] = useState(true);
   function toggleSound() { const v = !soundOn; setSoundOn(v); Sound.setEnabled(v); }
   const [vsBot, setVsBot] = useState(false);   // chế độ chơi với máy
@@ -696,7 +697,7 @@ function App() {
     });
     socket.on("scoreUpdate", ({ you, opp }) => { setMyScore(you); setOppScore(opp); });
     socket.on("gameOver", ({ win }) => { setOver({ win }); win ? Sound.win() : Sound.lose(); });
-    socket.on("opponentLeft", () => { addLog("Đối thủ đã rời đi."); setError("Đối thủ đã rời phòng."); });
+    socket.on("opponentLeft", () => { addLog("Đối thủ đã rời đi."); setOppLeft(true); Sound.lose && Sound.lose(); });
     socket.on("rematchStart", () => {
       setScreen("placement"); setIReady(false); setOppReady(false); setMyTurn(false);
       setOcc(new Set()); setIncoming(new Map()); setMyShots(new Map()); setOver(null); setLog([]);
@@ -930,6 +931,7 @@ function App() {
     setMyScore(0); setOppScore(0);
     setMode("classic"); setInv({ scatter: 0, cross: 0, double: 0, reveal: 0, mine: 0 });
     setPowerups(new Map()); setRevealedEnemy(new Set()); setAim(null); setMyMines(new Set());
+    setOppLeft(false);
     setScreen("lobby");
   }
   function leaveRoom() {
@@ -942,6 +944,21 @@ function App() {
     navigator.clipboard && navigator.clipboard.writeText(code);
     setCopied(true); setTimeout(() => setCopied(false), 1500);
   }
+  // Mời bạn qua Facebook. shareAsync mở hộp chia sẻ Messenger/feed kèm mã phòng.
+  // Cần 1 ảnh (base64); dùng ảnh nhỏ. Lỗi/không có FBInstant -> chép mã làm fallback.
+  function inviteFriends() {
+    const SHARE_IMG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
+    if (typeof FBInstant !== "undefined" && FBInstant.shareAsync) {
+      FBInstant.shareAsync({
+        intent: "INVITE",
+        image: SHARE_IMG,
+        text: "Vào đấu Hải Chiến với mình! Mã phòng: " + code,
+        data: { roomCode: code },
+      }).catch(() => { copyCode(); showNotice("Đã chép mã phòng — gửi cho bạn nhé!"); });
+    } else {
+      copyCode(); showNotice("Đã chép mã phòng — gửi cho bạn nhé!");
+    }
+  }
 
   return (
     <div className="app">
@@ -951,14 +968,20 @@ function App() {
           <div className="badge">⚓</div>
           <div><h1>BATTLESHIP</h1><small>Online · Hải chiến</small></div>
         </div>
-        <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <button className="btn ghost" title="Bật/tắt âm thanh" style={{width:"auto",padding:"6px 10px",fontSize:14}} onClick={toggleSound}>{soundOn ? "🔊" : "🔇"}</button>
-          {screen !== "lobby" && (code || vsBot) && (<>
-            <div className="status-pill pill-wait">{vsBot ? <b>🤖 Với máy</b> : <span>Phòng: <b style={{letterSpacing:3}}>{code}</b></span>}</div>
-            <button className="btn ghost" style={{width:"auto",padding:"6px 12px",fontSize:12}} onClick={leaveRoom}>{vsBot ? "Thoát" : "Rời phòng"}</button>
-          </>)}
-        </div>
+        <button className="btn ghost topbar-sound" title="Bật/tắt âm thanh" onClick={toggleSound}>{soundOn ? "🔊" : "🔇"}</button>
       </div>
+
+      {screen !== "lobby" && (code || vsBot) && (
+        <div className="roombar">
+          <div className="roombar-info">{vsBot ? <b>🤖 Với máy</b> : <span>Phòng <b className="roomcode">{code}</b></span>}</div>
+          <div className="roombar-actions">
+            {!vsBot && typeof FBInstant !== "undefined" && (
+              <button className="btn steel" onClick={inviteFriends}>📨 Mời bạn</button>
+            )}
+            <button className="btn ghost" onClick={leaveRoom}>{vsBot ? "Thoát" : "Rời phòng"}</button>
+          </div>
+        </div>
+      )}
 
       {notice && <div className="notice-toast">{notice}</div>}
 
@@ -968,10 +991,13 @@ function App() {
         <div className="lobby">
           <h2>Mời bạn bè</h2>
           <p className="sub">Gửi mã phòng này cho bạn. Khi họ vào, ván đấu sẽ tự bắt đầu.</p>
-          <div className="room-code-box" style={{justifyContent:"center",marginBottom:18}}>
+          <div className="room-code-box" style={{justifyContent:"center",marginBottom:14}}>
             <div className="code">{code}</div>
             <button className="btn steel copy-btn" onClick={copyCode}>{copied ? "Đã chép ✓" : "Sao chép"}</button>
           </div>
+          {typeof FBInstant !== "undefined" && (
+            <button className="btn primary" style={{marginBottom:16}} onClick={inviteFriends}>📨 Mời bạn qua Facebook</button>
+          )}
           {!oppPresent
             ? <div className="status-pill pill-wait" style={{textAlign:"center"}}>⏳ Đang chờ đối thủ vào phòng...</div>
             : null}
@@ -1017,17 +1043,32 @@ function App() {
         </div>
       )}
 
+      {oppLeft && !over && (
+        <div className="overlay">
+          <div className="modal lose">
+            <h2>Đối thủ đã rời phòng</h2>
+            <p>Ván đấu đã kết thúc. Quay lại sảnh để tạo phòng mới hoặc đấu với máy.</p>
+            <button className="btn primary" onClick={() => { setOppLeft(false); resetToLobby(); }}>Về sảnh</button>
+          </div>
+        </div>
+      )}
+
       <div className="footer-note">Battleship Online · chia sẻ mã phòng để mời bạn bè</div>
     </div>
   );
 }
 
+let _mounted = false;
 function mount() {
+  if (_mounted) return;
+  _mounted = true;
   ReactDOM.createRoot(document.getElementById("root")).render(<App />);
 }
 
-// Facebook Instant Games lifecycle: must finish startGameAsync before showing the
-// game. Outside FB (local dev / plain web) FBInstant is undefined, so mount directly.
+// Facebook Instant Games lifecycle: must finish startGameAsync before showing the game.
+// On the real FB platform initializeAsync resolves fast -> mount via the chain.
+// Outside FB (local dev / plain web / onrender.com preview) the SDK loads but
+// initializeAsync HANGS forever, so a fallback timer mounts anyway after 3s.
 if (typeof FBInstant !== "undefined") {
   FBInstant.initializeAsync()
     .then(() => {
@@ -1039,6 +1080,7 @@ if (typeof FBInstant !== "undefined") {
       console.error("FBInstant boot failed, mounting anyway:", e);
       mount();
     });
+  setTimeout(mount, 3000); // non-FB fallback; no-op on FB (already mounted)
 } else {
   mount();
 }

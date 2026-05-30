@@ -1,4 +1,7 @@
 :root {
+  /* Responsive cell: never bigger than 32px, but shrinks so the 10-col board
+     always fits the (mobile) viewport width without horizontal scroll. */
+  --cell: min(32px, calc((100vw - 54px) / 10));
   --navy: #07182f;
   --navy2: #0d2745;
   --steel: #1d4e7e;
@@ -54,7 +57,7 @@ body::after {
 .wave.w3 { bottom: -80px; opacity: .4; animation-duration: 22s; }
 @keyframes roll { from { transform: rotate(0deg) translateX(0); } to { transform: rotate(360deg); } }
 
-.app { max-width: 1180px; margin: 0 auto; padding: 18px 16px 60px; position: relative; z-index: 1; }
+.app { max-width: 480px; margin: 0 auto; padding: 14px 14px 60px; position: relative; z-index: 1; }
 
 h1, h2, h3, .title, .ttl { font-family: "Oswald", sans-serif; letter-spacing: 1px; text-wrap: balance; }
 
@@ -173,7 +176,7 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
   box-shadow: 0 18px 50px rgba(2,12,30,.55), inset 0 0 0 1px rgba(120,190,255,.18), inset 0 0 60px rgba(0,0,0,.4);
 }
 .cell {
-  width:32px; height:32px; border-radius:5px; display:grid; place-items:center; position:relative;
+  width:var(--cell); height:var(--cell); border-radius:5px; display:grid; place-items:center; position:relative;
   background: linear-gradient(180deg, rgba(46,110,170,.45), rgba(12,52,100,.7));
   box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
   transition: background .12s ease, box-shadow .12s ease;
@@ -282,8 +285,8 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 .col-labels, .row-labels { display:grid; gap:2px; }
 .col-labels { grid-auto-flow:column; padding-left:6px; }
 .row-labels { grid-auto-flow:row; padding-top:6px; }
-.lbl { color:#9fc1e6; font-size:12px; font-family:"Oswald"; display:grid; place-items:center; width:32px; height:24px; }
-.row-labels .lbl { width:24px; height:32px; }
+.lbl { color:#9fc1e6; font-size:12px; font-family:"Oswald"; display:grid; place-items:center; width:var(--cell); height:24px; }
+.row-labels .lbl { width:24px; height:var(--cell); }
 
 /* hit counter bar */
 .counter { display:flex; align-items:center; gap:8px; justify-content:center; margin-top:12px; font-size:12px; color:#a9ccec; font-family:"Oswald"; letter-spacing:1px; }
@@ -431,3 +434,16 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(120,160,210,.35); border-radius: 6px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(120,160,210,.55); }
+
+/* Room bar: own row under the topbar (room code + invite + leave). Keeps the
+   topbar uncluttered so the logo/room/leave no longer overlap on mobile. */
+.topbar-sound { width:auto !important; padding:6px 10px !important; font-size:14px; }
+.roombar {
+  display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;
+  background: var(--panel); border:1px solid var(--panel-brd); border-radius:12px;
+  padding:8px 12px; margin-bottom:14px;
+}
+.roombar-info { font-size:14px; color:#cfe4fb; }
+.roombar .roomcode { letter-spacing:3px; color:var(--gold); font-size:16px; }
+.roombar-actions { display:flex; gap:8px; align-items:center; }
+.roombar-actions .btn { width:auto; padding:7px 12px; font-size:13px; white-space:nowrap; }

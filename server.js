@@ -35,7 +35,7 @@ app.use("/spike", express.static(path.join(__dirname, "dist-spike")));
 const PORT = process.env.PORT || 4000;
 
 // Game config
-const BOARD = 11;
+const BOARD = 10;
 const FLEET = [5, 4, 3, 3, 2];
 const TOTAL_CELLS = FLEET.reduce((a, b) => a + b, 0); // 17
 const GRACE_MS = 60000; // keep a disconnected player's seat for 60s
