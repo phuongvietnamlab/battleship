@@ -979,7 +979,7 @@ function App() {
           {error && <div className="error">{error}</div>}
           <div className="room-banner">
             {vsBot ? (
-              <div className="room-code-box"><span>🤖 Chế độ</span><div className="code" style={{fontSize:20}}>CHƠI VỚI MÁY</div></div>
+              <div className="room-code-box"><span>🤖 Chơi với máy</span></div>
             ) : (
               <div className="room-code-box">
                 <span>Mã phòng:</span><div className="code" style={{fontSize:24}}>{code}</div>
@@ -987,7 +987,7 @@ function App() {
               </div>
             )}
             <div className={"status-pill " + (vsBot ? "pill-ready" : (oppReady ? "pill-ready" : "pill-wait"))}>
-              {vsBot ? "Máy đã sẵn sàng" : (oppPresent ? (oppReady ? "Đối thủ đã sẵn sàng" : "Đối thủ đang bố trí...") : "Chờ đối thủ vào...")}
+              {vsBot ? "✓ Máy đã sẵn sàng" : (oppPresent ? (oppReady ? "Đối thủ đã sẵn sàng" : "Đối thủ đang bố trí...") : "Chờ đối thủ vào...")}
             </div>
           </div>
           <Placement onConfirm={confirmPlacement} ready={iReady} waiting={iReady && !oppReady} />
