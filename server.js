@@ -38,7 +38,7 @@ const PORT = process.env.PORT || 4000;
 const BOARD = 11;
 const FLEET = [5, 4, 3, 3, 2];
 const TOTAL_CELLS = FLEET.reduce((a, b) => a + b, 0); // 17
-const GRACE_MS = 60000; // keep a disconnected player's seat for 60s
+const GRACE_MS = 180000; // keep a disconnected player's seat for 3 min (app restart + cloud read)
 
 // rooms: code -> {
 //   players: { clientId: {sid, ready, occ:Set|null, hits:Set, online, timer} },

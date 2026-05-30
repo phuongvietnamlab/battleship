@@ -106,6 +106,26 @@ function fbContextId() {
   return null;
 }
 
+// FB Cloud Save (player.setDataAsync/getDataAsync). Player-scoped, persists on
+// FB's servers across app restarts, and does NOT require player.getID. This is
+// the only durable anchor when the mobile webview wipes localStorage and both
+// player id + context id are null. cloudReady flips true once a read/write works.
+let cloudReady = false;
+function fbHasCloud() {
+  try { return typeof FBInstant !== "undefined" && FBInstant.player && FBInstant.player.setDataAsync && FBInstant.player.getDataAsync; }
+  catch (e) { return false; }
+}
+function cloudSet(obj) {
+  if (!fbHasCloud()) return Promise.resolve(false);
+  try { return FBInstant.player.setDataAsync(obj).then(() => { cloudReady = true; return true; }).catch(() => false); }
+  catch (e) { return Promise.resolve(false); }
+}
+// Persist current room everywhere we can: localStorage (fast) + FB cloud (durable).
+function persistRoom(code) {
+  saveRoom(code);
+  cloudSet({ bs_room: code || "" });
+}
+
 // App-like: block iOS pinch-zoom (Safari/WKWebView ignore user-scalable=no for
 // gestures) and double-tap-to-zoom. touch-action:manipulation in CSS handles
 // most; these guards cover the rest. Passive:false so preventDefault works.
@@ -653,7 +673,7 @@ function App() {
   const [oppOffline, setOppOffline] = useState(false); // đối thủ tạm mất kết nối
   const [graceLeft, setGraceLeft] = useState(0);        // đếm ngược giây chờ kết nối lại
   const [confirmLeave, setConfirmLeave] = useState(false); // hỏi xác nhận trước khi rời
-  const [dbg, setDbg] = useState("id:" + clientId.slice(0, 10) + " | src:" + (idFresh ? "NEW" : "stored") + " | ls:" + (lsWorks ? "ok" : "BLOCKED"));
+  const [dbg, setDbg] = useState("id:" + clientId.slice(0, 10) + " | src:" + (idFresh ? "NEW" : "stored") + " | ls:" + (lsWorks ? "ok" : "BLOCKED") + " | cloud:" + (cloudReady ? "ok" : "no"));
   const graceTimerRef = useRef(null);
   const [soundOn, setSoundOn] = useState(true);
   function toggleSound() { const v = !soundOn; setSoundOn(v); Sound.setEnabled(v); }
@@ -682,7 +702,7 @@ function App() {
     socket.on("opponentReady", () => { setOppReady(true); addLog("Đối thủ đã sẵn sàng."); });
     socket.on("opponentOffline", () => {
       addLog("Đối thủ tạm mất kết nối, đang chờ kết nối lại...");
-      setOppOffline(true); setGraceLeft(60);
+      setOppOffline(true); setGraceLeft(180);
       if (graceTimerRef.current) clearInterval(graceTimerRef.current);
       graceTimerRef.current = setInterval(() => {
         setGraceLeft((s) => { if (s <= 1) { clearInterval(graceTimerRef.current); graceTimerRef.current = null; return 0; } return s - 1; });
@@ -694,7 +714,7 @@ function App() {
       if (graceTimerRef.current) { clearInterval(graceTimerRef.current); graceTimerRef.current = null; }
     });
     socket.on("sync", (st) => {
-      setCode(st.code); saveRoom(st.code);
+      setCode(st.code); persistRoom(st.code);
       setOppPresent(st.oppPresent);
       setOppReady(st.oppReady);
       setOcc(new Set(st.occ || []));
@@ -721,14 +741,14 @@ function App() {
       //    iframe wiped localStorage — as long as clientId is the stable FB id.
       const ctx = fbContextId();
       console.log("[resume] try clientId=", clientId, "ctx=", ctx);
-      setDbg("id:" + clientId.slice(0, 10) + " | src:" + (idFresh ? "NEW" : "stored") + " | ls:" + (lsWorks ? "ok" : "BLOCKED") + " | ctx:" + (ctx ? "yes" : "null"));
+      setDbg("id:" + clientId.slice(0, 10) + " | src:" + (idFresh ? "NEW" : "stored") + " | ls:" + (lsWorks ? "ok" : "BLOCKED") + " | cloud:" + (cloudReady ? "ok" : "no") + " | ctx:" + (ctx ? "yes" : "null"));
       socket.emit("resume", { clientId, contextId: ctx }, (res) => {
         console.log("[resume] result", res);
-        setDbg("id:" + clientId.slice(0, 10) + " | src:" + (idFresh ? "NEW" : "stored") + " | ls:" + (lsWorks ? "ok" : "BLOCKED") + " | ctx:" + (ctx ? "yes" : "null") + " | resume:" + (res && res.ok ? "OK " + res.code : "fail"));
-        if (res && res.ok) { setCode(res.code); saveRoom(res.code); return; }
+        setDbg("id:" + clientId.slice(0, 10) + " | src:" + (idFresh ? "NEW" : "stored") + " | ls:" + (lsWorks ? "ok" : "BLOCKED") + " | cloud:" + (cloudReady ? "ok" : "no") + " | ctx:" + (ctx ? "yes" : "null") + " | resume:" + (res && res.ok ? "OK " + res.code : "fail"));
+        if (res && res.ok) { setCode(res.code); persistRoom(res.code); return; }
         // 2) Fallback: rejoin a room code we stored locally (storage available).
         const r = loadRoom();
-        if (r) { socket.emit("rejoin", { code: r, clientId }, (rr) => { if (!rr || !rr.ok) saveRoom(null); }); return; }
+        if (r) { socket.emit("rejoin", { code: r, clientId }, (rr) => { if (!rr || !rr.ok) persistRoom(null); }); return; }
         // 3) Invite deep-link: auto-join from Messenger entry-point data.
         if (!joinedInviteRef.current && typeof FBInstant !== "undefined" && FBInstant.getEntryPointData) {
           let d = null; try { d = FBInstant.getEntryPointData(); } catch (e) {}
@@ -781,9 +801,9 @@ function App() {
     if (!socket.connected) socket.connect();
     else if (socket.connected) {
       socket.emit("resume", { clientId, contextId: fbContextId() }, (res) => {
-        if (res && res.ok) { setCode(res.code); saveRoom(res.code); return; }
+        if (res && res.ok) { setCode(res.code); persistRoom(res.code); return; }
         const r = loadRoom();
-        if (r) socket.emit("rejoin", { code: r, clientId }, (rr) => { if (!rr || !rr.ok) saveRoom(null); });
+        if (r) socket.emit("rejoin", { code: r, clientId }, (rr) => { if (!rr || !rr.ok) persistRoom(null); });
       });
     }
     return () => socket.off();
@@ -794,14 +814,14 @@ function App() {
     setMyScore(0); setOppScore(0); // phòng mới: tỉ số về 0-0
     setVsBot(false); setMode(mode === "advance" ? "advance" : "classic");
     socket.emit("createRoom", { clientId, mode, contextId: fbContextId() }, (res) => {
-      if (res.ok) { setCode(res.code); saveRoom(res.code); setScreen("room"); }
+      if (res.ok) { setCode(res.code); persistRoom(res.code); setScreen("room"); }
     });
   }
   function joinRoom(c) {
     setError(null);
     socket.emit("joinRoom", { code: c, clientId, contextId: fbContextId() }, (res) => {
       if (!res.ok) { setError(res.error); return; }
-      setCode(res.code); saveRoom(res.code);
+      setCode(res.code); persistRoom(res.code);
       // reclaimed = took over a seat in an in-progress game (reconnect by code);
       // the server's "sync" event restores the correct screen/state. New seats
       // go straight to placement.
@@ -854,7 +874,7 @@ function App() {
     return { occ, ships };
   }
   function startBot(keepScore) {
-    setError(null); setVsBot(true); saveRoom(null); setCode(null);
+    setError(null); setVsBot(true); persistRoom(null); setCode(null);
     setOppPresent(true); setOppReady(false); setIReady(false); setMyTurn(false);
     setOcc(new Set()); setIncoming(new Map()); setMyShots(new Map());
     setLog([]); setOver(null); setSunkOpp(0); setSunkMine(0);
@@ -1001,7 +1021,7 @@ function App() {
     });
   }
   function resetToLobby() {
-    saveRoom(null);
+    persistRoom(null);
     setCode(null); setError(null); setOppPresent(false); setOppReady(false);
     setIReady(false); setMyTurn(false); setOcc(new Set());
     setIncoming(new Map()); setMyShots(new Map()); setLog([]); setOver(null);
@@ -1170,18 +1190,34 @@ function adoptFbIdentity() {
 // On the real FB platform initializeAsync resolves fast -> boot via the chain.
 // Outside FB (local dev / plain web / onrender.com preview) the SDK loads but
 // initializeAsync HANGS forever, so a fallback timer boots anyway after 3s.
+// Resolve a DURABLE identity from FB Cloud Save before connecting, so a stable
+// clientId + last room survive an app restart even when localStorage is wiped
+// and player/context ids are null.
+async function resolveIdentityAndBoot() {
+  adoptFbIdentity(); // player.getID (usually null under Zero Permissions)
+  try {
+    if (fbHasCloud()) {
+      const d = await FBInstant.player.getDataAsync(["bs_key", "bs_room"]);
+      if (d && d.bs_key) { clientId = d.bs_key; cloudReady = true; }
+      else { await cloudSet({ bs_key: clientId }); } // first run: persist our id for next launch
+      if (d && d.bs_room) saveRoom(d.bs_room); // resume/rejoin fallback can use it
+    }
+  } catch (e) { console.error("cloud identity failed:", e); }
+  boot();
+}
+
 if (typeof FBInstant !== "undefined") {
   FBInstant.initializeAsync()
     .then(() => {
       FBInstant.setLoadingProgress(100);
       return FBInstant.startGameAsync();
     })
-    .then(() => { adoptFbIdentity(); boot(); })
+    .then(resolveIdentityAndBoot)
     .catch((e) => {
       console.error("FBInstant boot failed, booting anyway:", e);
       boot();
     });
-  setTimeout(boot, 3000); // non-FB fallback; no-op on FB (already booted)
+  setTimeout(boot, 4000); // fallback if initializeAsync hangs (e.g. dev preview)
 } else {
   boot();
 }
