@@ -4,10 +4,15 @@
   "description": "Online Battleship game with room codes",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "build:spike": "node build-spike.mjs"
   },
   "dependencies": {
     "express": "^4.19.2",
     "socket.io": "^4.7.5"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0",
+    "socket.io-client": "^4.7.5"
   }
 }

@@ -10,9 +10,23 @@ const { Server } = require("socket.io");
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
+// CORS: Instant Games client is hosted on Facebook's container domain, so the
+// WebSocket is cross-origin. Allowlist FB origins + localhost for dev.
+const io = new Server(server, {
+  cors: {
+    origin: [
+      "https://apps.fbsbx.com", // Instant Games bundle is served from here (primary WS Origin)
+      "https://www.facebook.com",
+      "https://m.facebook.com", // mobile wrapper
+      "http://localhost:4000",
+    ],
+    methods: ["GET", "POST"],
+  },
+});
 
 app.use(express.static(path.join(__dirname, "public")));
+// Serve the built T0 spike (run `npm run build:spike` first) at /spike/
+app.use("/spike", express.static(path.join(__dirname, "dist-spike")));
 
 const PORT = process.env.PORT || 4000;
 
@@ -305,6 +319,18 @@ function doShot(room, clientId, cells) {
 io.on("connection", (socket) => {
   socket.data.code = null;
   socket.data.clientId = null;
+
+  // T0 spike probe: confirms WSS reachability + echoes the FBInstant identity the
+  // client saw. Remove once the spike has been verified on real devices.
+  socket.on("spikePing", (arg, cb) => {
+    cb && cb({
+      pong: true,
+      serverTime: Date.now(),
+      sawPlayerId: arg && arg.playerId,
+      sawContextId: arg && arg.contextId,
+      transport: socket.conn.transport.name,
+    });
+  });
 
   socket.on("createRoom", (arg, cb) => {
     if (typeof arg === "function") { cb = arg; arg = {}; }
