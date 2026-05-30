@@ -35,7 +35,7 @@ app.use("/spike", express.static(path.join(__dirname, "dist-spike")));
 const PORT = process.env.PORT || 4000;
 
 // Game config
-const BOARD = 10;
+const BOARD = 11;
 const FLEET = [5, 4, 3, 3, 2];
 const TOTAL_CELLS = FLEET.reduce((a, b) => a + b, 0); // 17
 const GRACE_MS = 60000; // keep a disconnected player's seat for 60s
@@ -417,6 +417,33 @@ io.on("connection", (socket) => {
     cb && cb({ ok: true, code });
     io.to(code).emit("roomUpdate", roomPublic(room));
     io.to(code).emit("opponentJoined");
+  });
+
+  // Resume without a room code: find any room that already holds this clientId
+  // (online or in its disconnect-grace window) and reattach. This is what lets a
+  // player who killed and reopened the app land straight back in their game,
+  // even when the Instant Games iframe wiped the locally-stored room code —
+  // as long as clientId is the stable FB player id.
+  socket.on("resume", (arg, cb) => {
+    const clientId = arg && arg.clientId;
+    if (!clientId) return cb && cb({ ok: false });
+    let foundCode = null;
+    for (const code in rooms) {
+      if (rooms[code].players && rooms[code].players[clientId]) { foundCode = code; break; }
+    }
+    if (!foundCode) return cb && cb({ ok: false });
+    const room = rooms[foundCode];
+    const p = room.players[clientId];
+    if (p.timer) { clearTimeout(p.timer); p.timer = null; }
+    p.sid = socket.id; p.online = true;
+    socket.join(foundCode);
+    socket.data.code = foundCode;
+    socket.data.clientId = clientId;
+    cb && cb({ ok: true, code: foundCode });
+    io.to(foundCode).emit("roomUpdate", roomPublic(room));
+    const oppId = opponentOf(room, clientId);
+    if (oppId) emitToClient(room, oppId, "opponentOnline");
+    emitToClient(room, clientId, "sync", syncPayload(room, foundCode, clientId));
   });
 
   // Reconnect attempt: client reloaded or came back from background.

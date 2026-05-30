@@ -3,9 +3,9 @@ import * as ReactDOM from "react-dom/client";
 import { io } from "socket.io-client";
 const { useState, useEffect, useRef, useCallback } = React;
 
-const BOARD = 10;
-const COLS = ["1","2","3","4","5","6","7","8","9","10"];
-const ROWS = ["A","B","C","D","E","F","G","H","I","J"];
+const BOARD = 11;
+const COLS = ["1","2","3","4","5","6","7","8","9","10","11"];
+const ROWS = ["A","B","C","D","E","F","G","H","I","J","K"];
 // fleet definitions
 const FLEET_DEF = [
   { id: "carrier", name: "Tàu sân bay", size: 5 },
@@ -18,7 +18,9 @@ const FLEET_DEF = [
 // Same-origin when SERVER_URL is empty (local dev served by this server);
 // absolute wss:// when bundled for Facebook Instant Games (client hosted by FB).
 const SOCKET_URL = process.env.SERVER_URL || undefined;
-const socket = io(SOCKET_URL);
+// autoConnect:false — we connect only after the boot chain finalizes clientId
+// (so the very first "resume" uses the stable FB player id).
+const socket = io(SOCKET_URL, { autoConnect: false });
 
 // ---------- âm thanh (Web Audio, không cần file) ----------
 const Sound = (function () {
@@ -72,8 +74,13 @@ const Sound = (function () {
   };
 })();
 
-// persistent client identity so reconnects (e.g. Safari backgrounding) keep our seat
-const clientId = (function () {
+// Persistent client identity so reconnects keep our seat. Resolution order:
+//   1. FBInstant.player.getID() — stable across app restarts even when the
+//      Instant Games iframe wipes localStorage; set later in the boot chain.
+//   2. localStorage random id — survives reloads when storage works.
+//   3. fresh random id — last resort (no persistence; rely on manual code).
+// `let` so the boot chain can upgrade it to the FB player id before connecting.
+let clientId = (function () {
   try {
     let id = localStorage.getItem("bs_clientId");
     if (!id) { id = "c" + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem("bs_clientId", id); }
@@ -690,15 +697,22 @@ function App() {
       else if (st.youReady) { setIReady(true); setScreen("placement"); }
       else { setScreen(st.oppPresent ? "placement" : "room"); }
     });
-    // on (re)connect, try to rejoin a stored room
+    // on (re)connect, try to resume any in-progress game automatically.
     socket.on("connect", () => {
-      const r = loadRoom();
-      if (r) { socket.emit("rejoin", { code: r, clientId }, (res) => { if (!res || !res.ok) saveRoom(null); }); return; }
-      // Auto-join phòng khi bạn được mời bấm vào tin nhắn Messenger (entry-point data).
-      if (!joinedInviteRef.current && typeof FBInstant !== "undefined" && FBInstant.getEntryPointData) {
-        let d = null; try { d = FBInstant.getEntryPointData(); } catch (e) {}
-        if (d && d.roomCode) { joinedInviteRef.current = true; joinRoom(d.roomCode); }
-      }
+      // 1) Ask the server if our clientId already holds a seat in any room.
+      //    This needs NO locally-stored code, so it works even when the IG
+      //    iframe wiped localStorage — as long as clientId is the stable FB id.
+      socket.emit("resume", { clientId }, (res) => {
+        if (res && res.ok) { setCode(res.code); saveRoom(res.code); return; }
+        // 2) Fallback: rejoin a room code we stored locally (storage available).
+        const r = loadRoom();
+        if (r) { socket.emit("rejoin", { code: r, clientId }, (rr) => { if (!rr || !rr.ok) saveRoom(null); }); return; }
+        // 3) Invite deep-link: auto-join from Messenger entry-point data.
+        if (!joinedInviteRef.current && typeof FBInstant !== "undefined" && FBInstant.getEntryPointData) {
+          let d = null; try { d = FBInstant.getEntryPointData(); } catch (e) {}
+          if (d && d.roomCode) { joinedInviteRef.current = true; joinRoom(d.roomCode); }
+        }
+      });
     });
     socket.on("gameStart", ({ yourTurn, mode: m }) => {
       setScreen("battle"); setMyTurn(yourTurn);
@@ -740,10 +754,13 @@ function App() {
       setInv({ scatter: 0, cross: 0, double: 0, reveal: 0, mine: 0 });
       setPowerups(new Map()); setRevealedEnemy(new Set()); setAim(null); setMyMines(new Set());
     });
-    // if already connected when listeners attach, attempt rejoin now
+    // if already connected when listeners attach, attempt resume now
     if (socket.connected) {
-      const r = loadRoom();
-      if (r) socket.emit("rejoin", { code: r, clientId }, (res) => { if (!res || !res.ok) saveRoom(null); });
+      socket.emit("resume", { clientId }, (res) => {
+        if (res && res.ok) { setCode(res.code); saveRoom(res.code); return; }
+        const r = loadRoom();
+        if (r) socket.emit("rejoin", { code: r, clientId }, (rr) => { if (!rr || !rr.ok) saveRoom(null); });
+      });
     }
     return () => socket.off();
   }, [addLog]);
@@ -1101,29 +1118,42 @@ function App() {
   );
 }
 
-let _mounted = false;
-function mount() {
-  if (_mounted) return;
-  _mounted = true;
+let _booted = false;
+function boot() {
+  if (_booted) return;
+  _booted = true;
+  socket.connect(); // identity is finalized by now -> first "resume" uses it
   ReactDOM.createRoot(document.getElementById("root")).render(<App />);
 }
 
+// Prefer the FB player id as our identity: it is stable across app restarts
+// even when the Instant Games iframe wipes localStorage, which is what makes
+// auto-resume work without the player re-typing the room code.
+function adoptFbIdentity() {
+  try {
+    if (typeof FBInstant !== "undefined" && FBInstant.player && FBInstant.player.getID) {
+      const pid = FBInstant.player.getID();
+      if (pid) { clientId = "fb_" + pid; try { localStorage.setItem("bs_clientId", clientId); } catch (e) {} }
+    }
+  } catch (e) {}
+}
+
 // Facebook Instant Games lifecycle: must finish startGameAsync before showing the game.
-// On the real FB platform initializeAsync resolves fast -> mount via the chain.
+// On the real FB platform initializeAsync resolves fast -> boot via the chain.
 // Outside FB (local dev / plain web / onrender.com preview) the SDK loads but
-// initializeAsync HANGS forever, so a fallback timer mounts anyway after 3s.
+// initializeAsync HANGS forever, so a fallback timer boots anyway after 3s.
 if (typeof FBInstant !== "undefined") {
   FBInstant.initializeAsync()
     .then(() => {
       FBInstant.setLoadingProgress(100);
       return FBInstant.startGameAsync();
     })
-    .then(mount)
+    .then(() => { adoptFbIdentity(); boot(); })
     .catch((e) => {
-      console.error("FBInstant boot failed, mounting anyway:", e);
-      mount();
+      console.error("FBInstant boot failed, booting anyway:", e);
+      boot();
     });
-  setTimeout(mount, 3000); // non-FB fallback; no-op on FB (already mounted)
+  setTimeout(boot, 3000); // non-FB fallback; no-op on FB (already booted)
 } else {
-  mount();
+  boot();
 }

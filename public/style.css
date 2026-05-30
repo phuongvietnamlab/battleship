@@ -2,7 +2,7 @@
   /* Responsive cell: never bigger than 32px (drag math in Placement depends on
      a fixed 32px pitch), but shrinks so the 10-col board fits mobile width.
      No A–J / 1–10 label gutter anymore, so less width is reserved. */
-  --cell: min(32px, calc((100vw - 40px) / 10));
+  --cell: min(32px, calc((100vw - 40px) / 11));
   --navy: #07182f;
   --navy2: #0d2745;
   --steel: #1d4e7e;
