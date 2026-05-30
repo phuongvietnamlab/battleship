@@ -375,7 +375,37 @@ io.on("connection", (socket) => {
       emitToClient(room, clientId, "sync", syncPayload(room, code, clientId));
       return;
     }
-    if (room.order.length >= 2) return cb && cb({ ok: false, error: "Phòng đã đủ người" });
+    // Reclaim a disconnected (offline) seat by code. The Instant Games iframe
+    // can block localStorage, so a returning player's clientId may differ from
+    // the one they left with; matching by clientId then fails. Letting them take
+    // over the offline seat just by re-entering the room code makes reconnect
+    // work regardless. (Hijack risk during the 60s grace is acceptable here.)
+    if (room.order.length >= 2) {
+      const offlineId = room.order.find((id) => room.players[id] && !room.players[id].online);
+      if (offlineId) {
+        const p = room.players[offlineId];
+        if (p.timer) { clearTimeout(p.timer); p.timer = null; }
+        delete room.players[offlineId];
+        room.players[clientId] = p;
+        room.order = room.order.map((id) => (id === offlineId ? clientId : id));
+        if (room.turn === offlineId) room.turn = clientId;
+        if (room.lastStarter === offlineId) room.lastStarter = clientId;
+        if (room.scores && room.scores[offlineId] != null) { room.scores[clientId] = room.scores[offlineId]; delete room.scores[offlineId]; }
+        if (room.powerups && room.powerups[offlineId]) { room.powerups[clientId] = room.powerups[offlineId]; delete room.powerups[offlineId]; }
+        if (room.mines && room.mines[offlineId]) { room.mines[clientId] = room.mines[offlineId]; delete room.mines[offlineId]; }
+        p.sid = socket.id; p.online = true;
+        socket.join(code);
+        socket.data.code = code;
+        socket.data.clientId = clientId;
+        cb && cb({ ok: true, code, reclaimed: true });
+        io.to(code).emit("roomUpdate", roomPublic(room));
+        const oppId = opponentOf(room, clientId);
+        if (oppId) emitToClient(room, oppId, "opponentOnline");
+        emitToClient(room, clientId, "sync", syncPayload(room, code, clientId));
+        return;
+      }
+      return cb && cb({ ok: false, error: "Phòng đã đủ người" });
+    }
     if (room.started) return cb && cb({ ok: false, error: "Ván đấu đã bắt đầu" });
     room.players[clientId] = {
       sid: socket.id, ready: false, occ: null, hits: new Set(), online: true, timer: null, inv: newInv(), bonus: 0,

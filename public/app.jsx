@@ -83,6 +83,22 @@ const clientId = (function () {
 function saveRoom(c) { try { c ? localStorage.setItem("bs_room", c) : localStorage.removeItem("bs_room"); } catch (e) {} }
 function loadRoom() { try { return localStorage.getItem("bs_room"); } catch (e) { return null; } }
 
+// App-like: block iOS pinch-zoom (Safari/WKWebView ignore user-scalable=no for
+// gestures) and double-tap-to-zoom. touch-action:manipulation in CSS handles
+// most; these guards cover the rest. Passive:false so preventDefault works.
+(function lockZoom() {
+  try {
+    ["gesturestart", "gesturechange", "gestureend"].forEach((ev) =>
+      document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
+    let lastTouch = 0;
+    document.addEventListener("touchend", (e) => {
+      const now = Date.now();
+      if (now - lastTouch <= 300) e.preventDefault(); // double-tap zoom
+      lastTouch = now;
+    }, { passive: false });
+  } catch (e) {}
+})();
+
 // pixel geometry of a grid cell (must match style.css)
 const CELL = 32, GAP = 2, PAD = 6, PITCH = CELL + GAP; // 34
 
@@ -217,9 +233,6 @@ function Grid({ enemy, occ, hits, incoming, onCellClick, hoverCells, onCellHover
   }
   return (
     <div className="grid-outer">
-      <div className="corner"></div>
-      <div className="col-labels">{COLS.map((l) => <div key={l} className="lbl">{l}</div>)}</div>
-      <div className="row-labels">{ROWS.map((l) => <div key={l} className="lbl">{l}</div>)}</div>
       <div className={"grid " + (enemy ? "enemy" : "own")}
         style={{ gridTemplateColumns: `repeat(${BOARD}, var(--cell))` }}>
         {cells}
@@ -404,9 +417,6 @@ function Placement({ onConfirm, ready, waiting }) {
       <div className="board-wrap">
         <div className="board-title own">Hạm đội của bạn</div>
         <div className="grid-outer">
-          <div className="corner"></div>
-          <div className="col-labels">{COLS.map((l) => <div key={l} className="lbl">{l}</div>)}</div>
-          <div className="row-labels">{ROWS.map((l) => <div key={l} className="lbl">{l}</div>)}</div>
           <div className="grid own" ref={gridRef}
             style={{ gridTemplateColumns: `repeat(${BOARD}, var(--cell))`, position: "relative" }}>
             {gridCells}
@@ -617,6 +627,10 @@ function App() {
   const [oppScore, setOppScore] = useState(0);
   const [notice, setNotice] = useState(null); // thông báo nổi (vd: dẫm mìn)
   const [oppLeft, setOppLeft] = useState(false); // đối thủ rời phòng -> hiện modal + về sảnh
+  const [oppOffline, setOppOffline] = useState(false); // đối thủ tạm mất kết nối
+  const [graceLeft, setGraceLeft] = useState(0);        // đếm ngược giây chờ kết nối lại
+  const [confirmLeave, setConfirmLeave] = useState(false); // hỏi xác nhận trước khi rời
+  const graceTimerRef = useRef(null);
   const [soundOn, setSoundOn] = useState(true);
   function toggleSound() { const v = !soundOn; setSoundOn(v); Sound.setEnabled(v); }
   const [vsBot, setVsBot] = useState(false);   // chế độ chơi với máy
@@ -642,8 +656,19 @@ function App() {
       if (has) setScreen((s) => (s === "room" ? "placement" : s));
     });
     socket.on("opponentReady", () => { setOppReady(true); addLog("Đối thủ đã sẵn sàng."); });
-    socket.on("opponentOffline", () => { addLog("Đối thủ tạm mất kết nối, đang chờ kết nối lại..."); });
-    socket.on("opponentOnline", () => { setOppPresent(true); addLog("Đối thủ đã kết nối lại."); });
+    socket.on("opponentOffline", () => {
+      addLog("Đối thủ tạm mất kết nối, đang chờ kết nối lại...");
+      setOppOffline(true); setGraceLeft(60);
+      if (graceTimerRef.current) clearInterval(graceTimerRef.current);
+      graceTimerRef.current = setInterval(() => {
+        setGraceLeft((s) => { if (s <= 1) { clearInterval(graceTimerRef.current); graceTimerRef.current = null; return 0; } return s - 1; });
+      }, 1000);
+    });
+    socket.on("opponentOnline", () => {
+      setOppPresent(true); addLog("Đối thủ đã kết nối lại.");
+      setOppOffline(false); setGraceLeft(0);
+      if (graceTimerRef.current) { clearInterval(graceTimerRef.current); graceTimerRef.current = null; }
+    });
     socket.on("sync", (st) => {
       setCode(st.code); saveRoom(st.code);
       setOppPresent(st.oppPresent);
@@ -701,7 +726,12 @@ function App() {
     });
     socket.on("scoreUpdate", ({ you, opp }) => { setMyScore(you); setOppScore(opp); });
     socket.on("gameOver", ({ win }) => { setOver({ win }); win ? Sound.win() : Sound.lose(); });
-    socket.on("opponentLeft", () => { addLog("Đối thủ đã rời đi."); setOppLeft(true); Sound.lose && Sound.lose(); });
+    socket.on("opponentLeft", () => {
+      addLog("Đối thủ đã rời đi."); setOppLeft(true);
+      setOppOffline(false); setGraceLeft(0);
+      if (graceTimerRef.current) { clearInterval(graceTimerRef.current); graceTimerRef.current = null; }
+      Sound.lose && Sound.lose();
+    });
     socket.on("rematchStart", () => {
       setScreen("placement"); setIReady(false); setOppReady(false); setMyTurn(false);
       setOcc(new Set()); setIncoming(new Map()); setMyShots(new Map()); setOver(null); setLog([]);
@@ -729,8 +759,12 @@ function App() {
   function joinRoom(c) {
     setError(null);
     socket.emit("joinRoom", { code: c, clientId }, (res) => {
-      if (res.ok) { setCode(res.code); saveRoom(res.code); setOppPresent(true); setScreen("placement"); }
-      else setError(res.error);
+      if (!res.ok) { setError(res.error); return; }
+      setCode(res.code); saveRoom(res.code);
+      // reclaimed = took over a seat in an in-progress game (reconnect by code);
+      // the server's "sync" event restores the correct screen/state. New seats
+      // go straight to placement.
+      if (!res.reclaimed) { setOppPresent(true); setScreen("placement"); }
     });
   }
   function confirmPlacement(ships) {
@@ -935,12 +969,15 @@ function App() {
     setMyScore(0); setOppScore(0);
     setMode("classic"); setInv({ scatter: 0, cross: 0, double: 0, reveal: 0, mine: 0 });
     setPowerups(new Map()); setRevealedEnemy(new Set()); setAim(null); setMyMines(new Set());
-    setOppLeft(false);
+    setOppLeft(false); setOppOffline(false); setGraceLeft(0); setConfirmLeave(false);
+    if (graceTimerRef.current) { clearInterval(graceTimerRef.current); graceTimerRef.current = null; }
     setScreen("lobby");
   }
-  function leaveRoom() {
-    // NB: window.confirm() is blocked inside the Instant Games sandboxed iframe
-    // (returns false / no-op), which made this button dead. Exit directly instead.
+  // Ask first (window.confirm is blocked in the Instant Games iframe, so we use
+  // an in-app modal instead). doLeave() performs the actual exit.
+  function leaveRoom() { setConfirmLeave(true); }
+  function doLeave() {
+    setConfirmLeave(false);
     if (!vsBot) socket.emit("leaveRoom", () => {});
     resetToLobby();
   }
@@ -1034,6 +1071,27 @@ function App() {
             <h2>Đối thủ đã rời phòng</h2>
             <p>Ván đấu đã kết thúc. Quay lại sảnh để tạo phòng mới hoặc đấu với máy.</p>
             <button className="btn primary" onClick={() => { setOppLeft(false); resetToLobby(); }}>Về sảnh</button>
+          </div>
+        </div>
+      )}
+
+      {/* đối thủ tạm mất kết nối — banner nổi, không chặn thao tác, có đếm ngược */}
+      {oppOffline && !oppLeft && !over && !vsBot && (
+        <div className="offline-banner">
+          📡 Đối thủ tạm mất kết nối. Đang chờ kết nối lại{graceLeft > 0 ? ` (${graceLeft}s)` : ""}…
+        </div>
+      )}
+
+      {/* xác nhận rời phòng (window.confirm bị chặn trong iframe IG) */}
+      {confirmLeave && (
+        <div className="overlay">
+          <div className="modal">
+            <h2 style={{ fontSize: 26 }}>{vsBot ? "Thoát trận?" : "Rời phòng?"}</h2>
+            <p>{vsBot ? "Bạn sẽ thoát trận đấu với máy và quay lại sảnh." : "Bạn sẽ rời phòng và quay lại sảnh. Đối thủ sẽ được thông báo."}</p>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button className="btn ghost" onClick={() => setConfirmLeave(false)}>Ở lại</button>
+              <button className="btn primary" onClick={doLeave}>{vsBot ? "Thoát" : "Rời phòng"}</button>
+            </div>
           </div>
         </div>
       )}

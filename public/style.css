@@ -1,7 +1,8 @@
 :root {
-  /* Responsive cell: never bigger than 32px, but shrinks so the 10-col board
-     always fits the (mobile) viewport width without horizontal scroll. */
-  --cell: min(32px, calc((100vw - 54px) / 10));
+  /* Responsive cell: never bigger than 32px (drag math in Placement depends on
+     a fixed 32px pitch), but shrinks so the 10-col board fits mobile width.
+     No A–J / 1–10 label gutter anymore, so less width is reserved. */
+  --cell: min(32px, calc((100vw - 40px) / 10));
   --navy: #07182f;
   --navy2: #0d2745;
   --steel: #1d4e7e;
@@ -29,7 +30,16 @@ body {
   min-height: 100dvh;
   overflow-x: hidden;
   background: linear-gradient(180deg, #04101f 0%, #072142 40%, #0a325f 100%);
+  /* app-like: no pinch-zoom / double-tap-zoom, no rubber-band bounce, no
+     long-press text selection or grey tap flash. Inputs re-enable selection. */
+  touch-action: manipulation;
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
 }
+input, textarea { user-select: text; -webkit-user-select: text; }
 
 /* subtle grain to break digital flatness */
 body::after {
@@ -249,6 +259,15 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 }
 @keyframes noticepop { from{ opacity:0; transform:translateX(-50%) translateY(-10px);} to{ opacity:1; transform:translateX(-50%) translateY(0);} }
 
+/* đối thủ tạm mất kết nối — banner nổi trên cùng, đếm ngược grace */
+.offline-banner {
+  position:fixed; top:14px; left:50%; transform:translateX(-50%); z-index:190;
+  background:linear-gradient(135deg,#8a6d1f,#b8902a); color:#fff; font-weight:600;
+  padding:11px 18px; border-radius:12px; box-shadow:0 6px 24px rgba(0,0,0,.45);
+  border:1px solid rgba(255,220,140,.6); max-width:92vw; text-align:center; font-size:13px;
+  animation: noticepop .25s ease-out;
+}
+
 /* thanh power-up trong kho */
 .powerbar { display:flex; gap:6px; justify-content:center; margin:0 auto 10px; flex-wrap:wrap; max-width:520px; }
 .power-btn {
@@ -281,12 +300,8 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 @keyframes boom { 0%{ transform: scale(.3); filter: brightness(2);} 60%{ transform: scale(1.25);} 100%{ transform: scale(1);} }
 @keyframes splash { 0%{ transform: scale(0);} 70%{ transform: scale(1.4);} 100%{ transform: scale(1);} }
 
-.grid-outer { display:inline-grid; grid-template-columns:24px auto; grid-template-rows:24px auto; gap:2px; }
-.col-labels, .row-labels { display:grid; gap:2px; }
-.col-labels { grid-auto-flow:column; padding-left:6px; }
-.row-labels { grid-auto-flow:row; padding-top:6px; }
-.lbl { color:#9fc1e6; font-size:12px; font-family:"Oswald"; display:grid; place-items:center; width:var(--cell); height:24px; }
-.row-labels .lbl { width:24px; height:var(--cell); }
+/* labels (A–J / 1–10) removed — grid wraps tight with no gutter */
+.grid-outer { display:inline-block; }
 
 /* hit counter bar */
 .counter { display:flex; align-items:center; gap:8px; justify-content:center; margin-top:12px; font-size:12px; color:#a9ccec; font-family:"Oswald"; letter-spacing:1px; }
