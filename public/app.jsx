@@ -625,6 +625,7 @@ function App() {
   const botShotsRef = useRef(new Set());       // ô máy đã bắn
   const botQueueRef = useRef([]);              // hàng đợi ô mục tiêu của máy
   const myShotsRef = useRef(new Set());         // ô ta đã bắn (đồng bộ tức thời cho bot)
+  const joinedInviteRef = useRef(false);        // chỉ auto-join từ lời mời FB 1 lần
 
   const addLog = useCallback((s) => setLog((l) => [s, ...l].slice(0, 40)), []);
   const showNotice = useCallback((s) => { setNotice(s); setTimeout(() => setNotice((n) => (n === s ? null : n)), 4000); }, []);
@@ -667,9 +668,12 @@ function App() {
     // on (re)connect, try to rejoin a stored room
     socket.on("connect", () => {
       const r = loadRoom();
-      if (r) socket.emit("rejoin", { code: r, clientId }, (res) => {
-        if (!res || !res.ok) { saveRoom(null); }
-      });
+      if (r) { socket.emit("rejoin", { code: r, clientId }, (res) => { if (!res || !res.ok) saveRoom(null); }); return; }
+      // Auto-join phòng khi bạn được mời bấm vào tin nhắn Messenger (entry-point data).
+      if (!joinedInviteRef.current && typeof FBInstant !== "undefined" && FBInstant.getEntryPointData) {
+        let d = null; try { d = FBInstant.getEntryPointData(); } catch (e) {}
+        if (d && d.roomCode) { joinedInviteRef.current = true; joinRoom(d.roomCode); }
+      }
     });
     socket.on("gameStart", ({ yourTurn, mode: m }) => {
       setScreen("battle"); setMyTurn(yourTurn);
@@ -944,20 +948,23 @@ function App() {
     navigator.clipboard && navigator.clipboard.writeText(code);
     setCopied(true); setTimeout(() => setCopied(false), 1500);
   }
-  // Mời bạn qua Facebook. shareAsync mở hộp chia sẻ Messenger/feed kèm mã phòng.
-  // Cần 1 ảnh (base64); dùng ảnh nhỏ. Lỗi/không có FBInstant -> chép mã làm fallback.
-  function inviteFriends() {
+  // Mời bạn qua Facebook: inviteAsync mở popup chọn bạn bè; bạn tích chọn -> FB gửi
+  // tin nhắn Messenger kèm data {roomCode}. Người được mời bấm vào -> getEntryPointData
+  // trả về roomCode -> tự vào đúng phòng. Huỷ/không hỗ trợ -> fallback chép mã.
+  async function inviteFriends() {
     const SHARE_IMG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
-    if (typeof FBInstant !== "undefined" && FBInstant.shareAsync) {
-      FBInstant.shareAsync({
-        intent: "INVITE",
-        image: SHARE_IMG,
-        text: "Vào đấu Hải Chiến với mình! Mã phòng: " + code,
-        data: { roomCode: code },
-      }).catch(() => { copyCode(); showNotice("Đã chép mã phòng — gửi cho bạn nhé!"); });
-    } else {
-      copyCode(); showNotice("Đã chép mã phòng — gửi cho bạn nhé!");
+    if (typeof FBInstant !== "undefined" && FBInstant.inviteAsync) {
+      try {
+        await FBInstant.inviteAsync({
+          image: SHARE_IMG,
+          text: "Mời bạn vào đấu Hải Chiến! Mã phòng: " + code,
+          data: { roomCode: code },
+        });
+        showNotice("Đã gửi lời mời qua Messenger ✓");
+        return;
+      } catch (e) { /* người dùng huỷ hoặc không hỗ trợ -> fallback */ }
     }
+    copyCode(); showNotice("Đã chép mã phòng — gửi cho bạn nhé!");
   }
 
   return (
