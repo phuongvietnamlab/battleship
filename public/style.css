@@ -400,4 +400,16 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
   .battle-tabs{ display:flex; }
   .boards.tab-enemy .wrap-own{ display:none; }
   .boards.tab-own .wrap-enemy{ display:none; }
+  /* topbar gọn lại để không bị tràn / đè chữ */
+  .topbar{ padding:6px 2px 14px; gap:8px; }
+  .logo{ gap:8px; min-width:0; flex:1; }
+  .logo .badge{ width:38px; height:38px; border-radius:10px; font-size:20px; flex:none; }
+  .logo h1{ font-size:21px; letter-spacing:1px; }
+  .logo small{ font-size:9px; letter-spacing:2px; }
+  .topbar .btn.ghost{ padding:5px 8px !important; font-size:11px !important; }
+  .topbar .status-pill{ font-size:11px; padding:4px 8px; }
+}
+@media (max-width:380px){
+  .logo h1{ font-size:18px; }
+  .logo small{ display:none; }
 }
