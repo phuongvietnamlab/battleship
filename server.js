@@ -10,14 +10,14 @@ const { Server } = require("socket.io");
 
 const app = express();
 const server = http.createServer(app);
-// CORS: Instant Games client is hosted on Facebook's container domain, so the
-// WebSocket is cross-origin. Allowlist FB origins + localhost for dev.
+// CORS: the Instant Games bundle is served from a dynamic Facebook subdomain
+// (e.g. shield-apps-<appid>.apps.fbsbx.com), so the WebSocket Origin is cross-origin
+// and NOT a fixed host. Match the fbsbx + facebook domains by regex; allow localhost.
 const io = new Server(server, {
   cors: {
     origin: [
-      "https://apps.fbsbx.com", // Instant Games bundle is served from here (primary WS Origin)
-      "https://www.facebook.com",
-      "https://m.facebook.com", // mobile wrapper
+      /\.fbsbx\.com$/, // Instant Games bundle subdomains (shield-apps-*.apps.fbsbx.com)
+      /(^|\.)facebook\.com$/, // www / m / fb wrappers
       "http://localhost:4000",
     ],
     methods: ["GET", "POST"],
