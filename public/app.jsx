@@ -90,6 +90,19 @@ let clientId = (function () {
 function saveRoom(c) { try { c ? localStorage.setItem("bs_room", c) : localStorage.removeItem("bs_room"); } catch (e) {} }
 function loadRoom() { try { return localStorage.getItem("bs_room"); } catch (e) { return null; } }
 
+// FB context id (the Messenger thread). Allowed under Zero Permissions and
+// stable + shared between two players launching from the same thread, so the
+// server can find/rejoin a room by it even when player id is null and the
+// mobile FB webview wiped localStorage. null outside FB / solo launch.
+function fbContextId() {
+  try {
+    if (typeof FBInstant !== "undefined" && FBInstant.context && FBInstant.context.getID) {
+      return FBInstant.context.getID() || null;
+    }
+  } catch (e) {}
+  return null;
+}
+
 // App-like: block iOS pinch-zoom (Safari/WKWebView ignore user-scalable=no for
 // gestures) and double-tap-to-zoom. touch-action:manipulation in CSS handles
 // most; these guards cover the rest. Passive:false so preventDefault works.
@@ -702,7 +715,7 @@ function App() {
       // 1) Ask the server if our clientId already holds a seat in any room.
       //    This needs NO locally-stored code, so it works even when the IG
       //    iframe wiped localStorage — as long as clientId is the stable FB id.
-      socket.emit("resume", { clientId }, (res) => {
+      socket.emit("resume", { clientId, contextId: fbContextId() }, (res) => {
         if (res && res.ok) { setCode(res.code); saveRoom(res.code); return; }
         // 2) Fallback: rejoin a room code we stored locally (storage available).
         const r = loadRoom();
@@ -756,7 +769,7 @@ function App() {
     });
     // if already connected when listeners attach, attempt resume now
     if (socket.connected) {
-      socket.emit("resume", { clientId }, (res) => {
+      socket.emit("resume", { clientId, contextId: fbContextId() }, (res) => {
         if (res && res.ok) { setCode(res.code); saveRoom(res.code); return; }
         const r = loadRoom();
         if (r) socket.emit("rejoin", { code: r, clientId }, (rr) => { if (!rr || !rr.ok) saveRoom(null); });
@@ -769,13 +782,13 @@ function App() {
     setError(null);
     setMyScore(0); setOppScore(0); // phòng mới: tỉ số về 0-0
     setVsBot(false); setMode(mode === "advance" ? "advance" : "classic");
-    socket.emit("createRoom", { clientId, mode }, (res) => {
+    socket.emit("createRoom", { clientId, mode, contextId: fbContextId() }, (res) => {
       if (res.ok) { setCode(res.code); saveRoom(res.code); setScreen("room"); }
     });
   }
   function joinRoom(c) {
     setError(null);
-    socket.emit("joinRoom", { code: c, clientId }, (res) => {
+    socket.emit("joinRoom", { code: c, clientId, contextId: fbContextId() }, (res) => {
       if (!res.ok) { setError(res.error); return; }
       setCode(res.code); saveRoom(res.code);
       // reclaimed = took over a seat in an in-progress game (reconnect by code);

@@ -320,6 +320,42 @@ function doShot(room, clientId, cells) {
   return { ok: true, cells: results, collected, sunkCells, sunkCount, newSunk, win, anyHit, mineHit };
 }
 
+// Reattach `socket` to a seat in `room`, migrating the seat's data to
+// `newClientId` when the returning player's id changed (mobile FB wipes
+// storage + player id is null under Zero Permissions). Sends sync.
+function reclaimSeat(room, code, seatId, newClientId, socket) {
+  const p = room.players[seatId];
+  if (!p) return false;
+  if (p.timer) { clearTimeout(p.timer); p.timer = null; }
+  if (seatId !== newClientId) {
+    delete room.players[seatId];
+    room.players[newClientId] = p;
+    room.order = room.order.map((id) => (id === seatId ? newClientId : id));
+    if (room.turn === seatId) room.turn = newClientId;
+    if (room.lastStarter === seatId) room.lastStarter = newClientId;
+    if (room.scores && room.scores[seatId] != null) { room.scores[newClientId] = room.scores[seatId]; delete room.scores[seatId]; }
+    if (room.powerups && room.powerups[seatId]) { room.powerups[newClientId] = room.powerups[seatId]; delete room.powerups[seatId]; }
+    if (room.mines && room.mines[seatId]) { room.mines[newClientId] = room.mines[seatId]; delete room.mines[seatId]; }
+  }
+  p.sid = socket.id; p.online = true;
+  socket.join(code);
+  socket.data.code = code;
+  socket.data.clientId = newClientId;
+  io.to(code).emit("roomUpdate", roomPublic(room));
+  const oppId = opponentOf(room, newClientId);
+  if (oppId) emitToClient(room, oppId, "opponentOnline");
+  emitToClient(room, newClientId, "sync", syncPayload(room, code, newClientId));
+  return true;
+}
+
+// Remember a context id (Messenger thread) seen for this room, so a returning
+// player from the same thread can be matched back to it.
+function rememberContext(room, contextId) {
+  if (!contextId) return;
+  room.contextIds = room.contextIds || [];
+  if (!room.contextIds.includes(contextId)) room.contextIds.push(contextId);
+}
+
 io.on("connection", (socket) => {
   socket.data.code = null;
   socket.data.clientId = null;
@@ -341,7 +377,8 @@ io.on("connection", (socket) => {
     const clientId = (arg && arg.clientId) || socket.id;
     const code = newCode();
     const mode = (arg && arg.mode) === "advance" ? "advance" : "classic";
-    rooms[code] = { players: {}, order: [], started: false, turn: null, scores: {}, lastStarter: null, mode, powerups: {} };
+    rooms[code] = { players: {}, order: [], started: false, turn: null, scores: {}, lastStarter: null, mode, powerups: {}, contextIds: [] };
+    rememberContext(rooms[code], arg && arg.contextId);
     rooms[code].players[clientId] = {
       sid: socket.id, ready: false, occ: null, hits: new Set(), online: true, timer: null, inv: newInv(), bonus: 0,
     };
@@ -360,6 +397,7 @@ io.on("connection", (socket) => {
     code = (code || "").toUpperCase().trim();
     const room = rooms[code];
     if (!room) return cb && cb({ ok: false, error: "Phòng không tồn tại" });
+    rememberContext(room, arg && arg.contextId);
     // allow rejoin of own seat
     if (room.players[clientId]) {
       const p = room.players[clientId];
@@ -383,26 +421,8 @@ io.on("connection", (socket) => {
     if (room.order.length >= 2) {
       const offlineId = room.order.find((id) => room.players[id] && !room.players[id].online);
       if (offlineId) {
-        const p = room.players[offlineId];
-        if (p.timer) { clearTimeout(p.timer); p.timer = null; }
-        delete room.players[offlineId];
-        room.players[clientId] = p;
-        room.order = room.order.map((id) => (id === offlineId ? clientId : id));
-        if (room.turn === offlineId) room.turn = clientId;
-        if (room.lastStarter === offlineId) room.lastStarter = clientId;
-        if (room.scores && room.scores[offlineId] != null) { room.scores[clientId] = room.scores[offlineId]; delete room.scores[offlineId]; }
-        if (room.powerups && room.powerups[offlineId]) { room.powerups[clientId] = room.powerups[offlineId]; delete room.powerups[offlineId]; }
-        if (room.mines && room.mines[offlineId]) { room.mines[clientId] = room.mines[offlineId]; delete room.mines[offlineId]; }
-        p.sid = socket.id; p.online = true;
-        socket.join(code);
-        socket.data.code = code;
-        socket.data.clientId = clientId;
-        cb && cb({ ok: true, code, reclaimed: true });
-        io.to(code).emit("roomUpdate", roomPublic(room));
-        const oppId = opponentOf(room, clientId);
-        if (oppId) emitToClient(room, oppId, "opponentOnline");
-        emitToClient(room, clientId, "sync", syncPayload(room, code, clientId));
-        return;
+        reclaimSeat(room, code, offlineId, clientId, socket);
+        return cb && cb({ ok: true, code, reclaimed: true });
       }
       return cb && cb({ ok: false, error: "Phòng đã đủ người" });
     }
@@ -426,24 +446,31 @@ io.on("connection", (socket) => {
   // as long as clientId is the stable FB player id.
   socket.on("resume", (arg, cb) => {
     const clientId = arg && arg.clientId;
-    if (!clientId) return cb && cb({ ok: false });
-    let foundCode = null;
-    for (const code in rooms) {
-      if (rooms[code].players && rooms[code].players[clientId]) { foundCode = code; break; }
+    const contextId = arg && arg.contextId;
+    // 1) Exact clientId seat — works when the id (localStorage) survived.
+    if (clientId) {
+      for (const code in rooms) {
+        if (rooms[code].players && rooms[code].players[clientId]) {
+          reclaimSeat(rooms[code], code, clientId, clientId, socket);
+          return cb && cb({ ok: true, code });
+        }
+      }
     }
-    if (!foundCode) return cb && cb({ ok: false });
-    const room = rooms[foundCode];
-    const p = room.players[clientId];
-    if (p.timer) { clearTimeout(p.timer); p.timer = null; }
-    p.sid = socket.id; p.online = true;
-    socket.join(foundCode);
-    socket.data.code = foundCode;
-    socket.data.clientId = clientId;
-    cb && cb({ ok: true, code: foundCode });
-    io.to(foundCode).emit("roomUpdate", roomPublic(room));
-    const oppId = opponentOf(room, clientId);
-    if (oppId) emitToClient(room, oppId, "opponentOnline");
-    emitToClient(room, clientId, "sync", syncPayload(room, foundCode, clientId));
+    // 2) Same Messenger thread — reclaim an offline seat in a room tagged with
+    //    this context id. This is the path that survives a wiped webview + null
+    //    player id, as long as both players launched from the same thread.
+    if (contextId) {
+      for (const code in rooms) {
+        const room = rooms[code];
+        if (!room.contextIds || !room.contextIds.includes(contextId)) continue;
+        const offlineId = room.order.find((id) => room.players[id] && !room.players[id].online);
+        if (offlineId) {
+          reclaimSeat(room, code, offlineId, clientId || offlineId, socket);
+          return cb && cb({ ok: true, code, reclaimed: true });
+        }
+      }
+    }
+    return cb && cb({ ok: false });
   });
 
   // Reconnect attempt: client reloaded or came back from background.
