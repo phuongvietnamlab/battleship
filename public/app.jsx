@@ -81,13 +81,14 @@ const Sound = (function () {
 //   3. fresh random id — last resort (no persistence; rely on manual code).
 // `let` so the boot chain can upgrade it to the FB player id before connecting.
 let lsWorks = false; // does localStorage even work in this iframe?
+let idFresh = false; // true = id was just generated (storage had nothing) -> storage did NOT persist
 let clientId = (function () {
   try {
     let id = localStorage.getItem("bs_clientId");
-    if (!id) { id = "c" + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem("bs_clientId", id); }
+    if (!id) { id = "c" + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem("bs_clientId", id); idFresh = true; }
     lsWorks = localStorage.getItem("bs_clientId") === id;
     return id;
-  } catch (e) { return "c" + Math.random().toString(36).slice(2) + Date.now().toString(36); }
+  } catch (e) { idFresh = true; return "c" + Math.random().toString(36).slice(2) + Date.now().toString(36); }
 })();
 function saveRoom(c) { try { c ? localStorage.setItem("bs_room", c) : localStorage.removeItem("bs_room"); } catch (e) {} }
 function loadRoom() { try { return localStorage.getItem("bs_room"); } catch (e) { return null; } }
@@ -652,7 +653,7 @@ function App() {
   const [oppOffline, setOppOffline] = useState(false); // đối thủ tạm mất kết nối
   const [graceLeft, setGraceLeft] = useState(0);        // đếm ngược giây chờ kết nối lại
   const [confirmLeave, setConfirmLeave] = useState(false); // hỏi xác nhận trước khi rời
-  const [dbg, setDbg] = useState("id:" + clientId.slice(0, 12) + " | ls:" + (lsWorks ? "ok" : "BLOCKED"));
+  const [dbg, setDbg] = useState("id:" + clientId.slice(0, 10) + " | src:" + (idFresh ? "NEW" : "stored") + " | ls:" + (lsWorks ? "ok" : "BLOCKED"));
   const graceTimerRef = useRef(null);
   const [soundOn, setSoundOn] = useState(true);
   function toggleSound() { const v = !soundOn; setSoundOn(v); Sound.setEnabled(v); }
@@ -720,10 +721,10 @@ function App() {
       //    iframe wiped localStorage — as long as clientId is the stable FB id.
       const ctx = fbContextId();
       console.log("[resume] try clientId=", clientId, "ctx=", ctx);
-      setDbg("id:" + clientId.slice(0, 12) + " | ls:" + (lsWorks ? "ok" : "BLOCKED") + " | ctx:" + (ctx ? "yes" : "null"));
+      setDbg("id:" + clientId.slice(0, 10) + " | src:" + (idFresh ? "NEW" : "stored") + " | ls:" + (lsWorks ? "ok" : "BLOCKED") + " | ctx:" + (ctx ? "yes" : "null"));
       socket.emit("resume", { clientId, contextId: ctx }, (res) => {
         console.log("[resume] result", res);
-        setDbg("id:" + clientId.slice(0, 12) + " | ls:" + (lsWorks ? "ok" : "BLOCKED") + " | ctx:" + (ctx ? "yes" : "null") + " | resume:" + (res && res.ok ? "OK " + res.code : "fail"));
+        setDbg("id:" + clientId.slice(0, 10) + " | src:" + (idFresh ? "NEW" : "stored") + " | ls:" + (lsWorks ? "ok" : "BLOCKED") + " | ctx:" + (ctx ? "yes" : "null") + " | resume:" + (res && res.ok ? "OK " + res.code : "fail"));
         if (res && res.ok) { setCode(res.code); saveRoom(res.code); return; }
         // 2) Fallback: rejoin a room code we stored locally (storage available).
         const r = loadRoom();
