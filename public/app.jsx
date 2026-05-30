@@ -168,8 +168,8 @@ function Lobby({ onCreate, onJoin, onBot, error }) {
 }
 
 // ---------- Grid ----------
-const POWER_ICON = { cluster: "\u{1F4A5}", cross: "➕", double: "\u{1F501}", reveal: "\u{1F50D}", mine: "\u{1F6A7}" };
-const POWER_NAME = { cluster: "Bắn chùm 2x2", cross: "Tên lửa chữ thập", double: "Thêm lượt", reveal: "Lộ ô thuyền", mine: "Mìn nước" };
+const POWER_ICON = { scatter: "\u{1F320}", cross: "➕", double: "\u{1F501}", reveal: "\u{1F50D}", mine: "\u{1F6A7}" };
+const POWER_NAME = { scatter: "Nổ ngẫu nhiên", cross: "Tên lửa chữ thập", double: "Thêm lượt", reveal: "Lộ ô thuyền", mine: "Mìn nước" };
 function Grid({ enemy, occ, hits, incoming, onCellClick, hoverCells, onCellHover, shootable, sunk, flash, powerups, revealed, aimCells, mines, placeable }) {
   // occ: Set of "r,c" your ships (own board)
   // hits: Set of "r,c" shots you fired at enemy (enemy board)
@@ -505,7 +505,7 @@ function Counter({ label, value, cls }) {
   );
 }
 function PowerBar({ inv, aim, onPower, myTurn }) {
-  const items = ["cluster", "cross", "double", "reveal", "mine"];
+  const items = ["scatter", "cross", "double", "reveal", "mine"];
   return (
     <div className="powerbar">
       {items.map((t) => (
@@ -598,7 +598,7 @@ function App() {
   const [sunkOpp, setSunkOpp] = useState(0);   // địch bị ta đánh chìm
   const [sunkMine, setSunkMine] = useState(0); // thuyền của ta bị chìm
   const [mode, setMode] = useState("classic"); // classic | advance
-  const [inv, setInv] = useState({ cluster: 0, cross: 0, double: 0, reveal: 0, mine: 0 });
+  const [inv, setInv] = useState({ scatter: 0, cross: 0, double: 0, reveal: 0, mine: 0 });
   const [myMines, setMyMines] = useState(new Set()); // mìn ta đã đặt trên hạm đội mình
   const [powerups, setPowerups] = useState(new Map()); // ô power-up trên biển địch: key->type
   const [revealedEnemy, setRevealedEnemy] = useState(new Set()); // ô thuyền địch đã bị lộ
@@ -667,7 +667,7 @@ function App() {
     socket.on("gameStart", ({ yourTurn, mode: m }) => {
       setScreen("battle"); setMyTurn(yourTurn);
       setMode(m || "classic");
-      setInv({ cluster: 0, cross: 0, double: 0, reveal: 0, mine: 0 });
+      setInv({ scatter: 0, cross: 0, double: 0, reveal: 0, mine: 0 });
       setPowerups(new Map()); setRevealedEnemy(new Set()); setAim(null); setMyMines(new Set());
       addLog(yourTurn ? "Bạn đi trước. Khai hỏa!" : "Đối thủ đi trước.");
     });
@@ -696,7 +696,7 @@ function App() {
       setOcc(new Set()); setIncoming(new Map()); setMyShots(new Map()); setOver(null); setLog([]);
       setSunkOpp(0); setSunkMine(0);
       setSunkEnemyCells(new Set()); setSunkMyCells(new Set()); // giữ nguyên tỉ số
-      setInv({ cluster: 0, cross: 0, double: 0, reveal: 0, mine: 0 });
+      setInv({ scatter: 0, cross: 0, double: 0, reveal: 0, mine: 0 });
       setPowerups(new Map()); setRevealedEnemy(new Set()); setAim(null); setMyMines(new Set());
     });
     // if already connected when listeners attach, attempt rejoin now
@@ -899,13 +899,18 @@ function App() {
   // dùng power-up trong kho
   function activatePower(type) {
     if (!myTurn || (inv[type] || 0) <= 0) return;
-    if (type === "cluster" || type === "cross" || type === "mine") { setAim((a) => (a === type ? null : type)); return; }
+    if (type === "cross" || type === "mine") { setAim((a) => (a === type ? null : type)); return; }
+    if (type === "scatter") { Sound.fire(); }
     socket.emit("useAbility", { type }, (res) => {
       if (!res.ok) { if (res.error) addLog(res.error); return; }
       if (res.type === "double") addLog("Kích hoạt Thêm lượt — phát trượt kế tiếp vẫn giữ lượt!");
       else if (res.type === "reveal") {
         setRevealedEnemy((s) => new Set(s).add(key(res.r, res.c)));
         addLog(`Lộ 1 ô thuyền địch tại ${ROWS[res.r]}${res.c + 1}!`);
+      }
+      else if (res.type === "scatter") {
+        addLog("💥 Nổ ngẫu nhiên!");
+        applyShotResult(res, "Nổ ngẫu nhiên");
       }
     });
   }
@@ -917,7 +922,7 @@ function App() {
     setSunkOpp(0); setSunkMine(0); setVsBot(false);
     setSunkEnemyCells(new Set()); setSunkMyCells(new Set());
     setMyScore(0); setOppScore(0);
-    setMode("classic"); setInv({ cluster: 0, cross: 0, double: 0, reveal: 0, mine: 0 });
+    setMode("classic"); setInv({ scatter: 0, cross: 0, double: 0, reveal: 0, mine: 0 });
     setPowerups(new Map()); setRevealedEnemy(new Set()); setAim(null); setMyMines(new Set());
     setScreen("lobby");
   }

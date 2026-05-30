@@ -234,7 +234,8 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 .power-btn .pc { position:absolute; top:-6px; right:-6px; background:var(--gold); color:#06203f; font-size:11px; font-weight:700; border-radius:10px; padding:0 6px; }
 .power-btn:disabled { opacity:.4; cursor:default; }
 .power-btn.aiming { border-color:var(--gold); box-shadow:0 0 14px rgba(240,193,75,.6); background:rgba(240,193,75,.15); }
-.aim-banner { background:rgba(240,193,75,.16); border:1px solid var(--gold); color:#ffe9b0; padding:8px 12px; border-radius:10px; font-size:13px; margin-bottom:10px; text-align:center; }
+/* banner ngắm dạng nổi (fixed) để không làm xê dịch bố cục -> tránh giật scroll trên mobile */
+.aim-banner { position:fixed; left:50%; bottom:14px; transform:translateX(-50%); z-index:150; width:max-content; max-width:92vw; background:rgba(40,30,8,.96); border:1px solid var(--gold); color:#ffe9b0; padding:9px 14px; border-radius:12px; font-size:13px; text-align:center; box-shadow:0 6px 22px rgba(0,0,0,.5); }
 
 /* bảng điểm 2 người trong room */
 .scoreboard {

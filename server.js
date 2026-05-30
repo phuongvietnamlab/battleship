@@ -137,13 +137,9 @@ function emitScores(room) {
 }
 
 // ---------- Advance mode: power-ups ----------
-const POWERS = ["cluster", "cross", "double", "reveal", "mine"];
-function newInv() { return { cluster: 0, cross: 0, double: 0, reveal: 0, mine: 0 }; }
+const POWERS = ["scatter", "cross", "double", "reveal", "mine"];
+function newInv() { return { scatter: 0, cross: 0, double: 0, reveal: 0, mine: 0 }; }
 function expandCells(power, r, c) {
-  if (power === "cluster") {
-    const r0 = Math.min(r, BOARD - 2), c0 = Math.min(c, BOARD - 2);
-    return [[r0, c0], [r0, c0 + 1], [r0 + 1, c0], [r0 + 1, c0 + 1]];
-  }
   if (power === "cross") {
     const out = [[r, c]];
     [[r - 1, c], [r + 1, c], [r, c - 1], [r, c + 1]].forEach(([nr, nc]) => {
@@ -430,7 +426,7 @@ io.on("connection", (socket) => {
     me.inv = me.inv || newInv();
 
     // aimed power-up shots consume inventory; classic mode ignores power entirely
-    if (room.mode === "advance" && (power === "cluster" || power === "cross")) {
+    if (room.mode === "advance" && power === "cross") {
       if ((me.inv[power] || 0) <= 0) return cb && cb({ ok: false, error: "Không có power-up" });
       me.inv[power]--;
     } else {
@@ -482,6 +478,22 @@ io.on("connection", (socket) => {
       room.mines[clientId].add(k);
       emitInv(room, clientId);
       return cb && cb({ ok: true, type: "mine", r, c });
+    }
+    if (type === "scatter") {
+      // nổ ngẫu nhiên 3-5 vị trí trên biển địch
+      const cand = [];
+      for (let rr = 0; rr < BOARD; rr++) for (let cc = 0; cc < BOARD; cc++) {
+        const k = rr + "," + cc;
+        if (!me.hits.has(k)) cand.push([rr, cc]);
+      }
+      if (!cand.length) return cb && cb({ ok: false, error: "Hết ô để bắn" });
+      me.inv.scatter--;
+      const n = Math.min(cand.length, 3 + Math.floor(Math.random() * 3)); // 3..5
+      const pick = [];
+      for (let i = 0; i < n; i++) pick.push(cand.splice(Math.floor(Math.random() * cand.length), 1)[0]);
+      emitInv(room, clientId);
+      const summary = doShot(room, clientId, pick);
+      return cb && cb(Object.assign({ type: "scatter" }, summary));
     }
     cb && cb({ ok: false });
   });
