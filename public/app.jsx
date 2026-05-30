@@ -1,3 +1,6 @@
+import React from "react";
+import * as ReactDOM from "react-dom/client";
+import { io } from "socket.io-client";
 const { useState, useEffect, useRef, useCallback } = React;
 
 const BOARD = 11;
@@ -12,7 +15,10 @@ const FLEET_DEF = [
   { id: "destroyer", name: "Khu trục hạm", size: 2 },
 ];
 
-const socket = io();
+// Same-origin when SERVER_URL is empty (local dev served by this server);
+// absolute wss:// when bundled for Facebook Instant Games (client hosted by FB).
+const SOCKET_URL = process.env.SERVER_URL || undefined;
+const socket = io(SOCKET_URL);
 
 // ---------- âm thanh (Web Audio, không cần file) ----------
 const Sound = (function () {
@@ -1015,4 +1021,23 @@ function App() {
   );
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+function mount() {
+  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+}
+
+// Facebook Instant Games lifecycle: must finish startGameAsync before showing the
+// game. Outside FB (local dev / plain web) FBInstant is undefined, so mount directly.
+if (typeof FBInstant !== "undefined") {
+  FBInstant.initializeAsync()
+    .then(() => {
+      FBInstant.setLoadingProgress(100);
+      return FBInstant.startGameAsync();
+    })
+    .then(mount)
+    .catch((e) => {
+      console.error("FBInstant boot failed, mounting anyway:", e);
+      mount();
+    });
+} else {
+  mount();
+}

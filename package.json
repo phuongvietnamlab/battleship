@@ -5,7 +5,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "build:spike": "node build-spike.mjs"
+    "build:spike": "node build-spike.mjs",
+    "build:game": "node build-game.mjs"
   },
   "dependencies": {
     "express": "^4.19.2",
@@ -13,6 +14,8 @@
   },
   "devDependencies": {
     "esbuild": "^0.24.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
     "socket.io-client": "^4.7.5"
   }
 }

@@ -24,8 +24,12 @@ const io = new Server(server, {
   },
 });
 
+// Built game bundle (run `npm run build:game`) served first, so the no-CDN
+// index.html + bundled app.js are used for local/web preview. Falls back to
+// public/ for any unbuilt asset.
+app.use(express.static(path.join(__dirname, "dist")));
 app.use(express.static(path.join(__dirname, "public")));
-// Serve the built T0 spike (run `npm run build:spike` first) at /spike/
+// Built T0 spike (run `npm run build:spike` first) at /spike/
 app.use("/spike", express.static(path.join(__dirname, "dist-spike")));
 
 const PORT = process.env.PORT || 4000;
