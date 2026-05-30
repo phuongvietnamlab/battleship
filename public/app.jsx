@@ -945,26 +945,9 @@ function App() {
     resetToLobby();
   }
   function copyCode() {
-    navigator.clipboard && navigator.clipboard.writeText(code);
+    // Clipboard API bị chặn (permissions policy) trong iframe Instant Games -> nuốt lỗi.
+    try { if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(code).catch(() => {}); } catch (e) {}
     setCopied(true); setTimeout(() => setCopied(false), 1500);
-  }
-  // Mời bạn qua Facebook: inviteAsync mở popup chọn bạn bè; bạn tích chọn -> FB gửi
-  // tin nhắn Messenger kèm data {roomCode}. Người được mời bấm vào -> getEntryPointData
-  // trả về roomCode -> tự vào đúng phòng. Huỷ/không hỗ trợ -> fallback chép mã.
-  async function inviteFriends() {
-    const SHARE_IMG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
-    if (typeof FBInstant !== "undefined" && FBInstant.inviteAsync) {
-      try {
-        await FBInstant.inviteAsync({
-          image: SHARE_IMG,
-          text: "Mời bạn vào đấu Hải Chiến! Mã phòng: " + code,
-          data: { roomCode: code },
-        });
-        showNotice("Đã gửi lời mời qua Messenger ✓");
-        return;
-      } catch (e) { /* người dùng huỷ hoặc không hỗ trợ -> fallback */ }
-    }
-    copyCode(); showNotice("Đã chép mã phòng — gửi cho bạn nhé!");
   }
 
   return (
@@ -982,9 +965,6 @@ function App() {
         <div className="roombar">
           <div className="roombar-info">{vsBot ? <b>🤖 Với máy</b> : <span>Phòng <b className="roomcode">{code}</b></span>}</div>
           <div className="roombar-actions">
-            {!vsBot && typeof FBInstant !== "undefined" && (
-              <button className="btn steel" onClick={inviteFriends}>📨 Mời bạn</button>
-            )}
             <button className="btn ghost" onClick={leaveRoom}>{vsBot ? "Thoát" : "Rời phòng"}</button>
           </div>
         </div>
@@ -1002,9 +982,7 @@ function App() {
             <div className="code">{code}</div>
             <button className="btn steel copy-btn" onClick={copyCode}>{copied ? "Đã chép ✓" : "Sao chép"}</button>
           </div>
-          {typeof FBInstant !== "undefined" && (
-            <button className="btn primary" style={{marginBottom:16}} onClick={inviteFriends}>📨 Mời bạn qua Facebook</button>
-          )}
+          <p className="sub" style={{textAlign:"center",marginBottom:16}}>📩 Gửi mã này cho bạn qua Messenger / Zalo. Bạn nhập mã ở màn hình chính là vào.</p>
           {!oppPresent
             ? <div className="status-pill pill-wait" style={{textAlign:"center"}}>⏳ Đang chờ đối thủ vào phòng...</div>
             : null}
