@@ -933,7 +933,8 @@ function App() {
     setScreen("lobby");
   }
   function leaveRoom() {
-    if (!window.confirm("Rời phòng và thoát ván đấu?")) return;
+    // NB: window.confirm() is blocked inside the Instant Games sandboxed iframe
+    // (returns false / no-op), which made this button dead. Exit directly instead.
     if (!vsBot) socket.emit("leaveRoom", () => {});
     resetToLobby();
   }

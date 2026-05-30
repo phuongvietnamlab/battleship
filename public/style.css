@@ -423,3 +423,11 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
   .logo h1{ font-size:18px; }
   .logo small{ display:none; }
 }
+
+/* Subtle scrollbar — the Instant Games portrait container is short, so content
+   scrolls; the default chunky bar looked rough. Thin + translucent. */
+* { scrollbar-width: thin; scrollbar-color: rgba(120,160,210,.35) transparent; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(120,160,210,.35); border-radius: 6px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(120,160,210,.55); }
