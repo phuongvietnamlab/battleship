@@ -715,7 +715,10 @@ function App() {
       // 1) Ask the server if our clientId already holds a seat in any room.
       //    This needs NO locally-stored code, so it works even when the IG
       //    iframe wiped localStorage — as long as clientId is the stable FB id.
-      socket.emit("resume", { clientId, contextId: fbContextId() }, (res) => {
+      const ctx = fbContextId();
+      console.log("[resume] try clientId=", clientId, "ctx=", ctx);
+      socket.emit("resume", { clientId, contextId: ctx }, (res) => {
+        console.log("[resume] result", res);
         if (res && res.ok) { setCode(res.code); saveRoom(res.code); return; }
         // 2) Fallback: rejoin a room code we stored locally (storage available).
         const r = loadRoom();
@@ -767,8 +770,10 @@ function App() {
       setInv({ scatter: 0, cross: 0, double: 0, reveal: 0, mine: 0 });
       setPowerups(new Map()); setRevealedEnemy(new Set()); setAim(null); setMyMines(new Set());
     });
-    // if already connected when listeners attach, attempt resume now
-    if (socket.connected) {
+    // Connect now that all listeners are attached. If the socket somehow already
+    // connected (hot remount), run resume immediately instead.
+    if (!socket.connected) socket.connect();
+    else if (socket.connected) {
       socket.emit("resume", { clientId, contextId: fbContextId() }, (res) => {
         if (res && res.ok) { setCode(res.code); saveRoom(res.code); return; }
         const r = loadRoom();
@@ -1135,7 +1140,9 @@ let _booted = false;
 function boot() {
   if (_booted) return;
   _booted = true;
-  socket.connect(); // identity is finalized by now -> first "resume" uses it
+  // NB: do NOT socket.connect() here — the App effect connects only after it has
+  // attached the "connect"/"sync" listeners, otherwise a fast connect event can
+  // fire before anyone is listening and auto-resume is silently missed.
   ReactDOM.createRoot(document.getElementById("root")).render(<App />);
 }
 
