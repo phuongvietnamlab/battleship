@@ -524,7 +524,7 @@ function Battle({ myTurn, vsBot, occ, incoming, myShots, onFire, log, sunkOpp, s
   // tự động chuyển tab theo lượt, delay ~2s để kịp nhìn địch bắn vào đâu rồi mới đổi bản đồ
   useEffect(() => {
     if (aim === "mine") { setTab("own"); return; }
-    const t = setTimeout(() => setTab(myTurn ? "enemy" : "own"), 2000);
+    const t = setTimeout(() => setTab(myTurn ? "enemy" : "own"), 1300);
     return () => clearTimeout(t);
   }, [myTurn, aim]);
   return (
