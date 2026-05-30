@@ -80,10 +80,12 @@ const Sound = (function () {
 //   2. localStorage random id — survives reloads when storage works.
 //   3. fresh random id — last resort (no persistence; rely on manual code).
 // `let` so the boot chain can upgrade it to the FB player id before connecting.
+let lsWorks = false; // does localStorage even work in this iframe?
 let clientId = (function () {
   try {
     let id = localStorage.getItem("bs_clientId");
     if (!id) { id = "c" + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem("bs_clientId", id); }
+    lsWorks = localStorage.getItem("bs_clientId") === id;
     return id;
   } catch (e) { return "c" + Math.random().toString(36).slice(2) + Date.now().toString(36); }
 })();
@@ -650,6 +652,7 @@ function App() {
   const [oppOffline, setOppOffline] = useState(false); // đối thủ tạm mất kết nối
   const [graceLeft, setGraceLeft] = useState(0);        // đếm ngược giây chờ kết nối lại
   const [confirmLeave, setConfirmLeave] = useState(false); // hỏi xác nhận trước khi rời
+  const [dbg, setDbg] = useState("id:" + clientId.slice(0, 12) + " | ls:" + (lsWorks ? "ok" : "BLOCKED"));
   const graceTimerRef = useRef(null);
   const [soundOn, setSoundOn] = useState(true);
   function toggleSound() { const v = !soundOn; setSoundOn(v); Sound.setEnabled(v); }
@@ -717,8 +720,10 @@ function App() {
       //    iframe wiped localStorage — as long as clientId is the stable FB id.
       const ctx = fbContextId();
       console.log("[resume] try clientId=", clientId, "ctx=", ctx);
+      setDbg("id:" + clientId.slice(0, 12) + " | ls:" + (lsWorks ? "ok" : "BLOCKED") + " | ctx:" + (ctx ? "yes" : "null"));
       socket.emit("resume", { clientId, contextId: ctx }, (res) => {
         console.log("[resume] result", res);
+        setDbg("id:" + clientId.slice(0, 12) + " | ls:" + (lsWorks ? "ok" : "BLOCKED") + " | ctx:" + (ctx ? "yes" : "null") + " | resume:" + (res && res.ok ? "OK " + res.code : "fail"));
         if (res && res.ok) { setCode(res.code); saveRoom(res.code); return; }
         // 2) Fallback: rejoin a room code we stored locally (storage available).
         const r = loadRoom();
@@ -1132,6 +1137,8 @@ function App() {
       )}
 
       <div className="footer-note">Battleship Online · chia sẻ mã phòng để mời bạn bè</div>
+      {/* TẠM THỜI: dòng chẩn đoán resume — đọc trực tiếp trên điện thoại */}
+      <div className="dbg-bar">{dbg}</div>
     </div>
   );
 }

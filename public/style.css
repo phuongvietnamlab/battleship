@@ -366,6 +366,9 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 .log div:first-child { color:#fff; }
 
 .footer-note { text-align:center; color:#5878a0; font-size:12px; margin-top:32px; }
+.dbg-bar { position:fixed; left:0; right:0; bottom:0; z-index:300; background:rgba(0,0,0,.8);
+  color:#7fffae; font-family:ui-monospace,monospace; font-size:11px; text-align:center;
+  padding:4px 6px; letter-spacing:.3px; pointer-events:none; }
 
 /* tap-to-place helpers */
 .sel-banner{ background:rgba(86,180,255,.16); border:1px solid rgba(86,180,255,.5); color:#cfe8ff; padding:8px 12px; border-radius:10px; font-size:13px; margin-bottom:12px; }
