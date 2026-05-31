@@ -1218,15 +1218,28 @@ function adoptFbIdentity() {
 // clientId + last room survive an app restart even when localStorage is wiped
 // and player/context ids are null.
 async function resolveIdentityAndBoot() {
-  adoptFbIdentity(); // player.getID (usually null under Zero Permissions)
+  // Primary identity: App-Scoped ID. Stable per (player, app) across app restarts
+  // and available under current Instant Games even when player.getID() returns
+  // null. Requires startGameAsync to have resolved. This is the durable key the
+  // whole auto-resume design needs.
+  try {
+    if (typeof FBInstant !== "undefined" && FBInstant.player && FBInstant.player.getASIDAsync) {
+      const asid = await FBInstant.player.getASIDAsync();
+      if (asid) {
+        clientId = "fb_" + asid;
+        try { localStorage.setItem("bs_clientId", clientId); } catch (e) {}
+        fbStage = "asid:YES";
+      } else { fbStage = "asid:null"; adoptFbIdentity(); }
+    } else { adoptFbIdentity(); }
+  } catch (e) { fbStage = "asidERR:" + ((e && e.code) || "x"); adoptFbIdentity(); }
+  // Durable room pointer via cloud save (best-effort; also confirms cloud works).
   try {
     if (fbHasCloud()) {
-      const d = await FBInstant.player.getDataAsync(["bs_key", "bs_room"]);
-      if (d && d.bs_key) { clientId = d.bs_key; cloudReady = true; }
-      else { await cloudSet({ bs_key: clientId }); } // first run: persist our id for next launch
-      if (d && d.bs_room) saveRoom(d.bs_room); // resume/rejoin fallback can use it
+      const d = await FBInstant.player.getDataAsync(["bs_room"]);
+      cloudReady = true;
+      if (d && d.bs_room) saveRoom(d.bs_room);
     }
-  } catch (e) { console.error("cloud identity failed:", e); }
+  } catch (e) { console.error("cloud read failed:", e); }
   boot();
 }
 
