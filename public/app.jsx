@@ -20,7 +20,7 @@ const LANG = detectLocale();
 const I18N = {
   en: {
     "common.or": "OR", "common.cancel": "Cancel", "common.copy": "Copy", "common.copied": "Copied ✓",
-    "common.copyShort": "Copy", "common.copiedShort": "✓", "common.bot": "Bot", "common.opponent": "Opponent",
+    "common.copyShort": "Copy", "common.copiedShort": "✓", "common.tapToCopy": "Tap the code to copy", "common.bot": "Bot", "common.opponent": "Opponent",
     "common.exit": "Exit", "common.leaveRoom": "Leave", "common.roomCodeLabel": "Room code:", "common.vsBotFull": "🤖 Play vs Bot",
     "topbar.tagline": "Online · Sea Battle", "topbar.soundToggle": "Toggle sound",
     "lobby.title": "Sea Battle", "lobby.sub": "Play vs the bot, or create a room and send the code to a friend.",
@@ -88,7 +88,7 @@ const I18N = {
   },
   vi: {
     "common.or": "HOẶC", "common.cancel": "Hủy", "common.copy": "Sao chép", "common.copied": "Đã chép ✓",
-    "common.copyShort": "Chép", "common.copiedShort": "✓", "common.bot": "Máy", "common.opponent": "Đối thủ",
+    "common.copyShort": "Chép", "common.copiedShort": "✓", "common.tapToCopy": "Chạm vào mã để chép", "common.bot": "Máy", "common.opponent": "Đối thủ",
     "common.exit": "Thoát", "common.leaveRoom": "Rời phòng", "common.roomCodeLabel": "Mã phòng:", "common.vsBotFull": "🤖 Chơi với máy",
     "topbar.tagline": "Online · Hải chiến", "topbar.soundToggle": "Bật/tắt âm thanh",
     "lobby.title": "Trận hải chiến", "lobby.sub": "Chơi với máy, hoặc tạo phòng rồi gửi mã cho bạn bè.",
@@ -1435,10 +1435,12 @@ function App() {
         <div className="lobby">
           <h2>{t("room.title")}</h2>
           <p className="sub">{t("room.sub")}</p>
-          <div className="room-code-box" style={{justifyContent:"center",marginBottom:14}}>
-            <div className="code">{code}</div>
-            <button className="btn steel copy-btn" onClick={copyCode}>{copied ? t("common.copied") : t("common.copy")}</button>
+          <div className="room-code-box" style={{justifyContent:"center",marginBottom:6}}>
+            <div className="code code-copy" onClick={copyCode} title={t("common.tapToCopy")}>
+              {code}{copied && <span className="copied-tag">✓</span>}
+            </div>
           </div>
+          <p className="sub copy-hint" style={{textAlign:"center",marginBottom:14}}>{copied ? t("common.copied") : t("common.tapToCopy")}</p>
           {canShare() && (
             <button className="btn primary" style={{width:"100%",marginBottom:12}} onClick={inviteMessenger} disabled={sharing}>
               {sharing ? t("share.opening") : t("share.invite")}
@@ -1462,8 +1464,10 @@ function App() {
               <div className="room-code-box"><span>{t("common.vsBotFull")}</span></div>
             ) : (
               <div className="room-code-box">
-                <span>{t("common.roomCodeLabel")}</span><div className="code" style={{fontSize:24}}>{code}</div>
-                <button className="btn steel copy-btn" onClick={copyCode}>{copied ? t("common.copiedShort") : t("common.copyShort")}</button>
+                <span>{t("common.roomCodeLabel")}</span>
+                <div className="code code-copy" style={{fontSize:24}} onClick={copyCode} title={t("common.tapToCopy")}>
+                  {code}{copied && <span className="copied-tag">✓</span>}
+                </div>
               </div>
             )}
             <div className={"status-pill " + (vsBot ? "pill-ready" : (oppReady ? "pill-ready" : "pill-wait"))}>

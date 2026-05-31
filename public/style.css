@@ -165,6 +165,11 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
   text-shadow: 0 0 14px rgba(240,193,75,.4);
 }
 .copy-btn { font-size:12px; padding:8px 12px; width:auto; }
+.code-copy { cursor:pointer; position:relative; user-select:all; transition:transform .1s, border-color .2s; }
+.code-copy:hover { border-color:var(--gold); }
+.code-copy:active { transform:scale(.96); }
+.code-copy .copied-tag { margin-left:8px; font-size:.6em; color:#7ff0aa; letter-spacing:0; vertical-align:middle; }
+.copy-hint { font-size:12px; color:#9fc0e0; }
 .status-pill { padding:7px 16px; border-radius:22px; font-size:13px; font-family:"Oswald"; letter-spacing:1px; }
 .pill-wait { background: rgba(240,193,75,.16); color: var(--gold); }
 .pill-ready { background: rgba(111,195,243,.2); color: var(--sky); }
