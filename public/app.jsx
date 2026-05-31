@@ -670,9 +670,16 @@ function Placement({ onConfirm, ready, waiting }) {
   }
 
   return (
-    <div className="boards">
+    <div className="place-wrap">
+      <p className="hint place-hint">{t("place.hint")}</p>
+      <div className="controls place-actions">
+        <button className="btn ghost" onClick={randomize}>{t("place.random")}</button>
+        <button className="btn primary" disabled={!allPlaced || ready} onClick={confirm}>
+          {ready ? (waiting ? t("place.waitingOpp") : t("place.readyMark")) : t("place.ready")}
+        </button>
+      </div>
+
       <div className="board-wrap">
-        <div className="board-title own">{t("board.yourFleet")}</div>
         <div className="grid-outer">
           <div className="grid own" ref={gridRef}
             style={{ gridTemplateColumns: `repeat(${BOARD}, var(--cell))`, position: "relative" }}>
@@ -697,60 +704,6 @@ function Placement({ onConfirm, ready, waiting }) {
             })}
           </div>
         </div>
-      </div>
-
-      <div className="place-panel">
-        <h3>{t("place.heading")}</h3>
-        <p className="hint">{t("place.hint")}</p>
-
-        {sel && (
-          <div className="sel-banner">
-            {t("place.selected", { name: shipName(sel.id) })}
-            <button className="btn ghost" style={{ width: "auto", padding: "3px 8px", fontSize: 11, marginLeft: 8 }} onClick={() => setSel(null)}>{t("common.cancel")}</button>
-          </div>
-        )}
-
-        <div className="controls" style={{ marginBottom: 14 }}>
-          <button className="btn steel" onClick={() => setDir(dir === "h" ? "v" : "h")}>{t("place.dockDir", { dir: dir === "h" ? t("place.horizontal") : t("place.vertical") })}</button>
-        </div>
-
-        <div className="dock">
-          {FLEET_DEF.map((f) => {
-            const isPlaced = !!placed[f.id];
-            const dragging = drag && drag.id === f.id && !drag.fromBoard;
-            return (
-              <div key={f.id} className={"dock-item" + (isPlaced ? " placed" : "")}>
-                <div className="dock-info">
-                  <div className="ship-name">{f.name}</div>
-                  <small>{t("place.cells", { size: f.size })}</small>
-                </div>
-                {isPlaced ? (
-                  <button className="btn ghost" style={{ width: "auto", padding: "5px 10px", fontSize: 11 }}
-                    onClick={() => removeShip(f.id)}>{t("place.removeShip")}</button>
-                ) : (
-                  <div className={"dock-ship " + dir + (sel && sel.id === f.id ? " sel" : "")} onPointerDown={(e) => startDrag(e, f.id, false)}
-                    style={Object.assign(
-                      dir === "h"
-                        ? { width: f.size * PITCH - GAP, height: CELL }
-                        : { width: CELL, height: f.size * PITCH - GAP },
-                      dragging ? { opacity: 0.25 } : null)}>
-                    <div className={"ship-fig " + dir} style={{ width: f.size * PITCH - GAP, height: CELL }}>
-                      <ShipSVG len={f.size} />
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        <div className="controls" style={{ marginBottom: 10 }}>
-          <button className="btn ghost" onClick={randomize}>{t("place.random")}</button>
-          <button className="btn ghost" onClick={() => setPlaced({})}>{t("place.clear")}</button>
-        </div>
-        <button className="btn primary" disabled={!allPlaced || ready} onClick={confirm}>
-          {ready ? (waiting ? t("place.waitingOpp") : t("place.readyMark")) : t("place.ready")}
-        </button>
       </div>
 
       {/* floating ghost following the finger / cursor */}
