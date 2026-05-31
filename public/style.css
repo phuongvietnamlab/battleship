@@ -439,8 +439,9 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
   /* keep cell pitch fixed (drag math depends on it); just tighten layout */
   .boards{gap:20px;}
   .place-panel{width:100%;}
-  /* both boards stay visible (stacked) — no manual tab switcher anymore, so we
-     must never hide the board the player needs to tap on their turn. */
+  /* single board on mobile: auto-switches by turn (no manual tab buttons). */
+  .boards.tab-enemy .wrap-own{ display:none; }
+  .boards.tab-own .wrap-enemy{ display:none; }
   /* topbar gọn lại để không bị tràn / đè chữ */
   .topbar{ padding:6px 2px 14px; gap:8px; }
   .logo{ gap:8px; min-width:0; flex:1; }
