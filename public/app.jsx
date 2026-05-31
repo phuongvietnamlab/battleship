@@ -1111,15 +1111,18 @@ function App() {
     return () => clearTimeout(t);
   }, []);
 
-  // Pick up the FB name/avatar (it may resolve after the fallback boot rendered).
+  // Pick up the FB name/avatar. getName/getPhoto may resolve late (after the
+  // fallback boot rendered), so poll every 1s for ~8s, stopping once we have it.
   useEffect(() => {
-    captureFbProfile();
-    setProfile({ name: fbProfile.name, photo: fbProfile.photo });
-    const t = setTimeout(() => {
+    let n = 0, iv = null;
+    const grab = () => {
       captureFbProfile();
       setProfile({ name: fbProfile.name, photo: fbProfile.photo });
-    }, 3500);
-    return () => clearTimeout(t);
+      if (fbProfile.name || fbProfile.photo || ++n >= 8) { if (iv) clearInterval(iv); }
+    };
+    grab();
+    iv = setInterval(grab, 1000);
+    return () => { if (iv) clearInterval(iv); };
   }, []);
 
   function myProfilePayload() {
