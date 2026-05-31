@@ -6,13 +6,170 @@ const { useState, useEffect, useRef, useCallback } = React;
 const BOARD = 11;
 const COLS = ["1","2","3","4","5","6","7","8","9","10","11"];
 const ROWS = ["A","B","C","D","E","F","G","H","I","J","K"];
-// fleet definitions
+
+// ---------- i18n (English primary, Vietnamese secondary) ----------
+// Locale auto-detected once at load: Vietnamese device -> vi, everything else -> en.
+// t(key, params) interpolates {name} placeholders. Missing keys fall back to en.
+function detectLocale() {
+  let loc = "";
+  try { if (typeof FBInstant !== "undefined" && FBInstant.getLocale) loc = FBInstant.getLocale() || ""; } catch (e) {}
+  if (!loc) { try { loc = navigator.language || ""; } catch (e) {} }
+  return /^vi/i.test(loc) ? "vi" : "en";
+}
+const LANG = detectLocale();
+const I18N = {
+  en: {
+    "common.or": "OR", "common.cancel": "Cancel", "common.copy": "Copy", "common.copied": "Copied ✓",
+    "common.copyShort": "Copy", "common.copiedShort": "✓", "common.bot": "Bot", "common.opponent": "Opponent",
+    "common.exit": "Exit", "common.leaveRoom": "Leave", "common.roomCodeLabel": "Room code:", "common.vsBotFull": "🤖 Play vs Bot",
+    "topbar.tagline": "Online · Sea Battle", "topbar.soundToggle": "Toggle sound",
+    "lobby.title": "Sea Battle", "lobby.sub": "Play vs the bot, or create a room and send the code to a friend.",
+    "lobby.playBot": "🤖 Play vs Bot", "lobby.createRoom": "⚓ Create new room", "lobby.enterCodeLabel": "Enter room code", "lobby.joinBtn": "Join room",
+    "mode.classicDesc": "Classic, no power-ups", "mode.advanceDesc": "Collect & use power-ups",
+    "ship.carrier": "Carrier", "ship.battleship": "Battleship", "ship.cruiser": "Cruiser", "ship.submarine": "Submarine", "ship.destroyer": "Destroyer",
+    "pw.scatter": "Scatter Blast", "pw.cross": "Cross Missile", "pw.double": "Extra Turn", "pw.reveal": "Reveal Cell", "pw.mine": "Sea Mine",
+    "board.yourFleet": "Your fleet",
+    "place.shipTitle": "Drag to move · double-tap to rotate", "place.heading": "Place your fleet",
+    "place.hint": "Two ways: drag a ship onto the grid, or tap a ship in the dock then tap a grid cell to place it (the cell you tap is the bow). Tap a placed ship to rotate.",
+    "place.selected": "Selected: {name} — tap the grid to place.", "place.dockDir": "⟳ Dock orientation: {dir}",
+    "place.horizontal": "Horizontal", "place.vertical": "Vertical", "place.cells": "{size} cells", "place.removeShip": "↩ Return to dock",
+    "place.random": "🎲 Random", "place.clear": "Clear all", "place.ready": "⚓ Ready for battle", "place.readyMark": "Ready ✓", "place.waitingOpp": "Waiting for opponent...",
+    "place.botReady": "✓ Bot is ready", "place.oppReady": "Opponent is ready", "place.oppPlacing": "Opponent is placing...", "place.waitOpp": "Waiting for opponent...",
+    "counter.sunkEnemy": "Sunk", "counter.sunkOwn": "Lost", "counter.ships": "ships",
+    "battle.you": "You", "battle.enemySea": "🎯 Enemy waters", "battle.fireTag": "· FIRE!", "battle.yourFleetTab": "⚓ Your fleet",
+    "battle.aiming": "Aiming {name} — tap enemy waters to fire (tap the button again to cancel).",
+    "battle.aimingMine": "Placing Sea Mine — tap an empty cell on your fleet to place it (tap the button again to cancel).",
+    "battle.yourTurn": "🎯 Your turn", "battle.botTurn": "⏳ Bot's turn", "battle.oppTurn": "⏳ Opponent's turn",
+    "battle.enemyWaters": "Enemy waters", "battle.fireSuffix": "— FIRE!", "battle.logStart": "Battle begins...",
+    "room.title": "Invite a friend", "room.sub": "Send this room code to a friend. The match starts automatically when they join.",
+    "room.shareHint": "📩 Send this code via Messenger / Zalo. They enter it on the home screen to join.", "room.waiting": "⏳ Waiting for opponent to join...", "room.startPlacement": "Start placing your fleet",
+    "share.invite": "📨 Invite via Messenger", "share.inviteShort": "📨 Invite via Messenger", "share.opening": "Opening Messenger…", "share.openingShort": "Opening…",
+    "share.imgTitle": "SEA BATTLE", "share.imgCode": "Room code", "share.text": "Come play Sea Battle with me! Room code: {code}",
+    "over.win": "VICTORY!", "over.lose": "DEFEAT", "over.winTimeout": "Opponent stalled too long — you win.", "over.loseTimeout": "You stalled too long and forfeited.",
+    "over.winNormal": "You sank the entire enemy fleet.", "over.loseNormal": "Your entire fleet was sunk.", "over.rematch": "Play again",
+    "left.title": "Opponent left the room", "left.body": "The match has ended. Return to the lobby to create a new room or play the bot.", "left.toLobby": "Back to lobby",
+    "offline.banner": "📡 Opponent disconnected. Waiting to reconnect",
+    "leave.titleBot": "Quit match?", "leave.titleRoom": "Leave room?", "leave.bodyBot": "You'll quit the match vs the bot and return to the lobby.",
+    "leave.bodyRoom": "You'll leave the room and return to the lobby. Your opponent will be notified.", "leave.stay": "Stay",
+    "roombar.vsBot": "🤖 vs Bot", "roombar.room": "Room",
+    "chat.title": "Chat", "chat.placeholder": "Type a message…", "chat.send": "Send", "chat.empty": "Say hi to your opponent 👋",
+    "help.open": "❓ How to play", "help.title": "How to play", "help.close": "Got it",
+    "help.objTitle": "🎯 Goal", "help.objBody": "Be the first to sink all 5 of your opponent's ships.",
+    "help.setupTitle": "⚓ Place your fleet", "help.setupBody": "Drag ships onto the grid, or tap a ship then tap a cell. Double-tap a placed ship to rotate. Tap 🎲 Random for a quick layout.",
+    "help.turnTitle": "💥 Taking turns", "help.turnBody": "Tap enemy waters to fire. A hit lets you fire again; a miss passes the turn. Each turn has a 45s timer — stall too long and you forfeit.",
+    "help.modesTitle": "🕹️ Modes", "help.modesBody": "Classic: pure battleship. Advance: power-ups appear on the enemy sea — hit them to collect, then use them on your turn.",
+    "help.powerTitle": "⚡ Power-ups (Advance mode)",
+    "help.pwScatter": "Blasts 3–5 random enemy cells.", "help.pwCross": "Fires in a plus shape (center + 4 neighbors).",
+    "help.pwDouble": "Your next miss still keeps the turn.", "help.pwReveal": "Reveals one hidden enemy ship cell.",
+    "help.pwMine": "Place on your own sea — if the enemy hits it, they lose their next turn.",
+    "help.reconnectTitle": "📡 Reconnect", "help.reconnectBody": "If you disconnect or background the app, your seat is held for 3 minutes. Re-open to resume the match.",
+    "footer": "Battleship Online · share the room code to invite friends",
+    "log.oppJoined": "Opponent joined the room.", "log.oppReady": "Opponent is ready.", "log.oppOffline": "Opponent disconnected, waiting to reconnect...", "log.oppReconnect": "Opponent reconnected.",
+    "log.youFirst": "You go first. Open fire!", "log.oppFirst": "Opponent goes first.", "log.botFirst": "Bot goes first.",
+    "log.youTimeout": "You ran out of time — turn passes to the opponent.", "log.oppTimeout": "Opponent ran out of time — your turn.",
+    "log.enemyHitMine": "Enemy hit YOUR mine — they lose their next turn!", "log.enemySunk": "Enemy SANK {n} of your ships!",
+    "log.enemyPowerHit": "Enemy used a power-up — HIT your ship!", "log.enemyPowerMiss": "Enemy used a power-up — missed.",
+    "log.enemyFireHit": "Enemy fired {cell} — HIT your ship!", "log.enemyFireMiss": "Enemy fired {cell} — missed.",
+    "log.oppLeft": "Opponent left.", "log.fleetReady": "Fleet ready. Waiting for opponent...",
+    "log.botSunk": "Bot SANK your {n}-cell ship!", "log.botFireHit": "Bot fired {cell} — HIT your ship!", "log.botFireMiss": "Bot fired {cell} — missed.",
+    "log.youSunkOne": "You SANK a ship ({n} cells)! Fire again!", "log.youFireHit": "You fired {cell} — HIT! Fire again!", "log.youFireMiss": "You fired {cell} — missed.",
+    "log.collected": "You collected a power-up: {list}!", "log.youSunkN": "You SANK {n} ships! Fire again!",
+    "log.labelHit": "{label} — HIT! Fire again!", "log.labelMiss": "{label} — missed.", "log.youHitMine": "You hit the ENEMY's mine — you lose your next turn!",
+    "log.minePlaced": "Mine placed at {cell}. If the enemy hits it they lose a turn!", "log.doubleActivated": "Extra Turn activated — your next miss still keeps the turn!",
+    "log.revealed": "Revealed an enemy ship cell at {cell}!", "log.scatterBoom": "💥 Scatter Blast!",
+    "notice.youTimeout": "⏱️ Time's up! You lost your turn.", "notice.enemyHitMine": "💥 Enemy stepped on YOUR mine! They lose their next turn.",
+    "notice.youHitMine": "💥 You stepped on the ENEMY's mine! You lose your next turn.", "notice.shareFail": "Couldn't open Messenger — send the room code manually.",
+    "label.power": "Power-up {name}", "label.youFire": "You fired {cell}",
+    "err.ROOM_NOT_FOUND": "Room not found", "err.ROOM_FULL": "Room is full", "err.GAME_STARTED": "The match already started", "err.NO_ROOM": "No room",
+    "err.BAD_PLACEMENT": "Invalid ship placement", "err.NOT_YOUR_TURN": "Not your turn yet", "err.BAD_CELL": "Invalid cell", "err.NO_POWERUP": "No power-up",
+    "err.NO_REVEAL": "No cells left to reveal", "err.MINE_ON_SHIP": "Can't place a mine on a ship", "err.CELL_SHOT": "This cell was already shot",
+    "err.MINE_EXISTS": "There's already a mine here", "err.NO_CELLS": "No cells left to shoot",
+  },
+  vi: {
+    "common.or": "HOẶC", "common.cancel": "Hủy", "common.copy": "Sao chép", "common.copied": "Đã chép ✓",
+    "common.copyShort": "Chép", "common.copiedShort": "✓", "common.bot": "Máy", "common.opponent": "Đối thủ",
+    "common.exit": "Thoát", "common.leaveRoom": "Rời phòng", "common.roomCodeLabel": "Mã phòng:", "common.vsBotFull": "🤖 Chơi với máy",
+    "topbar.tagline": "Online · Hải chiến", "topbar.soundToggle": "Bật/tắt âm thanh",
+    "lobby.title": "Trận hải chiến", "lobby.sub": "Chơi với máy, hoặc tạo phòng rồi gửi mã cho bạn bè.",
+    "lobby.playBot": "🤖 Chơi với máy", "lobby.createRoom": "⚓ Tạo phòng mới", "lobby.enterCodeLabel": "Nhập mã phòng", "lobby.joinBtn": "Vào phòng",
+    "mode.classicDesc": "Cổ điển, không power-up", "mode.advanceDesc": "Nhặt & dùng power-up",
+    "ship.carrier": "Tàu sân bay", "ship.battleship": "Thiết giáp hạm", "ship.cruiser": "Tàu tuần dương", "ship.submarine": "Tàu ngầm", "ship.destroyer": "Khu trục hạm",
+    "pw.scatter": "Nổ ngẫu nhiên", "pw.cross": "Tên lửa chữ thập", "pw.double": "Thêm lượt", "pw.reveal": "Lộ ô thuyền", "pw.mine": "Mìn nước",
+    "board.yourFleet": "Hạm đội của bạn",
+    "place.shipTitle": "Kéo để di chuyển · chạm 2 lần để xoay", "place.heading": "Bố trí hạm đội",
+    "place.hint": "2 cách: kéo-thả tàu vào lưới, hoặc chạm 1 tàu trong kho rồi chạm ô trên lưới để đặt (ô bạn chạm là đầu tàu). Chạm tàu đã đặt để xoay.",
+    "place.selected": "Đã chọn: {name} — chạm vào lưới để đặt.", "place.dockDir": "⟳ Hướng kho: {dir}",
+    "place.horizontal": "Ngang", "place.vertical": "Dọc", "place.cells": "{size} ô", "place.removeShip": "↩ Gỡ về kho",
+    "place.random": "🎲 Ngẫu nhiên", "place.clear": "Xóa hết", "place.ready": "⚓ Sẵn sàng chiến đấu", "place.readyMark": "Sẵn sàng ✓", "place.waitingOpp": "Đang chờ đối thủ...",
+    "place.botReady": "✓ Máy đã sẵn sàng", "place.oppReady": "Đối thủ đã sẵn sàng", "place.oppPlacing": "Đối thủ đang bố trí...", "place.waitOpp": "Chờ đối thủ vào...",
+    "counter.sunkEnemy": "Đã đánh chìm", "counter.sunkOwn": "Thuyền bị chìm", "counter.ships": "thuyền",
+    "battle.you": "Bạn", "battle.enemySea": "🎯 Biển địch", "battle.fireTag": "· BẮN!", "battle.yourFleetTab": "⚓ Hạm đội bạn",
+    "battle.aiming": "Đang ngắm {name} — chạm vào biển địch để khai hỏa (chạm lại nút để hủy).",
+    "battle.aimingMine": "Đang đặt Mìn nước — chạm vào ô trống trên hạm đội của bạn để đặt (chạm lại nút để hủy).",
+    "battle.yourTurn": "🎯 Lượt của bạn", "battle.botTurn": "⏳ Lượt của máy", "battle.oppTurn": "⏳ Lượt đối thủ",
+    "battle.enemyWaters": "Vùng biển địch", "battle.fireSuffix": "— BẮN!", "battle.logStart": "Trận đấu bắt đầu...",
+    "room.title": "Mời bạn bè", "room.sub": "Gửi mã phòng này cho bạn. Khi họ vào, ván đấu sẽ tự bắt đầu.",
+    "room.shareHint": "📩 Gửi mã này cho bạn qua Messenger / Zalo. Bạn nhập mã ở màn hình chính là vào.", "room.waiting": "⏳ Đang chờ đối thủ vào phòng...", "room.startPlacement": "Bắt đầu bố trí hạm đội",
+    "share.invite": "📨 Mời bạn qua Messenger", "share.inviteShort": "📨 Mời qua Messenger", "share.opening": "Đang mở Messenger…", "share.openingShort": "Đang mở…",
+    "share.imgTitle": "HẢI CHIẾN", "share.imgCode": "Mã phòng", "share.text": "Vào đấu Hải chiến với mình! Mã phòng: {code}",
+    "over.win": "CHIẾN THẮNG!", "over.lose": "THẤT BẠI", "over.winTimeout": "Đối thủ bỏ lượt quá lâu — bạn thắng.", "over.loseTimeout": "Bạn bỏ lượt quá lâu nên bị xử thua.",
+    "over.winNormal": "Bạn đã đánh chìm toàn bộ hạm đội địch.", "over.loseNormal": "Toàn bộ hạm đội của bạn đã bị đánh chìm.", "over.rematch": "Chơi lại",
+    "left.title": "Đối thủ đã rời phòng", "left.body": "Ván đấu đã kết thúc. Quay lại sảnh để tạo phòng mới hoặc đấu với máy.", "left.toLobby": "Về sảnh",
+    "offline.banner": "📡 Đối thủ tạm mất kết nối. Đang chờ kết nối lại",
+    "leave.titleBot": "Thoát trận?", "leave.titleRoom": "Rời phòng?", "leave.bodyBot": "Bạn sẽ thoát trận đấu với máy và quay lại sảnh.",
+    "leave.bodyRoom": "Bạn sẽ rời phòng và quay lại sảnh. Đối thủ sẽ được thông báo.", "leave.stay": "Ở lại",
+    "roombar.vsBot": "🤖 Với máy", "roombar.room": "Phòng",
+    "chat.title": "Trò chuyện", "chat.placeholder": "Nhập tin nhắn…", "chat.send": "Gửi", "chat.empty": "Chào đối thủ một câu 👋",
+    "help.open": "❓ Cách chơi", "help.title": "Cách chơi", "help.close": "Đã hiểu",
+    "help.objTitle": "🎯 Mục tiêu", "help.objBody": "Đánh chìm cả 5 thuyền của đối thủ trước là thắng.",
+    "help.setupTitle": "⚓ Bố trí hạm đội", "help.setupBody": "Kéo thuyền vào lưới, hoặc chạm thuyền rồi chạm ô để đặt. Chạm 2 lần vào thuyền đã đặt để xoay. Bấm 🎲 Ngẫu nhiên để xếp nhanh.",
+    "help.turnTitle": "💥 Lượt bắn", "help.turnBody": "Chạm vào biển địch để bắn. Trúng thì bắn tiếp; trượt thì chuyển lượt. Mỗi lượt có 45 giây — chần chừ quá lâu sẽ bị xử thua.",
+    "help.modesTitle": "🕹️ Chế độ", "help.modesBody": "Classic: hải chiến thuần. Advance: power-up xuất hiện trên biển địch — bắn trúng để nhặt, rồi dùng trong lượt của bạn.",
+    "help.powerTitle": "⚡ Power-up (chế độ Advance)",
+    "help.pwScatter": "Nổ 3–5 ô ngẫu nhiên trên biển địch.", "help.pwCross": "Bắn theo hình chữ thập (tâm + 4 ô kề).",
+    "help.pwDouble": "Phát trượt kế tiếp vẫn giữ lượt.", "help.pwReveal": "Lộ 1 ô thuyền địch đang ẩn.",
+    "help.pwMine": "Đặt lên biển của mình — địch bắn trúng sẽ mất lượt kế tiếp.",
+    "help.reconnectTitle": "📡 Kết nối lại", "help.reconnectBody": "Nếu mất kết nối hoặc thoát nền app, ghế của bạn được giữ 3 phút. Mở lại để chơi tiếp.",
+    "footer": "Battleship Online · chia sẻ mã phòng để mời bạn bè",
+    "log.oppJoined": "Đối thủ đã vào phòng.", "log.oppReady": "Đối thủ đã sẵn sàng.", "log.oppOffline": "Đối thủ tạm mất kết nối, đang chờ kết nối lại...", "log.oppReconnect": "Đối thủ đã kết nối lại.",
+    "log.youFirst": "Bạn đi trước. Khai hỏa!", "log.oppFirst": "Đối thủ đi trước.", "log.botFirst": "Máy đi trước.",
+    "log.youTimeout": "Bạn bỏ lượt (hết giờ) — chuyển lượt cho đối thủ.", "log.oppTimeout": "Đối thủ hết giờ — tới lượt bạn.",
+    "log.enemyHitMine": "Địch bắn trúng MÌN của bạn — địch mất lượt kế tiếp!", "log.enemySunk": "Địch ĐÁNH CHÌM {n} thuyền của bạn!",
+    "log.enemyPowerHit": "Địch dùng power-up — TRÚNG tàu bạn!", "log.enemyPowerMiss": "Địch dùng power-up — trượt.",
+    "log.enemyFireHit": "Địch bắn {cell} — TRÚNG tàu bạn!", "log.enemyFireMiss": "Địch bắn {cell} — trượt.",
+    "log.oppLeft": "Đối thủ đã rời đi.", "log.fleetReady": "Hạm đội đã sẵn sàng. Chờ đối thủ...",
+    "log.botSunk": "Máy ĐÁNH CHÌM thuyền {n} ô của bạn!", "log.botFireHit": "Máy bắn {cell} — TRÚNG tàu bạn!", "log.botFireMiss": "Máy bắn {cell} — trượt.",
+    "log.youSunkOne": "Bạn ĐÁNH CHÌM 1 thuyền ({n} ô)! Bắn tiếp!", "log.youFireHit": "Bạn bắn {cell} — TRÚNG! Bắn tiếp!", "log.youFireMiss": "Bạn bắn {cell} — trượt.",
+    "log.collected": "Bạn nhặt được power-up: {list}!", "log.youSunkN": "Bạn ĐÁNH CHÌM {n} thuyền! Bắn tiếp!",
+    "log.labelHit": "{label} — TRÚNG! Bắn tiếp!", "log.labelMiss": "{label} — trượt.", "log.youHitMine": "Bạn bắn trúng MÌN của địch — bạn mất lượt kế tiếp!",
+    "log.minePlaced": "Đã đặt mìn tại {cell}. Địch bắn trúng sẽ mất lượt!", "log.doubleActivated": "Kích hoạt Thêm lượt — phát trượt kế tiếp vẫn giữ lượt!",
+    "log.revealed": "Lộ 1 ô thuyền địch tại {cell}!", "log.scatterBoom": "💥 Nổ ngẫu nhiên!",
+    "notice.youTimeout": "⏱️ Hết giờ! Bạn mất lượt.", "notice.enemyHitMine": "💥 Địch dẫm phải MÌN của bạn! Địch mất lượt kế tiếp.",
+    "notice.youHitMine": "💥 Bạn dẫm phải MÌN của địch! Bạn mất lượt kế tiếp.", "notice.shareFail": "Không mở được Messenger — hãy gửi mã phòng thủ công.",
+    "label.power": "Power-up {name}", "label.youFire": "Bạn bắn {cell}",
+    "err.ROOM_NOT_FOUND": "Phòng không tồn tại", "err.ROOM_FULL": "Phòng đã đủ người", "err.GAME_STARTED": "Ván đấu đã bắt đầu", "err.NO_ROOM": "Không có phòng",
+    "err.BAD_PLACEMENT": "Sắp xếp thuyền không hợp lệ", "err.NOT_YOUR_TURN": "Chưa tới lượt bạn", "err.BAD_CELL": "Ô không hợp lệ", "err.NO_POWERUP": "Không có power-up",
+    "err.NO_REVEAL": "Không còn ô để lộ", "err.MINE_ON_SHIP": "Không đặt mìn lên thuyền", "err.CELL_SHOT": "Ô này đã bị bắn",
+    "err.MINE_EXISTS": "Đã có mìn ở đây", "err.NO_CELLS": "Hết ô để bắn",
+  },
+};
+function t(k, p) {
+  let s = (I18N[LANG] && I18N[LANG][k] != null) ? I18N[LANG][k] : I18N.en[k];
+  if (s == null) return k;
+  if (p) for (const key in p) s = s.replace(new RegExp("\\{" + key + "\\}", "g"), p[key]);
+  return s;
+}
+const cellLabel = (r, c) => ROWS[r] + (c + 1);              // "B7" style coordinate
+const shipName = (id) => t("ship." + id);
+const errText = (res) => (res && res.code ? t("err." + res.code) : (res && res.error) || "");
+
+// fleet definitions (names resolved via i18n)
 const FLEET_DEF = [
-  { id: "carrier", name: "Tàu sân bay", size: 5 },
-  { id: "battleship", name: "Thiết giáp hạm", size: 4 },
-  { id: "cruiser", name: "Tàu tuần dương", size: 3 },
-  { id: "submarine", name: "Tàu ngầm", size: 3 },
-  { id: "destroyer", name: "Khu trục hạm", size: 2 },
+  { id: "carrier", name: shipName("carrier"), size: 5 },
+  { id: "battleship", name: shipName("battleship"), size: 4 },
+  { id: "cruiser", name: shipName("cruiser"), size: 3 },
+  { id: "submarine", name: shipName("submarine"), size: 3 },
+  { id: "destroyer", name: shipName("destroyer"), size: 2 },
 ];
 
 // Same-origin when SERVER_URL is empty (local dev served by this server);
@@ -101,6 +258,59 @@ function fbContextId() {
     }
   } catch (e) {}
   return null;
+}
+
+// ---------- FB profile (auto-login: Instant Games authenticates the player for
+// us — getName/getPhoto need no extra permission, available after startGameAsync).
+let fbProfile = { name: null, photo: null };
+function captureFbProfile() {
+  try {
+    if (typeof FBInstant !== "undefined" && FBInstant.player) {
+      if (FBInstant.player.getName) fbProfile.name = FBInstant.player.getName() || fbProfile.name;
+      if (FBInstant.player.getPhoto) fbProfile.photo = FBInstant.player.getPhoto() || fbProfile.photo;
+    }
+  } catch (e) {}
+  return fbProfile;
+}
+
+// ---------- Mời qua Messenger (FBInstant.shareAsync) ----------
+// Only meaningful inside FB Instant Games; the receiving side already auto-joins
+// from getEntryPointData().roomCode on connect, so we just need to send.
+function canShare() {
+  return typeof FBInstant !== "undefined" && !!FBInstant.shareAsync;
+}
+// shareAsync requires a base64 image — draw a small branded card with the room
+// code so the Messenger preview is informative (and a touch viral).
+function makeShareImage(code) {
+  try {
+    const c = document.createElement("canvas");
+    c.width = 480; c.height = 480;
+    const x = c.getContext("2d");
+    x.fillStyle = "#07182f"; x.fillRect(0, 0, 480, 480);
+    x.textAlign = "center";
+    x.fillStyle = "#6fc3f3"; x.font = "bold 120px Georgia, serif";
+    x.fillText("⚓", 240, 170);
+    x.fillStyle = "#f0c14b"; x.font = "bold 52px Georgia, serif";
+    x.fillText(t("share.imgTitle"), 240, 260);
+    x.fillStyle = "#cfe0f0"; x.font = "30px Georgia, serif";
+    x.fillText(t("share.imgCode"), 240, 330);
+    x.fillStyle = "#7ff0aa"; x.font = "bold 76px monospace";
+    x.fillText(code, 240, 410);
+    return c.toDataURL("image/png");
+  } catch (e) { return null; }
+}
+function shareRoom(code) {
+  if (!canShare()) return Promise.resolve(false);
+  const image = makeShareImage(code);
+  if (!image) return Promise.resolve(false);
+  try {
+    return FBInstant.shareAsync({
+      intent: "INVITE",
+      image,
+      text: t("share.text", { code }),
+      data: { roomCode: code },
+    }).then(() => true).catch(() => false);
+  } catch (e) { return Promise.resolve(false); }
 }
 
 // FB Cloud Save (player.setDataAsync/getDataAsync). Player-scoped, persists on
@@ -199,40 +409,41 @@ function inBounds(cells) {
 }
 
 // ---------- Lobby ----------
-function Lobby({ onCreate, onJoin, onBot, error }) {
+function Lobby({ onCreate, onJoin, onBot, onHelp, error }) {
   const [code, setCode] = useState("");
   const [mode, setMode] = useState("classic");
   return (
     <div className="lobby">
-      <h2>Trận hải chiến</h2>
-      <p className="sub">Chơi với máy, hoặc tạo phòng rồi gửi mã cho bạn bè.</p>
+      <h2>{t("lobby.title")}</h2>
+      <p className="sub">{t("lobby.sub")}</p>
       {error && <div className="error">{error}</div>}
-      <button className="btn primary" onClick={onBot}>🤖 Chơi với máy</button>
+      <button className="btn primary" onClick={onBot}>{t("lobby.playBot")}</button>
       <div style={{ height: 10 }} />
       <div className="mode-pick">
         <button className={"mode-opt" + (mode === "classic" ? " on" : "")} onClick={() => setMode("classic")}>
-          <b>Classic</b><span>Cổ điển, không power-up</span>
+          <b>Classic</b><span>{t("mode.classicDesc")}</span>
         </button>
         <button className={"mode-opt" + (mode === "advance" ? " on" : "")} onClick={() => setMode("advance")}>
-          <b>Advance ⚡</b><span>Nhặt &amp; dùng power-up</span>
+          <b>Advance ⚡</b><span>{t("mode.advanceDesc")}</span>
         </button>
       </div>
-      <button className="btn steel" onClick={() => onCreate(mode)}>⚓ Tạo phòng mới</button>
-      <div className="divider">HOẶC</div>
+      <button className="btn steel" onClick={() => onCreate(mode)}>{t("lobby.createRoom")}</button>
+      <div className="divider">{t("common.or")}</div>
       <div className="field">
-        <label>Nhập mã phòng</label>
+        <label>{t("lobby.enterCodeLabel")}</label>
         <input className="code-input" maxLength={5} placeholder="ABCDE"
           value={code} onChange={(e) => setCode(e.target.value.toUpperCase())}
           onKeyDown={(e) => e.key === "Enter" && code && onJoin(code)} />
       </div>
-      <button className="btn steel" disabled={code.length < 4} onClick={() => onJoin(code)}>Vào phòng</button>
+      <button className="btn steel" disabled={code.length < 4} onClick={() => onJoin(code)}>{t("lobby.joinBtn")}</button>
+      <button className="btn ghost help-link" onClick={onHelp}>{t("help.open")}</button>
     </div>
   );
 }
 
 // ---------- Grid ----------
 const POWER_ICON = { scatter: "\u{1F320}", cross: "➕", double: "\u{1F501}", reveal: "\u{1F50D}", mine: "\u{1F6A7}" };
-const POWER_NAME = { scatter: "Nổ ngẫu nhiên", cross: "Tên lửa chữ thập", double: "Thêm lượt", reveal: "Lộ ô thuyền", mine: "Mìn nước" };
+const POWER_NAME = { scatter: t("pw.scatter"), cross: t("pw.cross"), double: t("pw.double"), reveal: t("pw.reveal"), mine: t("pw.mine") };
 function Grid({ enemy, occ, hits, incoming, onCellClick, hoverCells, onCellHover, shootable, sunk, flash, powerups, revealed, aimCells, mines, placeable }) {
   // occ: Set of "r,c" your ships (own board)
   // hits: Set of "r,c" shots you fired at enemy (enemy board)
@@ -456,7 +667,7 @@ function Placement({ onConfirm, ready, waiting }) {
   return (
     <div className="boards">
       <div className="board-wrap">
-        <div className="board-title own">Hạm đội của bạn</div>
+        <div className="board-title own">{t("board.yourFleet")}</div>
         <div className="grid-outer">
           <div className="grid own" ref={gridRef}
             style={{ gridTemplateColumns: `repeat(${BOARD}, var(--cell))`, position: "relative" }}>
@@ -472,7 +683,7 @@ function Placement({ onConfirm, ready, waiting }) {
                 <div key={id} className="ship-overlay" style={box}
                   onPointerDown={(e) => startDrag(e, id, true)}
                   onDoubleClick={() => rotatePlaced(id)}
-                  title="Kéo để di chuyển · chạm 2 lần để xoay">
+                  title={t("place.shipTitle")}>
                   <div className={"ship-fig " + p.dir} style={{ width: sz * PITCH - GAP, height: CELL }}>
                     <ShipSVG len={sz} />
                   </div>
@@ -484,18 +695,18 @@ function Placement({ onConfirm, ready, waiting }) {
       </div>
 
       <div className="place-panel">
-        <h3>Bố trí hạm đội</h3>
-        <p className="hint">2 cách: <b>kéo-thả</b> tàu vào lưới, hoặc <b>chạm 1 tàu</b> trong kho rồi <b>chạm ô</b> trên lưới để đặt (ô bạn chạm là đầu tàu). Chạm tàu đã đặt để xoay.</p>
+        <h3>{t("place.heading")}</h3>
+        <p className="hint">{t("place.hint")}</p>
 
         {sel && (
           <div className="sel-banner">
-            Đã chọn: <b>{FLEET_DEF.find((f) => f.id === sel.id).name}</b> — chạm vào lưới để đặt.
-            <button className="btn ghost" style={{ width: "auto", padding: "3px 8px", fontSize: 11, marginLeft: 8 }} onClick={() => setSel(null)}>Hủy</button>
+            {t("place.selected", { name: shipName(sel.id) })}
+            <button className="btn ghost" style={{ width: "auto", padding: "3px 8px", fontSize: 11, marginLeft: 8 }} onClick={() => setSel(null)}>{t("common.cancel")}</button>
           </div>
         )}
 
         <div className="controls" style={{ marginBottom: 14 }}>
-          <button className="btn steel" onClick={() => setDir(dir === "h" ? "v" : "h")}>⟳ Hướng kho: {dir === "h" ? "Ngang" : "Dọc"}</button>
+          <button className="btn steel" onClick={() => setDir(dir === "h" ? "v" : "h")}>{t("place.dockDir", { dir: dir === "h" ? t("place.horizontal") : t("place.vertical") })}</button>
         </div>
 
         <div className="dock">
@@ -506,11 +717,11 @@ function Placement({ onConfirm, ready, waiting }) {
               <div key={f.id} className={"dock-item" + (isPlaced ? " placed" : "")}>
                 <div className="dock-info">
                   <div className="ship-name">{f.name}</div>
-                  <small>{f.size} ô</small>
+                  <small>{t("place.cells", { size: f.size })}</small>
                 </div>
                 {isPlaced ? (
                   <button className="btn ghost" style={{ width: "auto", padding: "5px 10px", fontSize: 11 }}
-                    onClick={() => removeShip(f.id)}>↩ Gỡ về kho</button>
+                    onClick={() => removeShip(f.id)}>{t("place.removeShip")}</button>
                 ) : (
                   <div className={"dock-ship " + dir + (sel && sel.id === f.id ? " sel" : "")} onPointerDown={(e) => startDrag(e, f.id, false)}
                     style={Object.assign(
@@ -529,11 +740,11 @@ function Placement({ onConfirm, ready, waiting }) {
         </div>
 
         <div className="controls" style={{ marginBottom: 10 }}>
-          <button className="btn ghost" onClick={randomize}>🎲 Ngẫu nhiên</button>
-          <button className="btn ghost" onClick={() => setPlaced({})}>Xóa hết</button>
+          <button className="btn ghost" onClick={randomize}>{t("place.random")}</button>
+          <button className="btn ghost" onClick={() => setPlaced({})}>{t("place.clear")}</button>
         </div>
         <button className="btn primary" disabled={!allPlaced || ready} onClick={confirm}>
-          {ready ? (waiting ? "Đang chờ đối thủ..." : "Sẵn sàng ✓") : "⚓ Sẵn sàng chiến đấu"}
+          {ready ? (waiting ? t("place.waitingOpp") : t("place.readyMark")) : t("place.ready")}
         </button>
       </div>
 
@@ -556,7 +767,7 @@ function Counter({ label, value, cls }) {
   const pct = Math.round((value / TOTAL_SHIPS) * 100);
   return (
     <div className="counter">
-      <span>{label} {value}/{TOTAL_SHIPS} thuyền</span>
+      <span>{label} {value}/{TOTAL_SHIPS} {t("counter.ships")}</span>
       <div className="bar"><div className={"fill " + cls} style={{ width: pct + "%" }} /></div>
     </div>
   );
@@ -576,8 +787,57 @@ function PowerBar({ inv, aim, onPower, myTurn }) {
     </div>
   );
 }
-function Battle({ myTurn, vsBot, occ, incoming, myShots, onFire, log, sunkOpp, sunkMine, sunkEnemyCells, sunkMyCells, myScore, oppScore, oppLabel, flashEnemy, flashMine, mode, inv, powerups, revealedEnemy, aim, onPower, myMines, onPlaceMine }) {
+// Player card: avatar + name + score, used on both sides of the scoreboard.
+function PlayerCard({ profile, fallbackName, score, active, isBot, side }) {
+  const name = (profile && profile.name) || fallbackName;
+  const photo = profile && profile.photo;
+  return (
+    <div className={"pcard " + side + (active ? " active" : "")}>
+      {photo
+        ? <img className="pc-avatar" src={photo} alt="" referrerPolicy="no-referrer" />
+        : <span className="pc-avatar pc-fallback">{isBot ? "🤖" : (name ? name.slice(0, 1) : "?")}</span>}
+      <div className="pc-meta">
+        <span className="pc-name" title={name}>{name}</span>
+        <span className="pc-score">{score}</span>
+      </div>
+    </div>
+  );
+}
+// Circular countdown ring in the center of the scoreboard.
+function TurnRing({ secs, frac, show, myTurn }) {
+  if (!show || secs == null) return null;
+  const R = 22, C = 2 * Math.PI * R;
+  const low = secs <= 10;
+  const color = low ? "#ff6b78" : (myTurn ? "#7ff0aa" : "#9fb6cc");
+  return (
+    <div className={"turn-ring" + (low ? " low" : "")}>
+      <svg width="56" height="56" viewBox="0 0 56 56">
+        <circle cx="28" cy="28" r={R} fill="none" stroke="rgba(255,255,255,.12)" strokeWidth="5" />
+        <circle cx="28" cy="28" r={R} fill="none" stroke={color} strokeWidth="5" strokeLinecap="round"
+          strokeDasharray={C} strokeDashoffset={C * (1 - frac)} transform="rotate(-90 28 28)"
+          style={{ transition: "stroke-dashoffset .12s linear" }} />
+      </svg>
+      <span className="turn-ring-sec" style={{ color }}>{secs}</span>
+    </div>
+  );
+}
+function Battle({ myTurn, vsBot, occ, incoming, myShots, onFire, log, sunkOpp, sunkMine, sunkEnemyCells, sunkMyCells, myScore, oppScore, oppLabel, myProfile, oppProfile, flashEnemy, flashMine, mode, inv, powerups, revealedEnemy, aim, onPower, myMines, onPlaceMine, turnDeadline, turnDur }) {
   const [tab, setTab] = useState("enemy"); // enemy | own (mobile)
+  // đếm ngược lượt từ deadline server gửi (null = không giới hạn, vd đấu máy)
+  const [secs, setSecs] = useState(null);
+  const [frac, setFrac] = useState(1);
+  useEffect(() => {
+    if (!turnDeadline) { setSecs(null); setFrac(1); return; }
+    const dur = turnDur || 45000;
+    const tick = () => {
+      const rem = Math.max(0, turnDeadline - Date.now());
+      setSecs(Math.ceil(rem / 1000));
+      setFrac(Math.max(0, Math.min(1, rem / dur)));
+    };
+    tick();
+    const iv = setInterval(tick, 100);
+    return () => clearInterval(iv);
+  }, [turnDeadline, turnDur]);
   // tự động chuyển tab theo lượt, delay ~2s để kịp nhìn địch bắn vào đâu rồi mới đổi bản đồ
   useEffect(() => {
     if (aim === "mine") { setTab("own"); return; }
@@ -587,52 +847,115 @@ function Battle({ myTurn, vsBot, occ, incoming, myShots, onFire, log, sunkOpp, s
   return (
     <div>
       <div className="scoreboard">
-        <span className="sc-me">Bạn <b>{myScore}</b></span>
-        <span className="sc-sep">—</span>
-        <span className="sc-opp"><b>{oppScore}</b> {oppLabel}</span>
+        <PlayerCard side="me" profile={myProfile} fallbackName={t("battle.you")} score={myScore} active={myTurn && turnDeadline != null} />
+        <TurnRing secs={secs} frac={frac} show={turnDeadline != null} myTurn={myTurn} />
+        <PlayerCard side="opp" profile={oppProfile} fallbackName={oppLabel} score={oppScore} active={!myTurn && turnDeadline != null} isBot={vsBot} />
       </div>
       <div className="battle-tabs">
         <button className={"tab-btn" + (tab === "enemy" ? " active" : "")} onClick={() => setTab("enemy")}>
-          🎯 Biển địch {myTurn ? "· BẮN!" : ""}
+          {t("battle.enemySea")} {myTurn ? t("battle.fireTag") : ""}
         </button>
         <button className={"tab-btn" + (tab === "own" ? " active" : "")} onClick={() => setTab("own")}>
-          ⚓ Hạm đội bạn
+          {t("battle.yourFleetTab")}
         </button>
       </div>
       {mode === "advance" && (
         <PowerBar inv={inv} aim={aim} onPower={onPower} myTurn={myTurn} />
       )}
       {aim && aim !== "mine" && (
-        <div className="aim-banner">Đang ngắm <b>{POWER_NAME[aim]}</b> — chạm vào biển địch để khai hỏa (chạm lại nút để hủy).</div>
+        <div className="aim-banner">{t("battle.aiming", { name: POWER_NAME[aim] })}</div>
       )}
       {aim === "mine" && (
-        <div className="aim-banner">Đang đặt <b>Mìn nước</b> — chạm vào ô trống trên hạm đội của bạn để đặt (chạm lại nút để hủy).</div>
+        <div className="aim-banner">{t("battle.aimingMine")}</div>
       )}
       <div className="turn-indicator">
         <div className={"status-pill " + (myTurn ? "pill-turn" : "pill-enemy")}>
-          {myTurn ? "🎯 Lượt của bạn" : (vsBot ? "⏳ Lượt của máy" : "⏳ Lượt đối thủ")}
+          {myTurn ? t("battle.yourTurn") : (vsBot ? t("battle.botTurn") : t("battle.oppTurn"))}
         </div>
       </div>
       <div className={"boards tab-" + tab}>
         <div className="board-wrap wrap-enemy">
-          <div className="board-title enemy">Vùng biển địch {myTurn ? "— BẮN!" : ""}</div>
+          <div className="board-title enemy">{t("battle.enemyWaters")} {myTurn ? t("battle.fireSuffix") : ""}</div>
           <Grid enemy hits={myShots} shootable={myTurn} sunk={sunkEnemyCells} flash={flashEnemy}
             powerups={powerups} revealed={revealedEnemy}
             onCellClick={(r, c) => myTurn && onFire(r, c)} />
-          <Counter label="Đã đánh chìm" value={sunkOpp} cls="enemy" />
+          <Counter label={t("counter.sunkEnemy")} value={sunkOpp} cls="enemy" />
         </div>
         <div className="board-wrap wrap-own">
-          <div className="board-title own">Hạm đội của bạn</div>
+          <div className="board-title own">{t("board.yourFleet")}</div>
           <Grid occ={occ} incoming={incoming} sunk={sunkMyCells} flash={flashMine}
             mines={myMines} placeable={aim === "mine"}
             onCellClick={(r, c) => aim === "mine" && onPlaceMine(r, c)} />
-          <Counter label="Thuyền bị chìm" value={sunkMine} cls="own" />
+          <Counter label={t("counter.sunkOwn")} value={sunkMine} cls="own" />
         </div>
       </div>
       <div className="log">
-        {log.length === 0 && <div>Trận đấu bắt đầu...</div>}
+        {log.length === 0 && <div>{t("battle.logStart")}</div>}
         {log.map((l, i) => <div key={i}>{l}</div>)}
       </div>
+    </div>
+  );
+}
+
+// ---------- How-to-play (manual, opened from the lobby) ----------
+function HelpModal({ open, onClose }) {
+  if (!open) return null;
+  const section = (title, body) => (
+    <div className="help-sec"><h4>{title}</h4><p>{body}</p></div>
+  );
+  const pw = (icon, name, desc) => (
+    <div className="help-pw"><span className="help-pw-i">{icon}</span><div><b>{name}</b><span>{desc}</span></div></div>
+  );
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="modal help-modal" onClick={(e) => e.stopPropagation()}>
+        <h2>{t("help.title")}</h2>
+        <div className="help-body">
+          {section(t("help.objTitle"), t("help.objBody"))}
+          {section(t("help.setupTitle"), t("help.setupBody"))}
+          {section(t("help.turnTitle"), t("help.turnBody"))}
+          {section(t("help.modesTitle"), t("help.modesBody"))}
+          <div className="help-sec">
+            <h4>{t("help.powerTitle")}</h4>
+            {pw(POWER_ICON.scatter, POWER_NAME.scatter, t("help.pwScatter"))}
+            {pw(POWER_ICON.cross, POWER_NAME.cross, t("help.pwCross"))}
+            {pw(POWER_ICON.double, POWER_NAME.double, t("help.pwDouble"))}
+            {pw(POWER_ICON.reveal, POWER_NAME.reveal, t("help.pwReveal"))}
+            {pw(POWER_ICON.mine, POWER_NAME.mine, t("help.pwMine"))}
+          </div>
+          {section(t("help.reconnectTitle"), t("help.reconnectBody"))}
+        </div>
+        <button className="btn primary" onClick={onClose}>{t("help.close")}</button>
+      </div>
+    </div>
+  );
+}
+
+// ---------- Chat (in-room, ephemeral) ----------
+const CHAT_EMOJIS = ["👍", "😀", "😂", "😮", "😡", "🔥", "⚓", "🎯"];
+function ChatPanel({ open, msgs, onSend, onToggle }) {
+  const [text, setText] = useState("");
+  const listRef = useRef(null);
+  useEffect(() => { if (open && listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight; }, [msgs, open]);
+  if (!open) return null;
+  function submit(e) { if (e) e.preventDefault(); const tx = text.trim(); if (!tx) return; onSend(tx); setText(""); }
+  return (
+    <div className="chat-panel">
+      <div className="chat-head">
+        <b>{t("chat.title")}</b>
+        <button className="btn ghost" onClick={onToggle} style={{ width: "auto", padding: "2px 10px" }}>✕</button>
+      </div>
+      <div className="chat-list" ref={listRef}>
+        {msgs.length === 0 && <div className="chat-empty">{t("chat.empty")}</div>}
+        {msgs.map((m, i) => <div key={i} className={"chat-msg " + (m.me ? "me" : "opp")}>{m.text}</div>)}
+      </div>
+      <div className="chat-emojis">
+        {CHAT_EMOJIS.map((e) => <button key={e} className="chat-emoji" onClick={() => onSend(e)}>{e}</button>)}
+      </div>
+      <form className="chat-input" onSubmit={submit}>
+        <input value={text} onChange={(e) => setText(e.target.value)} maxLength={200} placeholder={t("chat.placeholder")} />
+        <button className="btn primary" type="submit" style={{ width: "auto" }}>{t("chat.send")}</button>
+      </form>
     </div>
   );
 }
@@ -646,12 +969,16 @@ function App() {
   const [oppReady, setOppReady] = useState(false);
   const [iReady, setIReady] = useState(false);
   const [myTurn, setMyTurn] = useState(false);
+  const [turnDeadline, setTurnDeadline] = useState(null); // mốc hết giờ lượt (ms) từ server
+  const [turnDur, setTurnDur] = useState(45000);          // độ dài 1 lượt (ms) cho vòng đếm
+  const [oppProfile, setOppProfile] = useState(null);     // {name, photo} đối thủ
   const [occ, setOcc] = useState(new Set());
   const [incoming, setIncoming] = useState(new Map()); // shots on me
   const [myShots, setMyShots] = useState(new Map());   // shots I fired -> hit bool
   const [log, setLog] = useState([]);
   const [over, setOver] = useState(null); // {win}
   const [copied, setCopied] = useState(false);
+  const [sharing, setSharing] = useState(false); // đang mở hộp thoại share Messenger
   const [sunkOpp, setSunkOpp] = useState(0);   // địch bị ta đánh chìm
   const [sunkMine, setSunkMine] = useState(0); // thuyền của ta bị chìm
   const [mode, setMode] = useState("classic"); // classic | advance
@@ -671,6 +998,12 @@ function App() {
   const [oppOffline, setOppOffline] = useState(false); // đối thủ tạm mất kết nối
   const [graceLeft, setGraceLeft] = useState(0);        // đếm ngược giây chờ kết nối lại
   const [confirmLeave, setConfirmLeave] = useState(false); // hỏi xác nhận trước khi rời
+  const [profile, setProfile] = useState({ name: fbProfile.name, photo: fbProfile.photo });
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatMsgs, setChatMsgs] = useState([]); // [{me, text}]
+  const [chatUnread, setChatUnread] = useState(0);
+  const chatOpenRef = useRef(false); // for socket handler closure
   const graceTimerRef = useRef(null);
   const [soundOn, setSoundOn] = useState(true);
   function toggleSound() { const v = !soundOn; setSoundOn(v); Sound.setEnabled(v); }
@@ -687,7 +1020,7 @@ function App() {
 
   useEffect(() => {
     socket.on("opponentJoined", () => {
-      setOppPresent(true); addLog("Đối thủ đã vào phòng.");
+      setOppPresent(true); addLog(t("log.oppJoined"));
       setScreen((s) => (s === "room" ? "placement" : s));
     });
     socket.on("roomUpdate", (r) => {
@@ -696,9 +1029,9 @@ function App() {
       if (r.mode) setMode(r.mode);
       if (has) setScreen((s) => (s === "room" ? "placement" : s));
     });
-    socket.on("opponentReady", () => { setOppReady(true); addLog("Đối thủ đã sẵn sàng."); });
+    socket.on("opponentReady", () => { setOppReady(true); addLog(t("log.oppReady")); });
     socket.on("opponentOffline", () => {
-      addLog("Đối thủ tạm mất kết nối, đang chờ kết nối lại...");
+      addLog(t("log.oppOffline"));
       setOppOffline(true); setGraceLeft(180);
       if (graceTimerRef.current) clearInterval(graceTimerRef.current);
       graceTimerRef.current = setInterval(() => {
@@ -706,7 +1039,7 @@ function App() {
       }, 1000);
     });
     socket.on("opponentOnline", () => {
-      setOppPresent(true); addLog("Đối thủ đã kết nối lại.");
+      setOppPresent(true); addLog(t("log.oppReconnect"));
       setOppOffline(false); setGraceLeft(0);
       if (graceTimerRef.current) { clearInterval(graceTimerRef.current); graceTimerRef.current = null; }
     });
@@ -727,6 +1060,9 @@ function App() {
       if (st.inv) setInv(st.inv);
       setMyMines(new Set(st.myMines || []));
       setPowerups(new Map((st.powerups || []).map((p) => [key(p.r, p.c), p.type])));
+      setTurnDeadline(st.started ? (st.turnDeadline || null) : null);
+      if (st.turnDur) setTurnDur(st.turnDur);
+      if (st.oppProfile !== undefined) setOppProfile(st.oppProfile || null);
       if (st.started) { setMyTurn(st.yourTurn); setScreen("battle"); }
       else if (st.youReady) { setIReady(true); setScreen("placement"); }
       else { setScreen(st.oppPresent ? "placement" : "room"); }
@@ -750,15 +1086,21 @@ function App() {
       });
     });
     socket.on("gameStart", ({ yourTurn, mode: m }) => {
-      setScreen("battle"); setMyTurn(yourTurn);
+      setScreen("battle"); setMyTurn(yourTurn); setTurnDeadline(null);
       setMode(m || "classic");
       setInv({ scatter: 0, cross: 0, double: 0, reveal: 0, mine: 0 });
       setPowerups(new Map()); setRevealedEnemy(new Set()); setAim(null); setMyMines(new Set());
-      addLog(yourTurn ? "Bạn đi trước. Khai hỏa!" : "Đối thủ đi trước.");
+      addLog(yourTurn ? t("log.youFirst") : t("log.oppFirst"));
     });
     socket.on("inventory", (i) => setInv(i));
     socket.on("powerups", (list) => setPowerups(new Map((list || []).map((p) => [key(p.r, p.c), p.type]))));
     socket.on("turnUpdate", ({ yourTurn }) => setMyTurn(yourTurn));
+    socket.on("turnTimer", ({ deadline, dur, yourTurn }) => { setTurnDeadline(deadline || null); if (dur) setTurnDur(dur); if (typeof yourTurn === "boolean") setMyTurn(yourTurn); });
+    socket.on("oppProfile", (p) => setOppProfile(p || null));
+    socket.on("turnSkipped", ({ you }) => {
+      if (you) { addLog(t("log.youTimeout")); showNotice(t("notice.youTimeout")); }
+      else addLog(t("log.oppTimeout"));
+    });
     socket.on("incoming", ({ cells, sunkCells, sunkMineCount, newSunk, mineHit }) => {
       const list = cells || [];
       setIncoming((m) => { const n = new Map(m); list.forEach((s) => n.set(key(s.r, s.c), s.hit)); return n; });
@@ -767,22 +1109,27 @@ function App() {
       if (sunkCells) setSunkMyCells((s) => { const n = new Set(s); sunkCells.forEach((k) => n.add(k)); return n; });
       if (mineHit) setMyMines((s) => { const n = new Set(s); list.forEach((c) => n.delete(key(c.r, c.c))); return n; });
       const anyHit = list.some((s) => s.hit);
-      if (mineHit) { addLog("Địch bắn trúng MÌN của bạn — địch mất lượt kế tiếp!"); showNotice("💥 Địch dẫm phải MÌN của bạn! Địch mất lượt kế tiếp."); Sound.mine(); }
-      if (newSunk > 0) addLog(`Địch ĐÁNH CHÌM ${newSunk} thuyền của bạn!`);
-      else if (list.length > 1) addLog(anyHit ? `Địch dùng power-up — TRÚNG tàu bạn!` : `Địch dùng power-up — trượt.`);
-      else if (list.length === 1) addLog(anyHit ? `Địch bắn ${ROWS[list[0].r]}${list[0].c + 1} — TRÚNG tàu bạn!` : `Địch bắn ${ROWS[list[0].r]}${list[0].c + 1} — trượt.`);
+      if (mineHit) { addLog(t("log.enemyHitMine")); showNotice(t("notice.enemyHitMine")); Sound.mine(); }
+      if (newSunk > 0) addLog(t("log.enemySunk", { n: newSunk }));
+      else if (list.length > 1) addLog(anyHit ? t("log.enemyPowerHit") : t("log.enemyPowerMiss"));
+      else if (list.length === 1) addLog(anyHit ? t("log.enemyFireHit", { cell: cellLabel(list[0].r, list[0].c) }) : t("log.enemyFireMiss", { cell: cellLabel(list[0].r, list[0].c) }));
       if (newSunk > 0) Sound.sunk(); else if (anyHit) Sound.hit(); else if (list.length) Sound.miss();
     });
+    socket.on("chat", ({ text }) => {
+      setChatMsgs((m) => [...m, { me: false, text }].slice(-50));
+      if (!chatOpenRef.current) setChatUnread((u) => u + 1);
+      Sound.miss && Sound.miss();
+    });
     socket.on("scoreUpdate", ({ you, opp }) => { setMyScore(you); setOppScore(opp); });
-    socket.on("gameOver", ({ win }) => { setOver({ win }); win ? Sound.win() : Sound.lose(); });
+    socket.on("gameOver", ({ win, reason }) => { setOver({ win, reason }); setTurnDeadline(null); win ? Sound.win() : Sound.lose(); });
     socket.on("opponentLeft", () => {
-      addLog("Đối thủ đã rời đi."); setOppLeft(true);
+      addLog(t("log.oppLeft")); setOppLeft(true);
       setOppOffline(false); setGraceLeft(0);
       if (graceTimerRef.current) { clearInterval(graceTimerRef.current); graceTimerRef.current = null; }
       Sound.lose && Sound.lose();
     });
     socket.on("rematchStart", () => {
-      setScreen("placement"); setIReady(false); setOppReady(false); setMyTurn(false);
+      setScreen("placement"); setIReady(false); setOppReady(false); setMyTurn(false); setTurnDeadline(null);
       setOcc(new Set()); setIncoming(new Map()); setMyShots(new Map()); setOver(null); setLog([]);
       setSunkOpp(0); setSunkMine(0);
       setSunkEnemyCells(new Set()); setSunkMyCells(new Set()); // giữ nguyên tỉ số
@@ -814,18 +1161,33 @@ function App() {
     return () => clearTimeout(t);
   }, []);
 
+  // Pick up the FB name/avatar (it may resolve after the fallback boot rendered).
+  useEffect(() => {
+    captureFbProfile();
+    setProfile({ name: fbProfile.name, photo: fbProfile.photo });
+    const t = setTimeout(() => {
+      captureFbProfile();
+      setProfile({ name: fbProfile.name, photo: fbProfile.photo });
+    }, 3500);
+    return () => clearTimeout(t);
+  }, []);
+
+  function myProfilePayload() {
+    captureFbProfile();
+    return (fbProfile.name || fbProfile.photo) ? { name: fbProfile.name, photo: fbProfile.photo } : null;
+  }
   function createRoom(mode) {
     setError(null);
-    setMyScore(0); setOppScore(0); // phòng mới: tỉ số về 0-0
+    setMyScore(0); setOppScore(0); setOppProfile(null); // phòng mới: tỉ số về 0-0
     setVsBot(false); setMode(mode === "advance" ? "advance" : "classic");
-    socket.emit("createRoom", { clientId, mode, contextId: fbContextId() }, (res) => {
+    socket.emit("createRoom", { clientId, mode, contextId: fbContextId(), profile: myProfilePayload() }, (res) => {
       if (res.ok) { setCode(res.code); persistRoom(res.code); setScreen("room"); }
     });
   }
   function joinRoom(c) {
     setError(null);
-    socket.emit("joinRoom", { code: c, clientId, contextId: fbContextId() }, (res) => {
-      if (!res.ok) { setError(res.error); return; }
+    socket.emit("joinRoom", { code: c, clientId, contextId: fbContextId(), profile: myProfilePayload() }, (res) => {
+      if (!res.ok) { setError(errText(res)); return; }
       setCode(res.code); persistRoom(res.code);
       // reclaimed = took over a seat in an in-progress game (reconnect by code);
       // the server's "sync" event restores the correct screen/state. New seats
@@ -846,7 +1208,7 @@ function App() {
       botData.current = genFleet();
       const youFirst = Math.random() < 0.5;
       setScreen("battle");
-      addLog(youFirst ? "Bạn đi trước. Khai hỏa!" : "Máy đi trước.");
+      addLog(youFirst ? t("log.youFirst") : t("log.botFirst"));
       if (youFirst) setMyTurn(true);
       else { setMyTurn(false); setTimeout(botShoot, 700); }
       return;
@@ -857,8 +1219,8 @@ function App() {
         const s = new Set();
         ships.forEach((sh) => sh.cells.forEach((x) => s.add(key(x.r, x.c))));
         setOcc(s);
-        addLog("Hạm đội đã sẵn sàng. Chờ đối thủ...");
-      } else setError(res.error);
+        addLog(t("log.fleetReady"));
+      } else setError(errText(res));
     });
   }
   // ----- chế độ chơi với máy (toàn bộ ở client) -----
@@ -879,7 +1241,7 @@ function App() {
     return { occ, ships };
   }
   function startBot(keepScore) {
-    setError(null); setVsBot(true); persistRoom(null); setCode(null);
+    setError(null); setVsBot(true); persistRoom(null); setCode(null); setTurnDeadline(null);
     setOppPresent(true); setOppReady(false); setIReady(false); setMyTurn(false);
     setOcc(new Set()); setIncoming(new Map()); setMyShots(new Map());
     setLog([]); setOver(null); setSunkOpp(0); setSunkMine(0);
@@ -929,11 +1291,11 @@ function App() {
       if (sunk) {
         setSunkMine((n) => n + 1);
         setSunkMyCells((s) => { const n = new Set(s); sunk.forEach((kk) => n.add(kk)); return n; });
-        addLog(`Máy ĐÁNH CHÌM thuyền ${sunk.size} ô của bạn!`); Sound.sunk();
+        addLog(t("log.botSunk", { n: sunk.size })); Sound.sunk();
       }
-      else { addLog(`Máy bắn ${ROWS[r]}${c+1} — TRÚNG tàu bạn!`); Sound.hit(); }
+      else { addLog(t("log.botFireHit", { cell: cellLabel(r, c) })); Sound.hit(); }
     } else {
-      addLog(`Máy bắn ${ROWS[r]}${c+1} — trượt.`); Sound.miss();
+      addLog(t("log.botFireMiss", { cell: cellLabel(r, c) })); Sound.miss();
     }
     const allMineSunk = myShipsRef.current.every((ship) => [...ship].every((kk) => botShotsRef.current.has(kk)));
     if (allMineSunk) { setOppScore((n) => n + 1); setOver({ win: false }); Sound.lose(); return; }
@@ -957,13 +1319,13 @@ function App() {
       setSunkOpp(cnt);
       if (sunk) {
         setSunkEnemyCells((s) => { const n = new Set(s); sunk.forEach((kk) => n.add(kk)); return n; });
-        addLog(`Bạn ĐÁNH CHÌM 1 thuyền (${sunk.size} ô)! Bắn tiếp!`); Sound.sunk();
+        addLog(t("log.youSunkOne", { n: sunk.size })); Sound.sunk();
       }
-      else { addLog(`Bạn bắn ${ROWS[r]}${c+1} — TRÚNG! Bắn tiếp!`); Sound.hit(); }
+      else { addLog(t("log.youFireHit", { cell: cellLabel(r, c) })); Sound.hit(); }
       if (cnt >= FLEET_DEF.length) { setMyScore((n) => n + 1); setOver({ win: true }); Sound.win(); return; }
       // trúng -> giữ lượt
     } else {
-      addLog(`Bạn bắn ${ROWS[r]}${c+1} — trượt.`); Sound.miss();
+      addLog(t("log.youFireMiss", { cell: cellLabel(r, c) })); Sound.miss();
       setMyTurn(false);
       setTimeout(botShoot, 600);
     }
@@ -976,12 +1338,12 @@ function App() {
     if (cells.length) setFlashEnemy(key(cells[cells.length - 1].r, cells[cells.length - 1].c));
     if (typeof res.sunkCount === "number") setSunkOpp(res.sunkCount);
     if (res.sunkCells) setSunkEnemyCells((s) => { const n = new Set(s); res.sunkCells.forEach((k) => n.add(k)); return n; });
-    if (res.collected && res.collected.length) addLog(`Bạn nhặt được power-up: ${res.collected.map((t) => POWER_NAME[t]).join(", ")}!`);
+    if (res.collected && res.collected.length) addLog(t("log.collected", { list: res.collected.map((p) => POWER_NAME[p]).join(", ") }));
     const anyHit = cells.some((s) => s.hit);
-    if (res.newSunk > 0) { addLog(`Bạn ĐÁNH CHÌM ${res.newSunk} thuyền! Bắn tiếp!`); Sound.sunk(); }
-    else { addLog(anyHit ? `${label} — TRÚNG! Bắn tiếp!` : `${label} — trượt.`); anyHit ? Sound.hit() : Sound.miss(); }
+    if (res.newSunk > 0) { addLog(t("log.youSunkN", { n: res.newSunk })); Sound.sunk(); }
+    else { addLog(anyHit ? t("log.labelHit", { label }) : t("log.labelMiss", { label })); anyHit ? Sound.hit() : Sound.miss(); }
     if (res.collected && res.collected.length) Sound.powerup();
-    if (res.mineHit) { addLog("Bạn bắn trúng MÌN của địch — bạn mất lượt kế tiếp!"); showNotice("💥 Bạn dẫm phải MÌN của địch! Bạn mất lượt kế tiếp."); Sound.mine(); return; }
+    if (res.mineHit) { addLog(t("log.youHitMine")); showNotice(t("notice.youHitMine")); Sound.mine(); return; }
     if (anyHit && !res.win) setMyTurn(true);
   }
 
@@ -993,18 +1355,18 @@ function App() {
     if (!power && myShots.has(key(r, c))) return;
     Sound.fire();
     socket.emit("fire", { r, c, power }, (res) => {
-      if (!res.ok) { if (res.error) addLog(res.error); return; }
+      if (!res.ok) { if (res.code || res.error) addLog(errText(res)); return; }
       setAim(null);
-      const label = power ? `Power-up ${POWER_NAME[power]}` : `Bạn bắn ${ROWS[r]}${c + 1}`;
+      const label = power ? t("label.power", { name: POWER_NAME[power] }) : t("label.youFire", { cell: cellLabel(r, c) });
       applyShotResult(res, label);
     });
   }
   function placeMine(r, c) {
     socket.emit("useAbility", { type: "mine", r, c }, (res) => {
-      if (!res.ok) { if (res.error) addLog(res.error); return; }
+      if (!res.ok) { if (res.code || res.error) addLog(errText(res)); return; }
       setMyMines((s) => new Set(s).add(key(res.r, res.c)));
       setAim(null);
-      addLog(`Đã đặt mìn tại ${ROWS[res.r]}${res.c + 1}. Địch bắn trúng sẽ mất lượt!`);
+      addLog(t("log.minePlaced", { cell: cellLabel(res.r, res.c) }));
     });
   }
   // dùng power-up trong kho
@@ -1013,22 +1375,22 @@ function App() {
     if (type === "cross" || type === "mine") { setAim((a) => (a === type ? null : type)); return; }
     if (type === "scatter") { Sound.fire(); }
     socket.emit("useAbility", { type }, (res) => {
-      if (!res.ok) { if (res.error) addLog(res.error); return; }
-      if (res.type === "double") addLog("Kích hoạt Thêm lượt — phát trượt kế tiếp vẫn giữ lượt!");
+      if (!res.ok) { if (res.code || res.error) addLog(errText(res)); return; }
+      if (res.type === "double") addLog(t("log.doubleActivated"));
       else if (res.type === "reveal") {
         setRevealedEnemy((s) => new Set(s).add(key(res.r, res.c)));
-        addLog(`Lộ 1 ô thuyền địch tại ${ROWS[res.r]}${res.c + 1}!`);
+        addLog(t("log.revealed", { cell: cellLabel(res.r, res.c) }));
       }
       else if (res.type === "scatter") {
-        addLog("💥 Nổ ngẫu nhiên!");
-        applyShotResult(res, "Nổ ngẫu nhiên");
+        addLog(t("log.scatterBoom"));
+        applyShotResult(res, POWER_NAME.scatter);
       }
     });
   }
   function resetToLobby() {
     persistRoom(null);
     setCode(null); setError(null); setOppPresent(false); setOppReady(false);
-    setIReady(false); setMyTurn(false); setOcc(new Set());
+    setIReady(false); setMyTurn(false); setTurnDeadline(null); setOcc(new Set());
     setIncoming(new Map()); setMyShots(new Map()); setLog([]); setOver(null);
     setSunkOpp(0); setSunkMine(0); setVsBot(false);
     setSunkEnemyCells(new Set()); setSunkMyCells(new Set());
@@ -1036,6 +1398,8 @@ function App() {
     setMode("classic"); setInv({ scatter: 0, cross: 0, double: 0, reveal: 0, mine: 0 });
     setPowerups(new Map()); setRevealedEnemy(new Set()); setAim(null); setMyMines(new Set());
     setOppLeft(false); setOppOffline(false); setGraceLeft(0); setConfirmLeave(false);
+    setOppProfile(null);
+    setChatOpen(false); setChatMsgs([]); setChatUnread(0); chatOpenRef.current = false;
     if (graceTimerRef.current) { clearInterval(graceTimerRef.current); graceTimerRef.current = null; }
     setScreen("lobby");
   }
@@ -1052,6 +1416,23 @@ function App() {
     try { if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(code).catch(() => {}); } catch (e) {}
     setCopied(true); setTimeout(() => setCopied(false), 1500);
   }
+  function toggleChat() {
+    setChatOpen((o) => { const n = !o; chatOpenRef.current = n; if (n) setChatUnread(0); return n; });
+  }
+  function sendChat(text) {
+    text = (text || "").trim();
+    if (!text || vsBot) return;
+    setChatMsgs((m) => [...m, { me: true, text }].slice(-50));
+    socket.emit("chat", { text });
+  }
+  function inviteMessenger() {
+    if (!code || sharing) return;
+    setSharing(true);
+    shareRoom(code).then((ok) => {
+      setSharing(false);
+      if (!ok) showNotice(t("notice.shareFail"));
+    });
+  }
 
   return (
     <div className="app">
@@ -1059,38 +1440,58 @@ function App() {
       <div className="topbar">
         <div className="logo">
           <div className="badge">⚓</div>
-          <div><h1>BATTLESHIP</h1><small>Online · Hải chiến</small></div>
+          <div><h1>BATTLESHIP</h1><small>{t("topbar.tagline")}</small></div>
         </div>
-        <button className="btn ghost topbar-sound" title="Bật/tắt âm thanh" onClick={toggleSound}>{soundOn ? "🔊" : "🔇"}</button>
+        <div className="topbar-right">
+          {profile.name && (
+            <div className="profile-chip" title={profile.name}>
+              {profile.photo
+                ? <img className="avatar" src={profile.photo} alt="" referrerPolicy="no-referrer" />
+                : <span className="avatar avatar-fallback">{profile.name.slice(0, 1)}</span>}
+              <span className="pname">{profile.name}</span>
+            </div>
+          )}
+          <button className="btn ghost topbar-sound" title={t("topbar.soundToggle")} onClick={toggleSound}>{soundOn ? "🔊" : "🔇"}</button>
+        </div>
       </div>
 
       {screen !== "lobby" && (code || vsBot) && (
         <div className="roombar">
-          <div className="roombar-info">{vsBot ? <b>🤖 Với máy</b> : <span>Phòng <b className="roomcode">{code}</b></span>}</div>
+          <div className="roombar-info">{vsBot ? <b>{t("roombar.vsBot")}</b> : <span>{t("roombar.room")} <b className="roomcode">{code}</b></span>}</div>
           <div className="roombar-actions">
-            <button className="btn ghost" onClick={leaveRoom}>{vsBot ? "Thoát" : "Rời phòng"}</button>
+            {!vsBot && (
+              <button className="btn ghost chat-toggle" onClick={toggleChat}>💬{chatUnread > 0 && <span className="chat-badge">{chatUnread}</span>}</button>
+            )}
+            <button className="btn ghost" onClick={leaveRoom}>{vsBot ? t("common.exit") : t("common.leaveRoom")}</button>
           </div>
         </div>
       )}
 
       {notice && <div className="notice-toast">{notice}</div>}
 
-      {screen === "lobby" && <Lobby onCreate={createRoom} onJoin={joinRoom} onBot={startBot} error={error} />}
+      {screen === "lobby" && <Lobby onCreate={createRoom} onJoin={joinRoom} onBot={startBot} onHelp={() => setHelpOpen(true)} error={error} />}
+
+      <HelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />
 
       {screen === "room" && (
         <div className="lobby">
-          <h2>Mời bạn bè</h2>
-          <p className="sub">Gửi mã phòng này cho bạn. Khi họ vào, ván đấu sẽ tự bắt đầu.</p>
+          <h2>{t("room.title")}</h2>
+          <p className="sub">{t("room.sub")}</p>
           <div className="room-code-box" style={{justifyContent:"center",marginBottom:14}}>
             <div className="code">{code}</div>
-            <button className="btn steel copy-btn" onClick={copyCode}>{copied ? "Đã chép ✓" : "Sao chép"}</button>
+            <button className="btn steel copy-btn" onClick={copyCode}>{copied ? t("common.copied") : t("common.copy")}</button>
           </div>
-          <p className="sub" style={{textAlign:"center",marginBottom:16}}>📩 Gửi mã này cho bạn qua Messenger / Zalo. Bạn nhập mã ở màn hình chính là vào.</p>
+          {canShare() && (
+            <button className="btn primary" style={{width:"100%",marginBottom:12}} onClick={inviteMessenger} disabled={sharing}>
+              {sharing ? t("share.opening") : t("share.invite")}
+            </button>
+          )}
+          <p className="sub" style={{textAlign:"center",marginBottom:16}}>{t("room.shareHint")}</p>
           {!oppPresent
-            ? <div className="status-pill pill-wait" style={{textAlign:"center"}}>⏳ Đang chờ đối thủ vào phòng...</div>
+            ? <div className="status-pill pill-wait" style={{textAlign:"center"}}>{t("room.waiting")}</div>
             : null}
           {oppPresent && (
-            <button className="btn primary" style={{marginTop:16}} onClick={() => setScreen("placement")}>Bắt đầu bố trí hạm đội</button>
+            <button className="btn primary" style={{marginTop:16}} onClick={() => setScreen("placement")}>{t("room.startPlacement")}</button>
           )}
         </div>
       )}
@@ -1100,16 +1501,21 @@ function App() {
           {error && <div className="error">{error}</div>}
           <div className="room-banner">
             {vsBot ? (
-              <div className="room-code-box"><span>🤖 Chơi với máy</span></div>
+              <div className="room-code-box"><span>{t("common.vsBotFull")}</span></div>
             ) : (
               <div className="room-code-box">
-                <span>Mã phòng:</span><div className="code" style={{fontSize:24}}>{code}</div>
-                <button className="btn steel copy-btn" onClick={copyCode}>{copied ? "✓" : "Chép"}</button>
+                <span>{t("common.roomCodeLabel")}</span><div className="code" style={{fontSize:24}}>{code}</div>
+                <button className="btn steel copy-btn" onClick={copyCode}>{copied ? t("common.copiedShort") : t("common.copyShort")}</button>
               </div>
             )}
             <div className={"status-pill " + (vsBot ? "pill-ready" : (oppReady ? "pill-ready" : "pill-wait"))}>
-              {vsBot ? "✓ Máy đã sẵn sàng" : (oppPresent ? (oppReady ? "Đối thủ đã sẵn sàng" : "Đối thủ đang bố trí...") : "Chờ đối thủ vào...")}
+              {vsBot ? t("place.botReady") : (oppPresent ? (oppReady ? t("place.oppReady") : t("place.oppPlacing")) : t("place.waitOpp"))}
             </div>
+            {!vsBot && !oppPresent && canShare() && (
+              <button className="btn steel" style={{marginTop:8}} onClick={inviteMessenger} disabled={sharing}>
+                {sharing ? t("share.openingShort") : t("share.inviteShort")}
+              </button>
+            )}
           </div>
           <Placement onConfirm={confirmPlacement} ready={iReady} waiting={iReady && !oppReady} />
         </div>
@@ -1117,16 +1523,18 @@ function App() {
 
       {screen === "battle" && (
         <div>
-          <Battle myTurn={myTurn} vsBot={vsBot} occ={occ} incoming={incoming} myShots={myShots} onFire={fire} log={log} sunkOpp={sunkOpp} sunkMine={sunkMine} sunkEnemyCells={sunkEnemyCells} sunkMyCells={sunkMyCells} myScore={myScore} oppScore={oppScore} oppLabel={vsBot ? "Máy" : "Đối thủ"} flashEnemy={flashEnemy} flashMine={flashMine} mode={vsBot ? "classic" : mode} inv={inv} powerups={powerups} revealedEnemy={revealedEnemy} aim={aim} onPower={activatePower} myMines={myMines} onPlaceMine={placeMine} />
+          <Battle myTurn={myTurn} vsBot={vsBot} occ={occ} incoming={incoming} myShots={myShots} onFire={fire} log={log} sunkOpp={sunkOpp} sunkMine={sunkMine} sunkEnemyCells={sunkEnemyCells} sunkMyCells={sunkMyCells} myScore={myScore} oppScore={oppScore} oppLabel={vsBot ? t("common.bot") : t("common.opponent")} myProfile={profile} oppProfile={vsBot ? null : oppProfile} flashEnemy={flashEnemy} flashMine={flashMine} mode={vsBot ? "classic" : mode} inv={inv} powerups={powerups} revealedEnemy={revealedEnemy} aim={aim} onPower={activatePower} myMines={myMines} onPlaceMine={placeMine} turnDeadline={vsBot ? null : turnDeadline} turnDur={turnDur} />
         </div>
       )}
 
       {over && (
         <div className="overlay">
           <div className={"modal " + (over.win ? "win" : "lose")}>
-            <h2>{over.win ? "CHIẾN THẮNG!" : "THẤT BẠI"}</h2>
-            <p>{over.win ? "Bạn đã đánh chìm toàn bộ hạm đội địch." : "Toàn bộ hạm đội của bạn đã bị đánh chìm."}</p>
-            <button className="btn primary" onClick={rematchAction}>Chơi lại</button>
+            <h2>{over.win ? t("over.win") : t("over.lose")}</h2>
+            <p>{over.reason === "timeout"
+              ? (over.win ? t("over.winTimeout") : t("over.loseTimeout"))
+              : (over.win ? t("over.winNormal") : t("over.loseNormal"))}</p>
+            <button className="btn primary" onClick={rematchAction}>{t("over.rematch")}</button>
           </div>
         </div>
       )}
@@ -1134,9 +1542,9 @@ function App() {
       {oppLeft && !over && (
         <div className="overlay">
           <div className="modal lose">
-            <h2>Đối thủ đã rời phòng</h2>
-            <p>Ván đấu đã kết thúc. Quay lại sảnh để tạo phòng mới hoặc đấu với máy.</p>
-            <button className="btn primary" onClick={() => { setOppLeft(false); resetToLobby(); }}>Về sảnh</button>
+            <h2>{t("left.title")}</h2>
+            <p>{t("left.body")}</p>
+            <button className="btn primary" onClick={() => { setOppLeft(false); resetToLobby(); }}>{t("left.toLobby")}</button>
           </div>
         </div>
       )}
@@ -1144,7 +1552,7 @@ function App() {
       {/* đối thủ tạm mất kết nối — banner nổi, không chặn thao tác, có đếm ngược */}
       {oppOffline && !oppLeft && !over && !vsBot && (
         <div className="offline-banner">
-          📡 Đối thủ tạm mất kết nối. Đang chờ kết nối lại{graceLeft > 0 ? ` (${graceLeft}s)` : ""}…
+          {t("offline.banner")}{graceLeft > 0 ? ` (${graceLeft}s)` : ""}…
         </div>
       )}
 
@@ -1152,17 +1560,19 @@ function App() {
       {confirmLeave && (
         <div className="overlay">
           <div className="modal">
-            <h2 style={{ fontSize: 26 }}>{vsBot ? "Thoát trận?" : "Rời phòng?"}</h2>
-            <p>{vsBot ? "Bạn sẽ thoát trận đấu với máy và quay lại sảnh." : "Bạn sẽ rời phòng và quay lại sảnh. Đối thủ sẽ được thông báo."}</p>
+            <h2 style={{ fontSize: 26 }}>{vsBot ? t("leave.titleBot") : t("leave.titleRoom")}</h2>
+            <p>{vsBot ? t("leave.bodyBot") : t("leave.bodyRoom")}</p>
             <div style={{ display: "flex", gap: 10 }}>
-              <button className="btn ghost" onClick={() => setConfirmLeave(false)}>Ở lại</button>
-              <button className="btn primary" onClick={doLeave}>{vsBot ? "Thoát" : "Rời phòng"}</button>
+              <button className="btn ghost" onClick={() => setConfirmLeave(false)}>{t("leave.stay")}</button>
+              <button className="btn primary" onClick={doLeave}>{vsBot ? t("common.exit") : t("common.leaveRoom")}</button>
             </div>
           </div>
         </div>
       )}
 
-      <div className="footer-note">Battleship Online · chia sẻ mã phòng để mời bạn bè</div>
+      {!vsBot && <ChatPanel open={chatOpen} msgs={chatMsgs} onSend={sendChat} onToggle={toggleChat} />}
+
+      <div className="footer-note">{t("footer")}</div>
     </div>
   );
 }
@@ -1171,6 +1581,7 @@ let _booted = false;
 function boot() {
   if (_booted) return;
   _booted = true;
+  try { document.title = t("lobby.title") + " · Battleship"; } catch (e) {}
   // NB: do NOT socket.connect() here — the App effect connects only after it has
   // attached the "connect"/"sync" listeners, otherwise a fast connect event can
   // fire before anyone is listening and auto-resume is silently missed.
@@ -1212,6 +1623,7 @@ async function resolveIdentityAndBoot() {
       else adoptFbIdentity();
     } else { adoptFbIdentity(); }
   } catch (e) { adoptFbIdentity(); }
+  captureFbProfile(); // name + avatar for the top-right profile chip
   // Durable room pointer via cloud save (best-effort).
   try {
     if (fbHasCloud()) {
