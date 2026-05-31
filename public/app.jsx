@@ -56,7 +56,7 @@ const I18N = {
     "help.open": "❓ How to play", "help.title": "How to play", "help.close": "Got it",
     "help.objTitle": "🎯 Goal", "help.objBody": "Be the first to sink all 5 of your opponent's ships.",
     "help.setupTitle": "⚓ Place your fleet", "help.setupBody": "Drag ships onto the grid, or tap a ship then tap a cell. Double-tap a placed ship to rotate. Tap 🎲 Random for a quick layout.",
-    "help.turnTitle": "💥 Taking turns", "help.turnBody": "Tap enemy waters to fire. A hit lets you fire again; a miss passes the turn. Each turn has a 45s timer — stall too long and you forfeit.",
+    "help.turnTitle": "💥 Taking turns", "help.turnBody": "Tap enemy waters to fire. A hit lets you fire again; a miss passes the turn. Each turn has a 20s timer — stall too long and you forfeit.",
     "help.modesTitle": "🕹️ Modes", "help.modesBody": "Classic: pure battleship. Advance: power-ups appear on the enemy sea — hit them to collect, then use them on your turn.",
     "help.powerTitle": "⚡ Power-ups (Advance mode)",
     "help.pwScatter": "Blasts 3–5 random enemy cells.", "help.pwCross": "Fires in a plus shape (center + 4 neighbors).",
@@ -123,7 +123,7 @@ const I18N = {
     "help.open": "❓ Cách chơi", "help.title": "Cách chơi", "help.close": "Đã hiểu",
     "help.objTitle": "🎯 Mục tiêu", "help.objBody": "Đánh chìm cả 5 thuyền của đối thủ trước là thắng.",
     "help.setupTitle": "⚓ Bố trí hạm đội", "help.setupBody": "Kéo thuyền vào lưới, hoặc chạm thuyền rồi chạm ô để đặt. Chạm 2 lần vào thuyền đã đặt để xoay. Bấm 🎲 Ngẫu nhiên để xếp nhanh.",
-    "help.turnTitle": "💥 Lượt bắn", "help.turnBody": "Chạm vào biển địch để bắn. Trúng thì bắn tiếp; trượt thì chuyển lượt. Mỗi lượt có 45 giây — chần chừ quá lâu sẽ bị xử thua.",
+    "help.turnTitle": "💥 Lượt bắn", "help.turnBody": "Chạm vào biển địch để bắn. Trúng thì bắn tiếp; trượt thì chuyển lượt. Mỗi lượt có 20 giây — chần chừ quá lâu sẽ bị xử thua.",
     "help.modesTitle": "🕹️ Chế độ", "help.modesBody": "Classic: hải chiến thuần. Advance: power-up xuất hiện trên biển địch — bắn trúng để nhặt, rồi dùng trong lượt của bạn.",
     "help.powerTitle": "⚡ Power-up (chế độ Advance)",
     "help.pwScatter": "Nổ 3–5 ô ngẫu nhiên trên biển địch.", "help.pwCross": "Bắn theo hình chữ thập (tâm + 4 ô kề).",
@@ -788,14 +788,17 @@ function PowerBar({ inv, aim, onPower, myTurn }) {
   );
 }
 // Player card: avatar + name + score, used on both sides of the scoreboard.
-function PlayerCard({ profile, fallbackName, score, active, isBot, side }) {
+function PlayerCard({ profile, fallbackName, score, active, isBot, side, bubble }) {
   const name = (profile && profile.name) || fallbackName;
   const photo = profile && profile.photo;
   return (
     <div className={"pcard " + side + (active ? " active" : "")}>
-      {photo
-        ? <img className="pc-avatar" src={photo} alt="" referrerPolicy="no-referrer" />
-        : <span className="pc-avatar pc-fallback">{isBot ? "🤖" : (name ? name.slice(0, 1) : "?")}</span>}
+      <div className="pc-avatar-wrap">
+        {photo
+          ? <img className="pc-avatar" src={photo} alt="" referrerPolicy="no-referrer" />
+          : <span className="pc-avatar pc-fallback">{isBot ? "🤖" : (name ? name.slice(0, 1) : "?")}</span>}
+        {bubble && <div className={"chat-bubble " + side} key={bubble.id}>{bubble.text}</div>}
+      </div>
       <div className="pc-meta">
         <span className="pc-name" title={name}>{name}</span>
         <span className="pc-score">{score}</span>
@@ -821,14 +824,14 @@ function TurnRing({ secs, frac, show, myTurn }) {
     </div>
   );
 }
-function Battle({ myTurn, vsBot, occ, incoming, myShots, onFire, log, sunkOpp, sunkMine, sunkEnemyCells, sunkMyCells, myScore, oppScore, oppLabel, myProfile, oppProfile, flashEnemy, flashMine, mode, inv, powerups, revealedEnemy, aim, onPower, myMines, onPlaceMine, turnDeadline, turnDur }) {
+function Battle({ myTurn, vsBot, occ, incoming, myShots, onFire, log, sunkOpp, sunkMine, sunkEnemyCells, sunkMyCells, myScore, oppScore, oppLabel, myProfile, oppProfile, myBubble, oppBubble, flashEnemy, flashMine, mode, inv, powerups, revealedEnemy, aim, onPower, myMines, onPlaceMine, turnDeadline, turnDur }) {
   const [tab, setTab] = useState("enemy"); // enemy | own (mobile)
   // đếm ngược lượt từ deadline server gửi (null = không giới hạn, vd đấu máy)
   const [secs, setSecs] = useState(null);
   const [frac, setFrac] = useState(1);
   useEffect(() => {
     if (!turnDeadline) { setSecs(null); setFrac(1); return; }
-    const dur = turnDur || 45000;
+    const dur = turnDur || 20000;
     const tick = () => {
       const rem = Math.max(0, turnDeadline - Date.now());
       setSecs(Math.ceil(rem / 1000));
@@ -847,17 +850,9 @@ function Battle({ myTurn, vsBot, occ, incoming, myShots, onFire, log, sunkOpp, s
   return (
     <div>
       <div className="scoreboard">
-        <PlayerCard side="me" profile={myProfile} fallbackName={t("battle.you")} score={myScore} active={myTurn && turnDeadline != null} />
+        <PlayerCard side="me" profile={myProfile} fallbackName={t("battle.you")} score={myScore} active={myTurn && turnDeadline != null} bubble={myBubble} />
         <TurnRing secs={secs} frac={frac} show={turnDeadline != null} myTurn={myTurn} />
-        <PlayerCard side="opp" profile={oppProfile} fallbackName={oppLabel} score={oppScore} active={!myTurn && turnDeadline != null} isBot={vsBot} />
-      </div>
-      <div className="battle-tabs">
-        <button className={"tab-btn" + (tab === "enemy" ? " active" : "")} onClick={() => setTab("enemy")}>
-          {t("battle.enemySea")} {myTurn ? t("battle.fireTag") : ""}
-        </button>
-        <button className={"tab-btn" + (tab === "own" ? " active" : "")} onClick={() => setTab("own")}>
-          {t("battle.yourFleetTab")}
-        </button>
+        <PlayerCard side="opp" profile={oppProfile} fallbackName={oppLabel} score={oppScore} active={!myTurn && turnDeadline != null} isBot={vsBot} bubble={oppBubble} />
       </div>
       {mode === "advance" && (
         <PowerBar inv={inv} aim={aim} onPower={onPower} myTurn={myTurn} />
@@ -868,11 +863,6 @@ function Battle({ myTurn, vsBot, occ, incoming, myShots, onFire, log, sunkOpp, s
       {aim === "mine" && (
         <div className="aim-banner">{t("battle.aimingMine")}</div>
       )}
-      <div className="turn-indicator">
-        <div className={"status-pill " + (myTurn ? "pill-turn" : "pill-enemy")}>
-          {myTurn ? t("battle.yourTurn") : (vsBot ? t("battle.botTurn") : t("battle.oppTurn"))}
-        </div>
-      </div>
       <div className={"boards tab-" + tab}>
         <div className="board-wrap wrap-enemy">
           <div className="board-title enemy">{t("battle.enemyWaters")} {myTurn ? t("battle.fireSuffix") : ""}</div>
@@ -932,11 +922,11 @@ function HelpModal({ open, onClose }) {
 }
 
 // ---------- Chat (in-room, ephemeral) ----------
+// Messages are NOT logged — each one pops as a 3s speech bubble over the sender's
+// avatar (see PlayerCard `bubble`). This composer only sends.
 const CHAT_EMOJIS = ["👍", "😀", "😂", "😮", "😡", "🔥", "⚓", "🎯"];
-function ChatPanel({ open, msgs, onSend, onToggle }) {
+function ChatComposer({ open, onSend, onToggle }) {
   const [text, setText] = useState("");
-  const listRef = useRef(null);
-  useEffect(() => { if (open && listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight; }, [msgs, open]);
   if (!open) return null;
   function submit(e) { if (e) e.preventDefault(); const tx = text.trim(); if (!tx) return; onSend(tx); setText(""); }
   return (
@@ -944,10 +934,6 @@ function ChatPanel({ open, msgs, onSend, onToggle }) {
       <div className="chat-head">
         <b>{t("chat.title")}</b>
         <button className="btn ghost" onClick={onToggle} style={{ width: "auto", padding: "2px 10px" }}>✕</button>
-      </div>
-      <div className="chat-list" ref={listRef}>
-        {msgs.length === 0 && <div className="chat-empty">{t("chat.empty")}</div>}
-        {msgs.map((m, i) => <div key={i} className={"chat-msg " + (m.me ? "me" : "opp")}>{m.text}</div>)}
       </div>
       <div className="chat-emojis">
         {CHAT_EMOJIS.map((e) => <button key={e} className="chat-emoji" onClick={() => onSend(e)}>{e}</button>)}
@@ -970,7 +956,7 @@ function App() {
   const [iReady, setIReady] = useState(false);
   const [myTurn, setMyTurn] = useState(false);
   const [turnDeadline, setTurnDeadline] = useState(null); // mốc hết giờ lượt (ms) từ server
-  const [turnDur, setTurnDur] = useState(45000);          // độ dài 1 lượt (ms) cho vòng đếm
+  const [turnDur, setTurnDur] = useState(20000);          // độ dài 1 lượt (ms) cho vòng đếm
   const [oppProfile, setOppProfile] = useState(null);     // {name, photo} đối thủ
   const [occ, setOcc] = useState(new Set());
   const [incoming, setIncoming] = useState(new Map()); // shots on me
@@ -1001,9 +987,10 @@ function App() {
   const [profile, setProfile] = useState({ name: fbProfile.name, photo: fbProfile.photo });
   const [helpOpen, setHelpOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
-  const [chatMsgs, setChatMsgs] = useState([]); // [{me, text}]
-  const [chatUnread, setChatUnread] = useState(0);
-  const chatOpenRef = useRef(false); // for socket handler closure
+  const [myBubble, setMyBubble] = useState(null);   // {id, text} — speech bubble over my avatar
+  const [oppBubble, setOppBubble] = useState(null); // {id, text} — over opponent avatar
+  const myBubbleTimer = useRef(null);
+  const oppBubbleTimer = useRef(null);
   const graceTimerRef = useRef(null);
   const [soundOn, setSoundOn] = useState(true);
   function toggleSound() { const v = !soundOn; setSoundOn(v); Sound.setEnabled(v); }
@@ -1116,8 +1103,10 @@ function App() {
       if (newSunk > 0) Sound.sunk(); else if (anyHit) Sound.hit(); else if (list.length) Sound.miss();
     });
     socket.on("chat", ({ text }) => {
-      setChatMsgs((m) => [...m, { me: false, text }].slice(-50));
-      if (!chatOpenRef.current) setChatUnread((u) => u + 1);
+      const id = Date.now() + Math.random();
+      setOppBubble({ id, text });
+      if (oppBubbleTimer.current) clearTimeout(oppBubbleTimer.current);
+      oppBubbleTimer.current = setTimeout(() => setOppBubble((b) => (b && b.id === id ? null : b)), 3000);
       Sound.miss && Sound.miss();
     });
     socket.on("scoreUpdate", ({ you, opp }) => { setMyScore(you); setOppScore(opp); });
@@ -1399,7 +1388,9 @@ function App() {
     setPowerups(new Map()); setRevealedEnemy(new Set()); setAim(null); setMyMines(new Set());
     setOppLeft(false); setOppOffline(false); setGraceLeft(0); setConfirmLeave(false);
     setOppProfile(null);
-    setChatOpen(false); setChatMsgs([]); setChatUnread(0); chatOpenRef.current = false;
+    setChatOpen(false); setMyBubble(null); setOppBubble(null);
+    if (myBubbleTimer.current) { clearTimeout(myBubbleTimer.current); myBubbleTimer.current = null; }
+    if (oppBubbleTimer.current) { clearTimeout(oppBubbleTimer.current); oppBubbleTimer.current = null; }
     if (graceTimerRef.current) { clearInterval(graceTimerRef.current); graceTimerRef.current = null; }
     setScreen("lobby");
   }
@@ -1416,13 +1407,14 @@ function App() {
     try { if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(code).catch(() => {}); } catch (e) {}
     setCopied(true); setTimeout(() => setCopied(false), 1500);
   }
-  function toggleChat() {
-    setChatOpen((o) => { const n = !o; chatOpenRef.current = n; if (n) setChatUnread(0); return n; });
-  }
+  function toggleChat() { setChatOpen((o) => !o); }
   function sendChat(text) {
     text = (text || "").trim();
     if (!text || vsBot) return;
-    setChatMsgs((m) => [...m, { me: true, text }].slice(-50));
+    const id = Date.now() + Math.random();
+    setMyBubble({ id, text });
+    if (myBubbleTimer.current) clearTimeout(myBubbleTimer.current);
+    myBubbleTimer.current = setTimeout(() => setMyBubble((b) => (b && b.id === id ? null : b)), 3000);
     socket.emit("chat", { text });
   }
   function inviteMessenger() {
@@ -1460,7 +1452,7 @@ function App() {
           <div className="roombar-info">{vsBot ? <b>{t("roombar.vsBot")}</b> : <span>{t("roombar.room")} <b className="roomcode">{code}</b></span>}</div>
           <div className="roombar-actions">
             {!vsBot && (
-              <button className="btn ghost chat-toggle" onClick={toggleChat}>💬{chatUnread > 0 && <span className="chat-badge">{chatUnread}</span>}</button>
+              <button className="btn ghost chat-toggle" onClick={toggleChat}>💬</button>
             )}
             <button className="btn ghost" onClick={leaveRoom}>{vsBot ? t("common.exit") : t("common.leaveRoom")}</button>
           </div>
@@ -1523,7 +1515,7 @@ function App() {
 
       {screen === "battle" && (
         <div>
-          <Battle myTurn={myTurn} vsBot={vsBot} occ={occ} incoming={incoming} myShots={myShots} onFire={fire} log={log} sunkOpp={sunkOpp} sunkMine={sunkMine} sunkEnemyCells={sunkEnemyCells} sunkMyCells={sunkMyCells} myScore={myScore} oppScore={oppScore} oppLabel={vsBot ? t("common.bot") : t("common.opponent")} myProfile={profile} oppProfile={vsBot ? null : oppProfile} flashEnemy={flashEnemy} flashMine={flashMine} mode={vsBot ? "classic" : mode} inv={inv} powerups={powerups} revealedEnemy={revealedEnemy} aim={aim} onPower={activatePower} myMines={myMines} onPlaceMine={placeMine} turnDeadline={vsBot ? null : turnDeadline} turnDur={turnDur} />
+          <Battle myTurn={myTurn} vsBot={vsBot} occ={occ} incoming={incoming} myShots={myShots} onFire={fire} log={log} sunkOpp={sunkOpp} sunkMine={sunkMine} sunkEnemyCells={sunkEnemyCells} sunkMyCells={sunkMyCells} myScore={myScore} oppScore={oppScore} oppLabel={vsBot ? t("common.bot") : t("common.opponent")} myProfile={profile} oppProfile={vsBot ? null : oppProfile} myBubble={myBubble} oppBubble={vsBot ? null : oppBubble} flashEnemy={flashEnemy} flashMine={flashMine} mode={vsBot ? "classic" : mode} inv={inv} powerups={powerups} revealedEnemy={revealedEnemy} aim={aim} onPower={activatePower} myMines={myMines} onPlaceMine={placeMine} turnDeadline={vsBot ? null : turnDeadline} turnDur={turnDur} />
         </div>
       )}
 
@@ -1570,7 +1562,7 @@ function App() {
         </div>
       )}
 
-      {!vsBot && <ChatPanel open={chatOpen} msgs={chatMsgs} onSend={sendChat} onToggle={toggleChat} />}
+      {!vsBot && <ChatComposer open={chatOpen} onSend={sendChat} onToggle={toggleChat} />}
 
       <div className="footer-note">{t("footer")}</div>
     </div>

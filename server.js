@@ -442,8 +442,8 @@ function giveTurn(room, toId, otherId) {
 }
 
 // ---------- Turn clock: cap each turn so a player cannot stall the game ----------
-const TURN_MS = 45000;   // tối đa 45s mỗi lượt
-const MAX_TIMEOUTS = 3;  // bỏ lượt liên tiếp >= 3 (≈2 phút không thao tác) -> xử thua
+const TURN_MS = 20000;   // tối đa 20s mỗi lượt
+const MAX_TIMEOUTS = 3;  // bỏ lượt liên tiếp >= 3 (≈1 phút không thao tác) -> xử thua
 
 function clearTurnTimer(room) {
   if (room.turnTimer) { clearTimeout(room.turnTimer); room.turnTimer = null; }
