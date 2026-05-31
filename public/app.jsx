@@ -127,8 +127,9 @@ function persistRoom(code) {
   cloudSet({ bs_room: code || "" });
 }
 
+const BUILD = "asid2";
 function buildDbg(extra) {
-  return "id:" + clientId.slice(0, 10) + " | src:" + (idFresh ? "NEW" : "stored") +
+  return "[" + BUILD + "] id:" + clientId.slice(0, 10) + " | src:" + (idFresh ? "NEW" : "stored") +
     " | ls:" + (lsWorks ? "ok" : "BLOCKED") + " | cloud:" + (cloudReady ? "ok" : "no") +
     " | fb:" + fbStage + (extra || "");
 }
@@ -1222,16 +1223,25 @@ async function resolveIdentityAndBoot() {
   // and available under current Instant Games even when player.getID() returns
   // null. Requires startGameAsync to have resolved. This is the durable key the
   // whole auto-resume design needs.
+  let p = (typeof FBInstant !== "undefined" && FBInstant.player) ? FBInstant.player : null;
   try {
-    if (typeof FBInstant !== "undefined" && FBInstant.player && FBInstant.player.getASIDAsync) {
-      const asid = await FBInstant.player.getASIDAsync();
+    if (p && typeof p.getASIDAsync === "function") {
+      const asid = await p.getASIDAsync();
       if (asid) {
         clientId = "fb_" + asid;
         try { localStorage.setItem("bs_clientId", clientId); } catch (e) {}
         fbStage = "asid:YES";
-      } else { fbStage = "asid:null"; adoptFbIdentity(); }
-    } else { adoptFbIdentity(); }
-  } catch (e) { fbStage = "asidERR:" + ((e && e.code) || "x"); adoptFbIdentity(); }
+      } else { fbStage = "asid:EMPTY"; }
+    } else if (p && typeof p.getSignedASIDAsync === "function") {
+      const s = await p.getSignedASIDAsync();
+      const asid = s && (s.getASID ? s.getASID() : s.asid);
+      if (asid) { clientId = "fb_" + asid; try { localStorage.setItem("bs_clientId", clientId); } catch (e) {} fbStage = "sasid:YES"; }
+      else { fbStage = "sasid:EMPTY"; }
+    } else {
+      fbStage = "noASIDfn";
+      adoptFbIdentity();
+    }
+  } catch (e) { fbStage = "asidERR:" + ((e && (e.code || e.message)) || "x"); }
   // Durable room pointer via cloud save (best-effort; also confirms cloud works).
   try {
     if (fbHasCloud()) {
