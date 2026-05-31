@@ -30,7 +30,7 @@ const I18N = {
     "pw.scatter": "Scatter Blast", "pw.cross": "Cross Missile", "pw.double": "Extra Turn", "pw.reveal": "Reveal Cell", "pw.mine": "Sea Mine",
     "board.yourFleet": "Your fleet",
     "place.shipTitle": "Drag to move · double-tap to rotate", "place.heading": "Place your fleet",
-    "place.hint": "Two ways: drag a ship onto the grid, or tap a ship in the dock then tap a grid cell to place it (the cell you tap is the bow). Tap a placed ship to rotate.",
+    "place.hint": "Your fleet starts placed at random. Drag a ship to move it, double-tap to rotate, or tap 🎲 Random for a new layout.",
     "place.selected": "Selected: {name} — tap the grid to place.", "place.dockDir": "⟳ Dock orientation: {dir}",
     "place.horizontal": "Horizontal", "place.vertical": "Vertical", "place.cells": "{size} cells", "place.removeShip": "↩ Return to dock",
     "place.random": "🎲 Random", "place.clear": "Clear all", "place.ready": "⚓ Ready for battle", "place.readyMark": "Ready ✓", "place.waitingOpp": "Waiting for opponent...",
@@ -97,7 +97,7 @@ const I18N = {
     "pw.scatter": "Nổ ngẫu nhiên", "pw.cross": "Tên lửa chữ thập", "pw.double": "Thêm lượt", "pw.reveal": "Lộ ô thuyền", "pw.mine": "Mìn nước",
     "board.yourFleet": "Hạm đội của bạn",
     "place.shipTitle": "Kéo để di chuyển · chạm 2 lần để xoay", "place.heading": "Bố trí hạm đội",
-    "place.hint": "2 cách: kéo-thả tàu vào lưới, hoặc chạm 1 tàu trong kho rồi chạm ô trên lưới để đặt (ô bạn chạm là đầu tàu). Chạm tàu đã đặt để xoay.",
+    "place.hint": "Hạm đội được xếp ngẫu nhiên sẵn. Kéo thuyền để di chuyển, chạm 2 lần để xoay, hoặc bấm 🎲 Ngẫu nhiên để xếp lại.",
     "place.selected": "Đã chọn: {name} — chạm vào lưới để đặt.", "place.dockDir": "⟳ Hướng kho: {dir}",
     "place.horizontal": "Ngang", "place.vertical": "Dọc", "place.cells": "{size} ô", "place.removeShip": "↩ Gỡ về kho",
     "place.random": "🎲 Ngẫu nhiên", "place.clear": "Xóa hết", "place.ready": "⚓ Sẵn sàng chiến đấu", "place.readyMark": "Sẵn sàng ✓", "place.waitingOpp": "Đang chờ đối thủ...",
@@ -510,6 +510,11 @@ function Placement({ onConfirm, ready, waiting }) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+
+  // Start with a random fleet already on the board (no dragging from an
+  // off-screen dock). The player can still drag/rotate to rearrange, or hit
+  // Random/Clear. Only seeds on a fresh placement screen (not after confirm).
+  useEffect(() => { if (!ready && Object.keys(placed).length === 0) randomize(); }, []);
 
   const sizeOf = (id) => FLEET_DEF.find((f) => f.id === id).size;
 
