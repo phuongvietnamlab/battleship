@@ -77,8 +77,7 @@ h1, h2, h3, .title, .ttl { font-family: "Oswald", sans-serif; letter-spacing: 1p
 }
 
 /* keyboard focus ring (a11y) — only on keyboard nav, not mouse press */
-.btn:focus-visible, .mode-opt:focus-visible, .power-btn:focus-visible,
-.tab-btn:focus-visible, .dock-ship:focus-visible {
+.btn:focus-visible, .mode-opt:focus-visible, .power-btn:focus-visible {
   outline: 2px solid var(--gold);
   outline-offset: 2px;
 }
@@ -96,7 +95,7 @@ h1, h2, h3, .title, .ttl { font-family: "Oswald", sans-serif; letter-spacing: 1p
 .logo small { color: var(--sky); letter-spacing: 3px; text-transform: uppercase; font-size: 11px; }
 
 /* glass panels — true glassmorphism: deeper blur + saturation lift */
-.lobby, .place-panel, .room-banner, .modal, .log {
+.lobby, .room-banner, .modal, .log {
   background: var(--panel);
   border: 1px solid var(--panel-brd);
   backdrop-filter: blur(14px) saturate(1.2);
@@ -164,7 +163,6 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
   background: rgba(0,0,0,.28); padding: 6px 18px; border-radius:10px; border:1px dashed rgba(240,193,75,.5);
   text-shadow: 0 0 14px rgba(240,193,75,.4);
 }
-.copy-btn { font-size:12px; padding:8px 12px; width:auto; }
 .code-copy { cursor:pointer; position:relative; user-select:all; transition:transform .1s, border-color .2s; }
 .code-copy:hover { border-color:var(--gold); }
 .code-copy:active { transform:scale(.96); }
@@ -253,9 +251,6 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 .cell.aim { box-shadow: inset 0 0 0 2px var(--gold), 0 0 12px rgba(240,193,75,.6) !important; }
 /* mìn nước trên hạm đội của mình */
 .cell.mine { font-size:16px; box-shadow: inset 0 0 0 2px rgba(255,140,60,.7); }
-.cell.selectable { cursor:pointer; box-shadow: inset 0 0 0 1px rgba(240,193,75,.45); }
-/* chỉ báo lượt nằm ngay trên bàn cờ */
-.turn-indicator { display:flex; justify-content:center; margin:4px 0 10px; }
 /* thông báo nổi (vd: dẫm phải mìn) */
 .notice-toast {
   position:fixed; top:14px; left:50%; transform:translateX(-50%); z-index:200;
@@ -334,33 +329,14 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 .counter .fill.own { background: linear-gradient(90deg, #7ff0aa, #2f9e63); }
 
 /* placement panel */
-.place-panel { border-radius:16px; padding:20px; width:300px; box-shadow: 0 14px 40px rgba(2,12,30,.45), inset 0 1px 0 rgba(255,255,255,.10); }
-.place-panel h3 { margin:0 0 6px; font-size:19px; }
-.place-panel .hint { font-size:13px; color:#a9ccec; margin:0 0 16px; line-height:1.55; }
-
 /* Placement: hint + actions on top, board below */
 .place-wrap { display:flex; flex-direction:column; align-items:center; gap:12px; }
 .place-hint { max-width:440px; text-align:center; font-size:13px; color:#a9ccec; line-height:1.55; margin:0; }
 .place-actions { display:flex; gap:10px; justify-content:center; width:100%; max-width:440px; }
 .place-actions .btn { flex:1; }
 .place-wrap .board-wrap { width:100%; display:flex; flex-direction:column; align-items:center; }
-.ship-name { font-size:13px; font-weight:500; }
 .controls { display:flex; gap:8px; }
 .controls .btn { padding:11px; font-size:13px; }
-
-/* dock of draggable ships */
-.dock { display:flex; flex-direction:column; gap:12px; margin-bottom:16px; }
-.dock-item {
-  display:flex; align-items:center; gap:12px; justify-content:space-between;
-  padding:10px 12px; border-radius:12px; background: rgba(255,255,255,.05);
-  border:1px solid rgba(150,200,255,.1); min-height:54px;
-}
-.dock-item.placed { opacity:.55; }
-.dock-info { display:flex; flex-direction:column; gap:2px; }
-.dock-info small { color:#88a8cc; font-size:11px; }
-.dock-ship { cursor:grab; flex:0 0 auto; position:relative; filter: drop-shadow(0 4px 8px rgba(0,0,0,.5)); transition: transform .1s; touch-action:none; }
-.dock-ship:hover { transform: scale(1.04); }
-.dock-ship:active { cursor:grabbing; }
 
 /* floating ghost that follows finger/cursor while dragging */
 .drag-ghost { position:fixed; z-index:999; pointer-events:none; opacity:.92;
@@ -397,41 +373,23 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 
 .footer-note { text-align:center; color:#5878a0; font-size:12px; margin-top:32px; }
 
-/* tap-to-place helpers */
-.sel-banner{ background:rgba(86,180,255,.16); border:1px solid rgba(86,180,255,.5); color:#cfe8ff; padding:8px 12px; border-radius:10px; font-size:13px; margin-bottom:12px; }
-.dock-ship.sel{ outline:3px solid #56b4ff; outline-offset:2px; border-radius:6px; box-shadow:0 0 14px rgba(86,180,255,.6); }
-.cell.selectable{ cursor:pointer; }
-
-/* battle board tabs — hidden on desktop (both boards shown side by side) */
-.battle-tabs{ display:none; gap:8px; margin:0 auto 14px; max-width:420px; }
-.tab-btn{ flex:1; padding:11px 8px; border-radius:10px; border:1px solid rgba(120,160,200,.35);
-  background:rgba(12,28,46,.6); color:#9fc0e0; font-family:"Oswald"; letter-spacing:1px; font-size:13px; cursor:pointer; }
-.tab-btn.active{ background:linear-gradient(180deg,#1b4a78,#0f3257); color:#fff; border-color:#56b4ff; box-shadow:0 0 12px rgba(86,180,255,.4); }
-
 /* ---------- high-end motion layer ---------- */
 @media (prefers-reduced-motion: no-preference) {
   /* staggered entry: boards cascade in instead of mounting at once */
   .board-wrap { animation: rise .5s cubic-bezier(.34,1.3,.4,1) both; }
   .wrap-enemy { animation-delay: .05s; }
   .wrap-own   { animation-delay: .15s; }
-  /* dock ships cascade down the rail */
-  .dock-item { animation: rise .45s cubic-bezier(.34,1.3,.4,1) both; }
-  .dock-item:nth-child(1){ animation-delay:.04s; }
-  .dock-item:nth-child(2){ animation-delay:.10s; }
-  .dock-item:nth-child(3){ animation-delay:.16s; }
-  .dock-item:nth-child(4){ animation-delay:.22s; }
-  .dock-item:nth-child(5){ animation-delay:.28s; }
 }
 
 /* spring-weighted hover lift on interactive cards */
-.mode-opt, .power-btn, .tab-btn {
+.mode-opt, .power-btn {
   transition: transform .18s cubic-bezier(.34,1.5,.45,1), box-shadow .2s ease, border-color .2s ease, background .2s ease;
 }
-.mode-opt:hover, .power-btn:not(:disabled):hover, .tab-btn:hover {
+.mode-opt:hover, .power-btn:not(:disabled):hover {
   transform: translateY(-2px);
   border-color: rgba(240,193,75,.5);
 }
-.mode-opt:active, .power-btn:not(:disabled):active, .tab-btn:active { transform: translateY(0); }
+.mode-opt:active, .power-btn:not(:disabled):active { transform: translateY(0); }
 
 /* radial spotlight under the recommended/active mode card */
 .mode-opt.on {
@@ -443,7 +401,6 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 @media (max-width:560px){
   /* keep cell pitch fixed (drag math depends on it); just tighten layout */
   .boards{gap:20px;}
-  .place-panel{width:100%;}
   /* single board on mobile: auto-switches by turn (no manual tab buttons). */
   .boards.tab-enemy .wrap-own{ display:none; }
   .boards.tab-own .wrap-enemy{ display:none; }

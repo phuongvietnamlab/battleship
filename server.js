@@ -44,7 +44,6 @@ const PORT = process.env.PORT || 4000;
 // Game config
 const BOARD = 11;
 const FLEET = [5, 4, 3, 3, 2];
-const TOTAL_CELLS = FLEET.reduce((a, b) => a + b, 0); // 17
 const GRACE_MS = 180000; // keep a disconnected player's seat for 3 min (app restart + cloud read)
 const RESTORE_GRACE_MS = 300000; // after a server restore, give seats 5 min to reconnect
 const SNAPSHOT_MS = 3000; // how often to snapshot rooms to Redis (when enabled)
@@ -106,16 +105,6 @@ function validatePlacement(ships) {
   return { occ, ships: shipSets };
 }
 
-// returns the ship Set that contains key and is now fully sunk, else null
-function shipSunkByHit(playerData, attackerHits, key) {
-  if (!playerData.ships) return null;
-  for (const ship of playerData.ships) {
-    if (!ship.has(key)) continue;
-    for (const k of ship) if (!attackerHits.has(k)) return null;
-    return ship;
-  }
-  return null;
-}
 // how many of a player's ships are fully sunk given the attacker's hits
 function sunkShipCount(playerData, attackerHits) {
   if (!playerData.ships) return 0;
@@ -422,16 +411,6 @@ function syncPayload(room, code, clientId) {
     powerups: powerupsForAttacker(room, clientId),
     myMines: (room.mines && room.mines[clientId]) ? [...room.mines[clientId]] : [],
   };
-}
-
-function checkWin(room, attackerId) {
-  const me = room.players[attackerId];
-  const oppId = opponentOf(room, attackerId);
-  const opp = room.players[oppId];
-  if (!me || !opp || !opp.occ) return false;
-  let count = 0;
-  for (const o of opp.occ) if (me.hits.has(o)) count++;
-  return count >= TOTAL_CELLS;
 }
 
 // Give the turn to `toId`, unless they owe a skipped turn (e.g. hit a mine), in which case it bounces back.

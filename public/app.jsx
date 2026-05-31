@@ -19,8 +19,8 @@ function detectLocale() {
 const LANG = detectLocale();
 const I18N = {
   en: {
-    "common.or": "OR", "common.cancel": "Cancel", "common.copy": "Copy", "common.copied": "Copied ✓",
-    "common.copyShort": "Copy", "common.copiedShort": "✓", "common.tapToCopy": "Tap the code to copy", "common.bot": "Bot", "common.opponent": "Opponent",
+    "common.or": "OR", "common.copied": "Copied ✓",
+    "common.tapToCopy": "Tap the code to copy", "common.bot": "Bot", "common.opponent": "Opponent",
     "common.exit": "Exit", "common.leaveRoom": "Leave", "common.roomCodeLabel": "Room code:", "common.vsBotFull": "🤖 Play vs Bot",
     "topbar.tagline": "Online · Sea Battle", "topbar.soundToggle": "Toggle sound",
     "lobby.title": "Sea Battle", "lobby.sub": "Play vs the bot, or create a room and send the code to a friend.",
@@ -29,14 +29,12 @@ const I18N = {
     "ship.carrier": "Carrier", "ship.battleship": "Battleship", "ship.cruiser": "Cruiser", "ship.submarine": "Submarine", "ship.destroyer": "Destroyer",
     "pw.scatter": "Scatter Blast", "pw.cross": "Cross Missile", "pw.double": "Extra Turn", "pw.reveal": "Reveal Cell", "pw.mine": "Sea Mine",
     "board.yourFleet": "Your fleet",
-    "place.shipTitle": "Drag to move · double-tap to rotate", "place.heading": "Place your fleet",
+    "place.shipTitle": "Drag to move · double-tap to rotate",
     "place.hint": "Your fleet starts placed at random. Drag a ship to move it, double-tap to rotate, or tap 🎲 Random for a new layout.",
-    "place.selected": "Selected: {name} — tap the grid to place.", "place.dockDir": "⟳ Dock orientation: {dir}",
-    "place.horizontal": "Horizontal", "place.vertical": "Vertical", "place.cells": "{size} cells", "place.removeShip": "↩ Return to dock",
-    "place.random": "🎲 Random", "place.clear": "Clear all", "place.ready": "⚓ Ready for battle", "place.readyMark": "Ready ✓", "place.waitingOpp": "Waiting for opponent...",
+    "place.random": "🎲 Random", "place.ready": "⚓ Ready for battle", "place.readyMark": "Ready ✓", "place.waitingOpp": "Waiting for opponent...",
     "place.botReady": "✓ Bot is ready", "place.oppReady": "Opponent is ready", "place.oppPlacing": "Opponent is placing...", "place.waitOpp": "Waiting for opponent...",
     "counter.sunkEnemy": "Sunk", "counter.sunkOwn": "Lost", "counter.ships": "ships",
-    "battle.you": "You", "battle.enemySea": "🎯 Enemy waters", "battle.fireTag": "· FIRE!", "battle.yourFleetTab": "⚓ Your fleet",
+    "battle.you": "You",
     "battle.aiming": "Aiming {name} — tap enemy waters to fire (tap the button again to cancel).",
     "battle.aimingMine": "Placing Sea Mine — tap an empty cell on your fleet to place it (tap the button again to cancel).",
     "battle.yourTurn": "🎯 Your turn", "battle.botTurn": "⏳ Bot's turn", "battle.oppTurn": "⏳ Opponent's turn",
@@ -52,7 +50,7 @@ const I18N = {
     "leave.titleBot": "Quit match?", "leave.titleRoom": "Leave room?", "leave.bodyBot": "You'll quit the match vs the bot and return to the lobby.",
     "leave.bodyRoom": "You'll leave the room and return to the lobby. Your opponent will be notified.", "leave.stay": "Stay",
     "roombar.vsBot": "🤖 vs Bot", "roombar.room": "Room",
-    "chat.title": "Chat", "chat.placeholder": "Type a message…", "chat.send": "Send", "chat.empty": "Say hi to your opponent 👋",
+    "chat.title": "Chat", "chat.placeholder": "Type a message…", "chat.send": "Send",
     "help.open": "❓ How to play", "help.title": "How to play", "help.close": "Got it",
     "help.objTitle": "🎯 Goal", "help.objBody": "Be the first to sink all 5 of your opponent's ships.",
     "help.setupTitle": "⚓ Place your fleet", "help.setupBody": "Your fleet starts placed at random. Drag a ship to move it, double-tap to rotate, or tap 🎲 Random for a new layout — then hit Ready.",
@@ -87,8 +85,8 @@ const I18N = {
     "err.MINE_EXISTS": "There's already a mine here", "err.NO_CELLS": "No cells left to shoot",
   },
   vi: {
-    "common.or": "HOẶC", "common.cancel": "Hủy", "common.copy": "Sao chép", "common.copied": "Đã chép ✓",
-    "common.copyShort": "Chép", "common.copiedShort": "✓", "common.tapToCopy": "Chạm vào mã để chép", "common.bot": "Máy", "common.opponent": "Đối thủ",
+    "common.or": "HOẶC", "common.copied": "Đã chép ✓",
+    "common.tapToCopy": "Chạm vào mã để chép", "common.bot": "Máy", "common.opponent": "Đối thủ",
     "common.exit": "Thoát", "common.leaveRoom": "Rời phòng", "common.roomCodeLabel": "Mã phòng:", "common.vsBotFull": "🤖 Chơi với máy",
     "topbar.tagline": "Online · Hải chiến", "topbar.soundToggle": "Bật/tắt âm thanh",
     "lobby.title": "Trận hải chiến", "lobby.sub": "Chơi với máy, hoặc tạo phòng rồi gửi mã cho bạn bè.",
@@ -97,14 +95,12 @@ const I18N = {
     "ship.carrier": "Tàu sân bay", "ship.battleship": "Thiết giáp hạm", "ship.cruiser": "Tàu tuần dương", "ship.submarine": "Tàu ngầm", "ship.destroyer": "Khu trục hạm",
     "pw.scatter": "Nổ ngẫu nhiên", "pw.cross": "Tên lửa chữ thập", "pw.double": "Thêm lượt", "pw.reveal": "Lộ ô thuyền", "pw.mine": "Mìn nước",
     "board.yourFleet": "Hạm đội của bạn",
-    "place.shipTitle": "Kéo để di chuyển · chạm 2 lần để xoay", "place.heading": "Bố trí hạm đội",
+    "place.shipTitle": "Kéo để di chuyển · chạm 2 lần để xoay",
     "place.hint": "Hạm đội được xếp ngẫu nhiên sẵn. Kéo thuyền để di chuyển, chạm 2 lần để xoay, hoặc bấm 🎲 Ngẫu nhiên để xếp lại.",
-    "place.selected": "Đã chọn: {name} — chạm vào lưới để đặt.", "place.dockDir": "⟳ Hướng kho: {dir}",
-    "place.horizontal": "Ngang", "place.vertical": "Dọc", "place.cells": "{size} ô", "place.removeShip": "↩ Gỡ về kho",
-    "place.random": "🎲 Ngẫu nhiên", "place.clear": "Xóa hết", "place.ready": "⚓ Sẵn sàng chiến đấu", "place.readyMark": "Sẵn sàng ✓", "place.waitingOpp": "Đang chờ đối thủ...",
+    "place.random": "🎲 Ngẫu nhiên", "place.ready": "⚓ Sẵn sàng chiến đấu", "place.readyMark": "Sẵn sàng ✓", "place.waitingOpp": "Đang chờ đối thủ...",
     "place.botReady": "✓ Máy đã sẵn sàng", "place.oppReady": "Đối thủ đã sẵn sàng", "place.oppPlacing": "Đối thủ đang bố trí...", "place.waitOpp": "Chờ đối thủ vào...",
     "counter.sunkEnemy": "Đã đánh chìm", "counter.sunkOwn": "Thuyền bị chìm", "counter.ships": "thuyền",
-    "battle.you": "Bạn", "battle.enemySea": "🎯 Biển địch", "battle.fireTag": "· BẮN!", "battle.yourFleetTab": "⚓ Hạm đội bạn",
+    "battle.you": "Bạn",
     "battle.aiming": "Đang ngắm {name} — chạm vào biển địch để khai hỏa (chạm lại nút để hủy).",
     "battle.aimingMine": "Đang đặt Mìn nước — chạm vào ô trống trên hạm đội của bạn để đặt (chạm lại nút để hủy).",
     "battle.yourTurn": "🎯 Lượt của bạn", "battle.botTurn": "⏳ Lượt của máy", "battle.oppTurn": "⏳ Lượt đối thủ",
@@ -120,7 +116,7 @@ const I18N = {
     "leave.titleBot": "Thoát trận?", "leave.titleRoom": "Rời phòng?", "leave.bodyBot": "Bạn sẽ thoát trận đấu với máy và quay lại sảnh.",
     "leave.bodyRoom": "Bạn sẽ rời phòng và quay lại sảnh. Đối thủ sẽ được thông báo.", "leave.stay": "Ở lại",
     "roombar.vsBot": "🤖 Với máy", "roombar.room": "Phòng",
-    "chat.title": "Trò chuyện", "chat.placeholder": "Nhập tin nhắn…", "chat.send": "Gửi", "chat.empty": "Chào đối thủ một câu 👋",
+    "chat.title": "Trò chuyện", "chat.placeholder": "Nhập tin nhắn…", "chat.send": "Gửi",
     "help.open": "❓ Cách chơi", "help.title": "Cách chơi", "help.close": "Đã hiểu",
     "help.objTitle": "🎯 Mục tiêu", "help.objBody": "Đánh chìm cả 5 thuyền của đối thủ trước là thắng.",
     "help.setupTitle": "⚓ Bố trí hạm đội", "help.setupBody": "Hạm đội được xếp ngẫu nhiên sẵn. Kéo thuyền để di chuyển, chạm 2 lần để xoay, hoặc bấm 🎲 Ngẫu nhiên để xếp lại — rồi bấm Sẵn sàng.",
@@ -499,19 +495,11 @@ function Grid({ enemy, occ, hits, incoming, onCellClick, hoverCells, onCellHover
 function Placement({ onConfirm, ready, waiting }) {
   // placed: id -> {r, c, dir}
   const [placed, setPlaced] = useState({});
-  const [dir, setDir] = useState("h");      // orientation for ships dragged from the dock
   const [drag, setDrag] = useState(null);    // {id, dir, offset, dx, dy, sz, fromBoard}
   const [pos, setPos] = useState({ x: 0, y: 0 });
-  const [sel, setSel] = useState(null);      // tap-to-place: {id, fromBoard}
   const gridRef = useRef(null);
   const movedRef = useRef(false);
   const startRef = useRef({ x: 0, y: 0 });
-
-  useEffect(() => {
-    function onKey(e) { if (e.key === "r" || e.key === "R") setDir((d) => (d === "h" ? "v" : "h")); }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
 
   // Start with a random fleet already on the board (no dragging from an
   // off-screen dock). The player can still drag/rotate to rearrange, or hit
@@ -547,7 +535,7 @@ function Placement({ onConfirm, ready, waiting }) {
   function startDrag(e, id, fromBoard) {
     e.preventDefault();
     const sz = sizeOf(id);
-    const useDir = fromBoard ? placed[id].dir : dir;
+    const useDir = placed[id].dir;
     const rect = e.currentTarget.getBoundingClientRect();
     const dx = e.clientX - rect.left;
     const dy = e.clientY - rect.top;
@@ -570,19 +558,11 @@ function Placement({ onConfirm, ready, waiting }) {
     }
     function up(e) {
       const d = drag;
-      // a tap (barely moved): switch to tap-to-place / rotate instead of drop
-      if (!movedRef.current) {
-        if (d.fromBoard) rotatePlaced(d.id);
-        else setSel({ id: d.id, fromBoard: false });
-        setDrag(null);
-        return;
-      }
+      // a tap (barely moved) rotates the ship instead of dropping it
+      if (!movedRef.current) { rotatePlaced(d.id); setDrag(null); return; }
       const { r, c } = anchorFromPoint(e.clientX, e.clientY, d);
       const cells = cellsFor(r, c, d.sz, d.dir);
-      if (validAt(cells, d.id)) {
-        setPlaced((p) => ({ ...p, [d.id]: { r, c, dir: d.dir } }));
-        setSel(null);
-      }
+      if (validAt(cells, d.id)) setPlaced((p) => ({ ...p, [d.id]: { r, c, dir: d.dir } }));
       setDrag(null);
     }
     window.addEventListener("pointermove", move, { passive: false });
@@ -600,20 +580,6 @@ function Placement({ onConfirm, ready, waiting }) {
     const cells = cellsFor(p.r, p.c, sizeOf(id), nd);
     if (validAt(cells, id)) setPlaced((pl) => ({ ...pl, [id]: { ...p, dir: nd } }));
   }
-  function removeShip(id) { setPlaced((p) => { const n = { ...p }; delete n[id]; return n; }); if (sel && sel.id === id) setSel(null); }
-
-  // tap-to-place: clicked cell becomes the top-left anchor of the selected ship
-  function placeSelectedAt(r, c) {
-    if (!sel) return;
-    const sz = sizeOf(sel.id);
-    const useDir = sel.fromBoard ? placed[sel.id].dir : dir;
-    const cells = cellsFor(r, c, sz, useDir);
-    if (validAt(cells, sel.id)) {
-      setPlaced((p) => ({ ...p, [sel.id]: { r, c, dir: useDir } }));
-      setSel(null);
-    }
-  }
-
   function randomize() {
     const np = {}, taken = new Set();
     for (const f of FLEET_DEF) {
@@ -657,12 +623,7 @@ function Placement({ onConfirm, ready, waiting }) {
     let cls = "cell";
     if (hoverKeys.has(k)) cls += " preview-ok";
     if (hoverBad.has(k)) cls += " preview-bad";
-    if (sel) cls += " selectable";
-    gridCells.push(
-      <div key={k} className={cls}
-        onClick={() => placeSelectedAt(r, c)}
-        onMouseEnter={() => {}} />
-    );
+    gridCells.push(<div key={k} className={cls} />);
   }
 
   function ghostBox(d) {
