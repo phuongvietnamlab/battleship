@@ -80,15 +80,12 @@ const Sound = (function () {
 //   2. localStorage random id — survives reloads when storage works.
 //   3. fresh random id — last resort (no persistence; rely on manual code).
 // `let` so the boot chain can upgrade it to the FB player id before connecting.
-let lsWorks = false; // does localStorage even work in this iframe?
-let idFresh = false; // true = id was just generated (storage had nothing) -> storage did NOT persist
 let clientId = (function () {
   try {
     let id = localStorage.getItem("bs_clientId");
-    if (!id) { id = "c" + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem("bs_clientId", id); idFresh = true; }
-    lsWorks = localStorage.getItem("bs_clientId") === id;
+    if (!id) { id = "c" + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem("bs_clientId", id); }
     return id;
-  } catch (e) { idFresh = true; return "c" + Math.random().toString(36).slice(2) + Date.now().toString(36); }
+  } catch (e) { return "c" + Math.random().toString(36).slice(2) + Date.now().toString(36); }
 })();
 function saveRoom(c) { try { c ? localStorage.setItem("bs_room", c) : localStorage.removeItem("bs_room"); } catch (e) {} }
 function loadRoom() { try { return localStorage.getItem("bs_room"); } catch (e) { return null; } }
@@ -111,7 +108,6 @@ function fbContextId() {
 // the only durable anchor when the mobile webview wipes localStorage and both
 // player id + context id are null. cloudReady flips true once a read/write works.
 let cloudReady = false;
-let fbStage = (typeof FBInstant !== "undefined") ? "loading" : "noFB"; // FB lifecycle progress for diagnostics
 function fbHasCloud() {
   try { return typeof FBInstant !== "undefined" && FBInstant.player && FBInstant.player.setDataAsync && FBInstant.player.getDataAsync; }
   catch (e) { return false; }
@@ -127,12 +123,6 @@ function persistRoom(code) {
   cloudSet({ bs_room: code || "" });
 }
 
-const BUILD = "asid2";
-function buildDbg(extra) {
-  return "[" + BUILD + "] id:" + clientId.slice(0, 10) + " | src:" + (idFresh ? "NEW" : "stored") +
-    " | ls:" + (lsWorks ? "ok" : "BLOCKED") + " | cloud:" + (cloudReady ? "ok" : "no") +
-    " | fb:" + fbStage + (extra || "");
-}
 
 // App-like: block iOS pinch-zoom (Safari/WKWebView ignore user-scalable=no for
 // gestures) and double-tap-to-zoom. touch-action:manipulation in CSS handles
@@ -681,7 +671,6 @@ function App() {
   const [oppOffline, setOppOffline] = useState(false); // đối thủ tạm mất kết nối
   const [graceLeft, setGraceLeft] = useState(0);        // đếm ngược giây chờ kết nối lại
   const [confirmLeave, setConfirmLeave] = useState(false); // hỏi xác nhận trước khi rời
-  const [dbg, setDbg] = useState(buildDbg());
   const graceTimerRef = useRef(null);
   const [soundOn, setSoundOn] = useState(true);
   function toggleSound() { const v = !soundOn; setSoundOn(v); Sound.setEnabled(v); }
@@ -748,11 +737,7 @@ function App() {
       //    This needs NO locally-stored code, so it works even when the IG
       //    iframe wiped localStorage — as long as clientId is the stable FB id.
       const ctx = fbContextId();
-      console.log("[resume] try clientId=", clientId, "ctx=", ctx);
-      setDbg(buildDbg(" | ctx:" + (ctx ? "yes" : "null")));
       socket.emit("resume", { clientId, contextId: ctx }, (res) => {
-        console.log("[resume] result", res);
-        setDbg(buildDbg(" | ctx:" + (ctx ? "yes" : "null") + " | resume:" + (res && res.ok ? "OK " + res.code : "fail")));
         if (res && res.ok) { setCode(res.code); persistRoom(res.code); return; }
         // 2) Fallback: rejoin a room code we stored locally (storage available).
         const r = loadRoom();
@@ -817,20 +802,16 @@ function App() {
     return () => socket.off();
   }, [addLog]);
 
-  // Keep the diagnostic bar live for 30s so we can see if FB initializeAsync
-  // resolves late (fb: stage advancing past initAsync), and re-resume if the
-  // real fb player id arrives after the fallback boot already connected.
+  // Re-attempt resume shortly after mount in case the durable FB identity (ASID)
+  // resolves after the fallback boot already connected the socket. Harmless if a
+  // resume already succeeded (server just re-syncs).
   useEffect(() => {
-    let last = "";
-    const iv = setInterval(() => {
-      setDbg(buildDbg());
-      if (fbStage !== last && fbStage.indexOf("pid:YES") === 0 && socket.connected) {
+    const t = setTimeout(() => {
+      if (socket.connected && clientId.indexOf("fb_") === 0) {
         socket.emit("resume", { clientId, contextId: fbContextId() });
       }
-      last = fbStage;
-    }, 1500);
-    const stop = setTimeout(() => clearInterval(iv), 30000);
-    return () => { clearInterval(iv); clearTimeout(stop); };
+    }, 3500);
+    return () => clearTimeout(t);
   }, []);
 
   function createRoom(mode) {
@@ -1182,8 +1163,6 @@ function App() {
       )}
 
       <div className="footer-note">Battleship Online · chia sẻ mã phòng để mời bạn bè</div>
-      {/* TẠM THỜI: dòng chẩn đoán resume — đọc trực tiếp trên điện thoại */}
-      <div className="dbg-bar">{dbg}</div>
     </div>
   );
 }
@@ -1201,70 +1180,61 @@ function boot() {
 // Prefer the FB player id as our identity: it is stable across app restarts
 // even when the Instant Games iframe wipes localStorage, which is what makes
 // auto-resume work without the player re-typing the room code.
+// Try the FB player id (legacy) as a durable identity. Often null under current
+// Instant Games; getASIDAsync (below) is the preferred source.
 function adoptFbIdentity() {
   try {
     if (typeof FBInstant !== "undefined" && FBInstant.player && FBInstant.player.getID) {
       const pid = FBInstant.player.getID();
-      fbStage = pid ? "pid:YES" : "pid:null";
       if (pid) { clientId = "fb_" + pid; try { localStorage.setItem("bs_clientId", clientId); } catch (e) {} }
-    } else { fbStage = "noPlayerAPI"; }
-  } catch (e) { fbStage = "pidERR"; }
+    }
+  } catch (e) {}
 }
 
-// Facebook Instant Games lifecycle: must finish startGameAsync before showing the game.
-// On the real FB platform initializeAsync resolves fast -> boot via the chain.
-// Outside FB (local dev / plain web / onrender.com preview) the SDK loads but
-// initializeAsync HANGS forever, so a fallback timer boots anyway after 3s.
-// Resolve a DURABLE identity from FB Cloud Save before connecting, so a stable
-// clientId + last room survive an app restart even when localStorage is wiped
-// and player/context ids are null.
+// Resolve the most durable identity available, then boot. Priority:
+//   1. App-Scoped ID (player.getASIDAsync) — stable per (player, app), survives
+//      app restarts. Becomes available once the app is provisioned / live.
+//   2. signed ASID, 3. legacy player id, 4. localStorage/random clientId.
+// Every FB call is best-effort: if the platform returns null/UNKNOWN (e.g. an
+// unprovisioned dev build) we silently fall back so the game still works, and
+// resume just relies on localStorage + manual room code instead.
 async function resolveIdentityAndBoot() {
-  // Primary identity: App-Scoped ID. Stable per (player, app) across app restarts
-  // and available under current Instant Games even when player.getID() returns
-  // null. Requires startGameAsync to have resolved. This is the durable key the
-  // whole auto-resume design needs.
-  let p = (typeof FBInstant !== "undefined" && FBInstant.player) ? FBInstant.player : null;
+  const p = (typeof FBInstant !== "undefined" && FBInstant.player) ? FBInstant.player : null;
   try {
     if (p && typeof p.getASIDAsync === "function") {
       const asid = await p.getASIDAsync();
-      if (asid) {
-        clientId = "fb_" + asid;
-        try { localStorage.setItem("bs_clientId", clientId); } catch (e) {}
-        fbStage = "asid:YES";
-      } else { fbStage = "asid:EMPTY"; }
+      if (asid) { clientId = "fb_" + asid; try { localStorage.setItem("bs_clientId", clientId); } catch (e) {} }
+      else adoptFbIdentity();
     } else if (p && typeof p.getSignedASIDAsync === "function") {
       const s = await p.getSignedASIDAsync();
       const asid = s && (s.getASID ? s.getASID() : s.asid);
-      if (asid) { clientId = "fb_" + asid; try { localStorage.setItem("bs_clientId", clientId); } catch (e) {} fbStage = "sasid:YES"; }
-      else { fbStage = "sasid:EMPTY"; }
-    } else {
-      fbStage = "noASIDfn";
-      adoptFbIdentity();
-    }
-  } catch (e) { fbStage = "asidERR:" + ((e && (e.code || e.message)) || "x"); }
-  // Durable room pointer via cloud save (best-effort; also confirms cloud works).
+      if (asid) { clientId = "fb_" + asid; try { localStorage.setItem("bs_clientId", clientId); } catch (e) {} }
+      else adoptFbIdentity();
+    } else { adoptFbIdentity(); }
+  } catch (e) { adoptFbIdentity(); }
+  // Durable room pointer via cloud save (best-effort).
   try {
     if (fbHasCloud()) {
       const d = await FBInstant.player.getDataAsync(["bs_room"]);
       cloudReady = true;
       if (d && d.bs_room) saveRoom(d.bs_room);
     }
-  } catch (e) { console.error("cloud read failed:", e); }
+  } catch (e) {}
   boot();
 }
 
+// Facebook Instant Games lifecycle: must finish startGameAsync before showing
+// the game. On the real platform the chain resolves fast -> boot via the chain.
+// Outside FB (local dev / web preview) initializeAsync can hang, so a fallback
+// timer boots anyway after 4s.
 if (typeof FBInstant !== "undefined") {
-  fbStage = "initAsync";
   FBInstant.initializeAsync()
     .then(() => {
-      fbStage = "loadProgress";
       FBInstant.setLoadingProgress(100);
-      fbStage = "startGame";
       return FBInstant.startGameAsync();
     })
-    .then(() => { fbStage = "started"; return resolveIdentityAndBoot(); })
+    .then(resolveIdentityAndBoot)
     .catch((e) => {
-      fbStage = "FAIL:" + ((e && (e.code || e.message)) || "x");
       console.error("FBInstant boot failed, booting anyway:", e);
       boot();
     });
