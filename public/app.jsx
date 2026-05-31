@@ -127,6 +127,12 @@ function persistRoom(code) {
   cloudSet({ bs_room: code || "" });
 }
 
+function buildDbg(extra) {
+  return "id:" + clientId.slice(0, 10) + " | src:" + (idFresh ? "NEW" : "stored") +
+    " | ls:" + (lsWorks ? "ok" : "BLOCKED") + " | cloud:" + (cloudReady ? "ok" : "no") +
+    " | fb:" + fbStage + (extra || "");
+}
+
 // App-like: block iOS pinch-zoom (Safari/WKWebView ignore user-scalable=no for
 // gestures) and double-tap-to-zoom. touch-action:manipulation in CSS handles
 // most; these guards cover the rest. Passive:false so preventDefault works.
@@ -674,7 +680,7 @@ function App() {
   const [oppOffline, setOppOffline] = useState(false); // đối thủ tạm mất kết nối
   const [graceLeft, setGraceLeft] = useState(0);        // đếm ngược giây chờ kết nối lại
   const [confirmLeave, setConfirmLeave] = useState(false); // hỏi xác nhận trước khi rời
-  const [dbg, setDbg] = useState("id:" + clientId.slice(0, 10) + " | src:" + (idFresh ? "NEW" : "stored") + " | ls:" + (lsWorks ? "ok" : "BLOCKED") + " | cloud:" + (cloudReady ? "ok" : "no") + " | fb:" + fbStage);
+  const [dbg, setDbg] = useState(buildDbg());
   const graceTimerRef = useRef(null);
   const [soundOn, setSoundOn] = useState(true);
   function toggleSound() { const v = !soundOn; setSoundOn(v); Sound.setEnabled(v); }
@@ -742,10 +748,10 @@ function App() {
       //    iframe wiped localStorage — as long as clientId is the stable FB id.
       const ctx = fbContextId();
       console.log("[resume] try clientId=", clientId, "ctx=", ctx);
-      setDbg("id:" + clientId.slice(0, 10) + " | src:" + (idFresh ? "NEW" : "stored") + " | ls:" + (lsWorks ? "ok" : "BLOCKED") + " | cloud:" + (cloudReady ? "ok" : "no") + " | fb:" + fbStage + " | ctx:" + (ctx ? "yes" : "null"));
+      setDbg(buildDbg(" | ctx:" + (ctx ? "yes" : "null")));
       socket.emit("resume", { clientId, contextId: ctx }, (res) => {
         console.log("[resume] result", res);
-        setDbg("id:" + clientId.slice(0, 10) + " | src:" + (idFresh ? "NEW" : "stored") + " | ls:" + (lsWorks ? "ok" : "BLOCKED") + " | cloud:" + (cloudReady ? "ok" : "no") + " | fb:" + fbStage + " | ctx:" + (ctx ? "yes" : "null") + " | resume:" + (res && res.ok ? "OK " + res.code : "fail"));
+        setDbg(buildDbg(" | ctx:" + (ctx ? "yes" : "null") + " | resume:" + (res && res.ok ? "OK " + res.code : "fail")));
         if (res && res.ok) { setCode(res.code); persistRoom(res.code); return; }
         // 2) Fallback: rejoin a room code we stored locally (storage available).
         const r = loadRoom();
@@ -809,6 +815,22 @@ function App() {
     }
     return () => socket.off();
   }, [addLog]);
+
+  // Keep the diagnostic bar live for 30s so we can see if FB initializeAsync
+  // resolves late (fb: stage advancing past initAsync), and re-resume if the
+  // real fb player id arrives after the fallback boot already connected.
+  useEffect(() => {
+    let last = "";
+    const iv = setInterval(() => {
+      setDbg(buildDbg());
+      if (fbStage !== last && fbStage.indexOf("pid:YES") === 0 && socket.connected) {
+        socket.emit("resume", { clientId, contextId: fbContextId() });
+      }
+      last = fbStage;
+    }, 1500);
+    const stop = setTimeout(() => clearInterval(iv), 30000);
+    return () => { clearInterval(iv); clearTimeout(stop); };
+  }, []);
 
   function createRoom(mode) {
     setError(null);
