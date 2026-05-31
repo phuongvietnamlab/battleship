@@ -111,6 +111,7 @@ function fbContextId() {
 // the only durable anchor when the mobile webview wipes localStorage and both
 // player id + context id are null. cloudReady flips true once a read/write works.
 let cloudReady = false;
+let fbStage = (typeof FBInstant !== "undefined") ? "loading" : "noFB"; // FB lifecycle progress for diagnostics
 function fbHasCloud() {
   try { return typeof FBInstant !== "undefined" && FBInstant.player && FBInstant.player.setDataAsync && FBInstant.player.getDataAsync; }
   catch (e) { return false; }
@@ -673,7 +674,7 @@ function App() {
   const [oppOffline, setOppOffline] = useState(false); // đối thủ tạm mất kết nối
   const [graceLeft, setGraceLeft] = useState(0);        // đếm ngược giây chờ kết nối lại
   const [confirmLeave, setConfirmLeave] = useState(false); // hỏi xác nhận trước khi rời
-  const [dbg, setDbg] = useState("id:" + clientId.slice(0, 10) + " | src:" + (idFresh ? "NEW" : "stored") + " | ls:" + (lsWorks ? "ok" : "BLOCKED") + " | cloud:" + (cloudReady ? "ok" : "no"));
+  const [dbg, setDbg] = useState("id:" + clientId.slice(0, 10) + " | src:" + (idFresh ? "NEW" : "stored") + " | ls:" + (lsWorks ? "ok" : "BLOCKED") + " | cloud:" + (cloudReady ? "ok" : "no") + " | fb:" + fbStage);
   const graceTimerRef = useRef(null);
   const [soundOn, setSoundOn] = useState(true);
   function toggleSound() { const v = !soundOn; setSoundOn(v); Sound.setEnabled(v); }
@@ -741,10 +742,10 @@ function App() {
       //    iframe wiped localStorage — as long as clientId is the stable FB id.
       const ctx = fbContextId();
       console.log("[resume] try clientId=", clientId, "ctx=", ctx);
-      setDbg("id:" + clientId.slice(0, 10) + " | src:" + (idFresh ? "NEW" : "stored") + " | ls:" + (lsWorks ? "ok" : "BLOCKED") + " | cloud:" + (cloudReady ? "ok" : "no") + " | ctx:" + (ctx ? "yes" : "null"));
+      setDbg("id:" + clientId.slice(0, 10) + " | src:" + (idFresh ? "NEW" : "stored") + " | ls:" + (lsWorks ? "ok" : "BLOCKED") + " | cloud:" + (cloudReady ? "ok" : "no") + " | fb:" + fbStage + " | ctx:" + (ctx ? "yes" : "null"));
       socket.emit("resume", { clientId, contextId: ctx }, (res) => {
         console.log("[resume] result", res);
-        setDbg("id:" + clientId.slice(0, 10) + " | src:" + (idFresh ? "NEW" : "stored") + " | ls:" + (lsWorks ? "ok" : "BLOCKED") + " | cloud:" + (cloudReady ? "ok" : "no") + " | ctx:" + (ctx ? "yes" : "null") + " | resume:" + (res && res.ok ? "OK " + res.code : "fail"));
+        setDbg("id:" + clientId.slice(0, 10) + " | src:" + (idFresh ? "NEW" : "stored") + " | ls:" + (lsWorks ? "ok" : "BLOCKED") + " | cloud:" + (cloudReady ? "ok" : "no") + " | fb:" + fbStage + " | ctx:" + (ctx ? "yes" : "null") + " | resume:" + (res && res.ok ? "OK " + res.code : "fail"));
         if (res && res.ok) { setCode(res.code); persistRoom(res.code); return; }
         // 2) Fallback: rejoin a room code we stored locally (storage available).
         const r = loadRoom();
@@ -1181,9 +1182,10 @@ function adoptFbIdentity() {
   try {
     if (typeof FBInstant !== "undefined" && FBInstant.player && FBInstant.player.getID) {
       const pid = FBInstant.player.getID();
+      fbStage = pid ? "pid:YES" : "pid:null";
       if (pid) { clientId = "fb_" + pid; try { localStorage.setItem("bs_clientId", clientId); } catch (e) {} }
-    }
-  } catch (e) {}
+    } else { fbStage = "noPlayerAPI"; }
+  } catch (e) { fbStage = "pidERR"; }
 }
 
 // Facebook Instant Games lifecycle: must finish startGameAsync before showing the game.
@@ -1207,13 +1209,17 @@ async function resolveIdentityAndBoot() {
 }
 
 if (typeof FBInstant !== "undefined") {
+  fbStage = "initAsync";
   FBInstant.initializeAsync()
     .then(() => {
+      fbStage = "loadProgress";
       FBInstant.setLoadingProgress(100);
+      fbStage = "startGame";
       return FBInstant.startGameAsync();
     })
-    .then(resolveIdentityAndBoot)
+    .then(() => { fbStage = "started"; return resolveIdentityAndBoot(); })
     .catch((e) => {
+      fbStage = "FAIL:" + ((e && (e.code || e.message)) || "x");
       console.error("FBInstant boot failed, booting anyway:", e);
       boot();
     });
