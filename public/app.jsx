@@ -1374,6 +1374,8 @@ function App() {
     if (myBubbleTimer.current) clearTimeout(myBubbleTimer.current);
     myBubbleTimer.current = setTimeout(() => setMyBubble((b) => (b && b.id === id ? null : b)), 3000);
     socket.emit("chat", { text });
+    setChatOpen(false); // tự đóng ô soạn sau khi gửi
+    try { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); } catch (e) {}
   }
   function inviteMessenger() {
     if (!code || sharing) return;
