@@ -27,13 +27,19 @@ Two players can find each other and play a fair, fast, satisfying game of Battle
 - ✓ SEO / Open Graph social share metadata — existing
 - ✓ Health/metrics endpoints + Render auto-deploy — existing
 
+<!-- Milestone v1.0 deliverables, validated per phase. -->
+
+- ✓ Durable Postgres persistence layer: shared `pg.Pool` (db.js) + auto-applied numbered-migration runner (fail-loud, idempotent) + canonical identity schema (`users`/`credentials`/`schema_migrations`) — Validated in Phase 1: Foundation (DATA-01, DATA-02)
+- ✓ Guest-credential durability: `upsertGuestCredential` wired into createRoom/joinRoom/resume/rejoin — Validated in Phase 1 (DATA-01)
+- ✓ Pre-public-matchmaking security hardening: per-event rate limiting (fire/useAbility/chat) + turn-clock race guard, `doShot` null/shape guard, abandoned-room eviction sweep, server-side profile/chat sanitization + stored-XSS escaping + CSP header — Validated in Phase 1 (SEC-01..SEC-04)
+
 ### Active
 
 <!-- New milestone scope. Hypotheses until shipped and validated. Sequenced foundation-first. -->
 
 **Foundation — persistence & identity**
-- [ ] Postgres-backed durable storage (Render-managed) for accounts, stats, replays, rankings
-- [ ] Guest-first play preserved (instant, no login via clientId)
+- [x] Postgres-backed durable storage (self-hosted EC2) — persistence layer + identity schema landed in Phase 1; per-feature tables (accounts, stats, rankings) added in later phases
+- [x] Guest-first play preserved (instant, no login via clientId) — Phase 1: guest credentials persisted transparently, instant play unchanged
 - [ ] Optional account sign-up (Google OAuth) that links a guest's history to a persistent identity
 - [ ] Player profile with win/loss record and lifetime stats
 
@@ -110,4 +116,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-01 after initialization*
+*Last updated: 2026-06-02 — Phase 1 (Foundation) complete: Postgres persistence layer + identity schema + security hardening validated.*
