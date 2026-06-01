@@ -585,6 +585,7 @@ io.on("connection", (socket) => {
     socket.data.clientId = clientId;
     cb && cb({ ok: true, code });
     io.to(code).emit("roomUpdate", roomPublic(rooms[code]));
+    upsertGuestCredential(clientId); // fire-and-forget: durable identity (DATA-01)
   });
 
   socket.on("joinRoom", (arg, cb) => {
@@ -635,6 +636,7 @@ io.on("connection", (socket) => {
     cb && cb({ ok: true, code });
     io.to(code).emit("roomUpdate", roomPublic(room));
     io.to(code).emit("opponentJoined");
+    upsertGuestCredential(clientId); // fire-and-forget: P2 persists on first session (DATA-01)
     // exchange profiles so both scoreboards show avatar + name immediately
     const oppId = opponentOf(room, clientId);
     if (oppId) {
@@ -654,6 +656,7 @@ io.on("connection", (socket) => {
       for (const code in rooms) {
         if (rooms[code].players && rooms[code].players[clientId]) {
           reclaimSeat(rooms[code], code, clientId, clientId, socket);
+          upsertGuestCredential(clientId); // fire-and-forget: ensure durable credential on resume (DATA-01)
           return cb && cb({ ok: true, code });
         }
       }
@@ -677,6 +680,7 @@ io.on("connection", (socket) => {
     socket.data.clientId = clientId;
     cb && cb({ ok: true });
     io.to(code).emit("roomUpdate", roomPublic(room));
+    upsertGuestCredential(clientId); // fire-and-forget: ensure durable credential on rejoin (DATA-01)
     const oppId = opponentOf(room, clientId);
     if (oppId) emitToClient(room, oppId, "opponentOnline");
     emitToClient(room, clientId, "sync", syncPayload(room, code, clientId));
