@@ -75,7 +75,7 @@ build-game.mjs         esbuild → dist/  (bundle game)
 render.yaml            Deploy lên Render
 ```
 
-> URL tuyệt đối cho SEO (og:image, canonical, sitemap) trỏ domain chính `https://battleshiponline.xyz`. Đổi domain → sửa chuỗi đó trong `index.html`, `robots.txt`, `sitemap.xml`, `.github/workflows/keepalive.yml`.
+> URL tuyệt đối cho SEO (og:image, canonical, sitemap) trỏ domain chính `https://battleshiponline.xyz`. Đổi domain → sửa chuỗi đó trong `index.html`, `robots.txt`, `sitemap.xml` (và URL trong UptimeRobot).
 
 ### HTTP endpoints
 - `GET /healthz` → liveness (uptime). Dùng cho health check Render / uptime monitor.
@@ -160,7 +160,7 @@ Khi đó đặt `SITE_ORIGIN=https://<front-end-host>` trên server để CORS c
 - **Nội dung crawlable**: `<h1>` + đoạn mô tả song ngữ (off-screen `.sr-only`, chính xác — không cloaking) và `<noscript>` đầy đủ. Vì game là SPA React (body rỗng), phần này cho Googlebot chữ để index.
 - `site.webmanifest`, `favicon`/icon đủ cỡ, `robots.txt`, `sitemap.xml`.
 
-> ⚠️ **Domain chính**: `https://battleshiponline.xyz` (custom domain trỏ về Render). Nếu đổi → sửa chuỗi đó trong `public/index.html` (canonical, og:url, og:image, twitter:image, JSON-LD url+image), `public/robots.txt`, `public/sitemap.xml`, và `.github/workflows/keepalive.yml`.
+> ⚠️ **Domain chính**: `https://battleshiponline.xyz` (custom domain trỏ về Render). Nếu đổi → sửa chuỗi đó trong `public/index.html` (canonical, og:url, og:image, twitter:image, JSON-LD url+image), `public/robots.txt`, `public/sitemap.xml`, và URL monitor trong UptimeRobot.
 
 ### Sau khi deploy — đăng ký Google
 1. Vào **Google Search Console** → thêm property (URL prefix = URL Render).
@@ -171,6 +171,5 @@ Khi đó đặt `SITE_ORIGIN=https://<front-end-host>` trên server để CORS c
 ### Chống ngủ (giữ SEO + first-load nhanh)
 Render free spin-down sau ~15 phút idle → cold-start ~30–60s. Googlebot ghé lúc ngủ → crawl chậm/fail → hại rank. Giải:
 
-- **GitHub Actions cron** (đã có `.github/workflows/keepalive.yml`): ping `/healthz` mỗi 10 phút, mặc định `https://battleshiponline.xyz/healthz`. Đổi được qua repo → Settings → Secrets and variables → Actions → **Variables** → `KEEPALIVE_URL`. GH cron có thể trễ 5–15 phút và **tự tắt sau 60 ngày không commit**.
-- **Tin cậy hơn** (khuyến nghị, khỏi bảo trì): monitor ngoài **UptimeRobot** hoặc **cron-job.org** (free) → ping `/healthz` mỗi 5–10 phút. Dán URL là xong.
+- **UptimeRobot** (đang dùng): monitor HTTPS ping `https://battleshiponline.xyz/healthz` mỗi 5 phút. Free, chạy 24/7, không tự tắt. Đăng ký uptimerobot.com → New Monitor → HTTPS → dán URL. (Thay thế tốt: cron-job.org.)
 - Always-on ≈ 720h/tháng, dưới hạn 750h free của Render → vẫn miễn phí.
