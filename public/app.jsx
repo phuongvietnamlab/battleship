@@ -39,7 +39,8 @@ const I18N = {
     "battle.yourTurn": "🎯 Your turn", "battle.botTurn": "⏳ Bot's turn", "battle.oppTurn": "⏳ Opponent's turn",
     "battle.enemyWaters": "Enemy waters", "battle.fireSuffix": "— FIRE!", "battle.logStart": "Battle begins...",
     "room.title": "Invite a friend", "room.sub": "Send this room code to a friend. The match starts automatically when they join.",
-    "room.shareHint": "📩 Send this code via Messenger / Zalo. They enter it on the home screen to join.", "room.waiting": "⏳ Waiting for opponent to join...", "room.startPlacement": "Start placing your fleet",
+    "room.shareHint": "📩 Or send the code via Messenger / Zalo — they enter it on the home screen to join.", "room.waiting": "⏳ Waiting for opponent to join...", "room.startPlacement": "Start placing your fleet",
+    "room.inviteLink": "🔗 Invite by link", "room.linkCopied": "Link copied ✓",
     "share.invite": "📨 Invite via Messenger", "share.inviteShort": "📨 Invite via Messenger", "share.opening": "Opening Messenger…", "share.openingShort": "Opening…",
     "share.imgTitle": "SEA BATTLE", "share.imgCode": "Room code", "share.text": "Come play Sea Battle with me! Room code: {code}",
     "over.win": "VICTORY!", "over.lose": "DEFEAT", "over.winTimeout": "Opponent stalled too long — you win.", "over.loseTimeout": "You stalled too long and forfeited.",
@@ -105,7 +106,8 @@ const I18N = {
     "battle.yourTurn": "🎯 Lượt của bạn", "battle.botTurn": "⏳ Lượt của máy", "battle.oppTurn": "⏳ Lượt đối thủ",
     "battle.enemyWaters": "Vùng biển địch", "battle.fireSuffix": "— BẮN!", "battle.logStart": "Trận đấu bắt đầu...",
     "room.title": "Mời bạn bè", "room.sub": "Gửi mã phòng này cho bạn. Khi họ vào, ván đấu sẽ tự bắt đầu.",
-    "room.shareHint": "📩 Gửi mã này cho bạn qua Messenger / Zalo. Bạn nhập mã ở màn hình chính là vào.", "room.waiting": "⏳ Đang chờ đối thủ vào phòng...", "room.startPlacement": "Bắt đầu bố trí hạm đội",
+    "room.shareHint": "📩 Hoặc gửi mã qua Messenger / Zalo — bạn nhập mã ở màn hình chính là vào.", "room.waiting": "⏳ Đang chờ đối thủ vào phòng...", "room.startPlacement": "Bắt đầu bố trí hạm đội",
+    "room.inviteLink": "🔗 Mời bằng link", "room.linkCopied": "Đã chép link ✓",
     "share.invite": "📨 Mời bạn qua Messenger", "share.inviteShort": "📨 Mời qua Messenger", "share.opening": "Đang mở Messenger…", "share.openingShort": "Đang mở…",
     "share.imgTitle": "HẢI CHIẾN", "share.imgCode": "Mã phòng", "share.text": "Vào đấu Hải chiến với mình! Mã phòng: {code}",
     "over.win": "CHIẾN THẮNG!", "over.lose": "THẤT BẠI", "over.winTimeout": "Đối thủ bỏ lượt quá lâu — bạn thắng.", "over.loseTimeout": "Bạn bỏ lượt quá lâu nên bị xử thua.",
@@ -240,6 +242,22 @@ let clientId = (function () {
 })();
 function saveRoom(c) { try { c ? localStorage.setItem("bs_room", c) : localStorage.removeItem("bs_room"); } catch (e) {} }
 function loadRoom() { try { return localStorage.getItem("bs_room"); } catch (e) { return null; } }
+// Invite-by-link: a shared URL like https://site/?room=ABCDE lets a friend join
+// directly. roomFromUrl reads the code; clearRoomUrl strips it after joining so a
+// reload doesn't re-trigger (reconnect is handled by resume/localStorage instead).
+function roomFromUrl() {
+  try {
+    const r = new URL(window.location.href).searchParams.get("room");
+    return r ? r.toUpperCase().trim().slice(0, 5) : null;
+  } catch (e) { return null; }
+}
+function clearRoomUrl() {
+  try {
+    const u = new URL(window.location.href);
+    if (u.searchParams.has("room")) { u.searchParams.delete("room"); window.history.replaceState({}, "", u.pathname + u.search + u.hash); }
+  } catch (e) {}
+}
+function roomLink(code) { try { return window.location.origin + "/?room=" + code; } catch (e) { return code; } }
 // Persist the current room code in localStorage so a reload can auto-rejoin.
 function persistRoom(code) { saveRoom(code); }
 
@@ -798,6 +816,7 @@ function App() {
   const [log, setLog] = useState([]);
   const [over, setOver] = useState(null); // {win}
   const [copied, setCopied] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
   const [sunkOpp, setSunkOpp] = useState(0);   // địch bị ta đánh chìm
   const [sunkMine, setSunkMine] = useState(0); // thuyền của ta bị chìm
   const [mode, setMode] = useState("classic"); // classic | advance
@@ -825,6 +844,7 @@ function App() {
   const myBubbleTimer = useRef(null);
   const oppBubbleTimer = useRef(null);
   const graceTimerRef = useRef(null);
+  const joinedUrlRef = useRef(false);   // chỉ auto-join từ link mời 1 lần
   const [soundOn, setSoundOn] = useState(true);
   function toggleSound() { const v = !soundOn; setSoundOn(v); Sound.setEnabled(v); }
   const [vsBot, setVsBot] = useState(false);   // chế độ chơi với máy
@@ -893,7 +913,10 @@ function App() {
       //    was lost — as long as clientId survived in localStorage.
       socket.emit("resume", { clientId }, (res) => {
         if (res && res.ok) { setCode(res.code); persistRoom(res.code); return; }
-        // 2) Fallback: rejoin a room code we stored locally.
+        // 2) Invite link: ?room=CODE → join that room directly (once).
+        const urlRoom = roomFromUrl();
+        if (urlRoom && !joinedUrlRef.current) { joinedUrlRef.current = true; joinRoom(urlRoom); clearRoomUrl(); return; }
+        // 3) Fallback: rejoin a room code we stored locally.
         const r = loadRoom();
         if (r) { socket.emit("rejoin", { code: r, clientId }, (rr) => { if (!rr || !rr.ok) persistRoom(null); }); }
       });
@@ -1202,9 +1225,21 @@ function App() {
     resetToLobby();
   }
   function copyCode() {
-    // Clipboard API bị chặn (permissions policy) trong iframe Instant Games -> nuốt lỗi.
     try { if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(code).catch(() => {}); } catch (e) {}
     setCopied(true); setTimeout(() => setCopied(false), 1500);
+  }
+  // Invite by link: native share sheet on mobile (Messenger/Zalo/FB/SMS), else
+  // copy the join URL to clipboard.
+  function shareLink() {
+    if (!code) return;
+    const url = roomLink(code);
+    const text = t("share.text", { code });
+    if (navigator.share) {
+      navigator.share({ title: "Sea Battle", text, url }).catch(() => {});
+      return;
+    }
+    try { if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).catch(() => {}); } catch (e) {}
+    setLinkCopied(true); setTimeout(() => setLinkCopied(false), 1800);
   }
   function toggleChat() { setChatOpen((o) => !o); }
   function sendChat(text) {
@@ -1268,6 +1303,9 @@ function App() {
             </div>
           </div>
           <p className="sub copy-hint" style={{textAlign:"center",marginBottom:14}}>{copied ? t("common.copied") : t("common.tapToCopy")}</p>
+          <button className="btn primary" style={{width:"100%",marginBottom:10}} onClick={shareLink}>
+            {linkCopied ? t("room.linkCopied") : t("room.inviteLink")}
+          </button>
           <p className="sub" style={{textAlign:"center",marginBottom:16}}>{t("room.shareHint")}</p>
           {!oppPresent
             ? <div className="status-pill pill-wait" style={{textAlign:"center"}}>{t("room.waiting")}</div>
