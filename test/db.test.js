@@ -92,6 +92,23 @@ describe.skipIf(!hasDatabaseUrl)("upsertGuestCredential — idempotency (require
     expect(userRows.length).toBe(1);
   });
 
+  it("a second upsertGuestCredential(sameClientId) leaves total users count unchanged (CR-02)", async () => {
+    const clientId = "test-client-usercount-" + Date.now();
+
+    // First call creates exactly one users row for this new guest.
+    await db.upsertGuestCredential(clientId);
+    const { rows: afterFirst } = await pool.query("SELECT count(*)::int AS n FROM users");
+    const countAfterFirst = afterFirst[0].n;
+
+    // Second call for the same clientId must NOT insert another users row —
+    // the conditional INSERT...SELECT inserts zero rows when the guest exists.
+    await db.upsertGuestCredential(clientId);
+    const { rows: afterSecond } = await pool.query("SELECT count(*)::int AS n FROM users");
+    const countAfterSecond = afterSecond[0].n;
+
+    expect(countAfterSecond).toBe(countAfterFirst);
+  });
+
   it("upsertGuestCredential(null) is a no-op that does not throw", async () => {
     await expect(db.upsertGuestCredential(null)).resolves.toBeUndefined();
   });

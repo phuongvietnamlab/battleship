@@ -83,14 +83,20 @@ async function upsertGuestCredential(clientId) {
         LIMIT 1
       ),
       new_user AS (
-        INSERT INTO users DEFAULT VALUES
+        -- Conditional INSERT: a data-modifying CTE always executes once, so
+        -- guard the row creation itself with WHERE NOT EXISTS. INSERT...SELECT
+        -- (not DEFAULT VALUES) inserts zero rows for a returning guest, so no
+        -- orphaned users row leaks on reconnect (CR-02). id auto-generates;
+        -- guest_migrated_at stays NULL.
+        INSERT INTO users (created_at)
+        SELECT now()
+        WHERE NOT EXISTS (SELECT 1 FROM existing_user)
         RETURNING id
       ),
       resolved_user AS (
         SELECT id FROM existing_user
         UNION ALL
         SELECT id FROM new_user
-        WHERE NOT EXISTS (SELECT 1 FROM existing_user)
         LIMIT 1
       )
       INSERT INTO credentials (user_id, type, external_id)
