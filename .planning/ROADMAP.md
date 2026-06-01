@@ -32,7 +32,10 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. `fire` and `useAbility` socket events are rate-limited per player; an attacker sending rapid-fire events receives errors, not a crash.
   4. A `doShot()` call with a null or malformed opponent state returns an error response instead of throwing an unhandled exception.
   5. Abandoned rooms are evicted from the in-memory room map; the room count no longer grows unboundedly under load. User-supplied profile fields and chat inputs are validated server-side and rejected if malformed.
-**Plans**: TBD
+**Plans**: 3 plans
+- [ ] 01-01-PLAN.md — Persistence slice: pg.Pool (db.js), auto-migrated identity schema, guest-credential upsert, test harness (DATA-01, DATA-02)
+- [ ] 01-02-PLAN.md — Rate-limiting + turn-clock race guard on fire/useAbility/chat (SEC-01)
+- [ ] 01-03-PLAN.md — doShot null guard, abandoned-room cleanup sweep, profile/chat sanitization + CSP (SEC-02, SEC-03, SEC-04)
 
 ### Phase 2: Accounts & Identity
 **Goal**: Players can optionally create a persistent account via Google OAuth, and their guest history carries over seamlessly. Every player has a viewable profile.
@@ -102,7 +105,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 0/TBD | Not started | - |
+| 1. Foundation | 0/3 | Not started | - |
 | 2. Accounts & Identity | 0/TBD | Not started | - |
 | 3. Match Recording | 0/TBD | Not started | - |
 | 4. Ranked Mode & Leaderboard | 0/TBD | Not started | - |
