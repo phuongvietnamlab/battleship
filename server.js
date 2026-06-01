@@ -8,6 +8,7 @@ const http = require("http");
 const path = require("path");
 const { Server } = require("socket.io");
 const store = require("./store"); // optional Redis snapshot; no-op without REDIS_URL
+const { pool, runMigrations, upsertGuestCredential } = require("./db"); // Postgres: identity persistence
 
 const app = express();
 const server = http.createServer(app);
@@ -883,8 +884,9 @@ io.on("connection", (socket) => {
   });
 });
 
-// Boot: connect optional store, restore any snapshot, then start listening.
+// Boot: run DB migrations (fail-loud), then connect optional store, then listen.
 (async () => {
+  await runMigrations(pool); // must succeed before server.listen() — exits non-zero on failure (DATA-02)
   await store.init();
   if (store.isEnabled()) {
     try {
