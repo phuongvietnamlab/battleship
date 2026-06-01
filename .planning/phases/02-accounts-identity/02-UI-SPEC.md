@@ -137,7 +137,7 @@ Three net-new UI surfaces for this phase.
 
 **Dropdown menu** (`.avatar-menu` — new):
 - Triggered by: click/tap on `.profile-chip`
-- Position: `absolute; top: calc(100% + 6px); right: 0` anchored to the chip
+- Position: `absolute; top: calc(100% + 8px); right: 0` anchored to the chip
 - Width: 200px (min); auto if content wider
 - Background: `var(--panel)` with `backdrop-filter: blur(14px) saturate(1.2)` — matches `.lobby`
 - Border: `1px solid var(--panel-brd)` = `rgba(120, 180, 255, 0.16)`
