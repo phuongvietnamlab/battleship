@@ -1,26 +1,92 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Trận hải chiến · Battleship Online</title>
-  <meta name="description" content="Hải chiến trực tuyến: bố trí hạm đội, chia sẻ mã phòng mời bạn bè, hoặc đấu với máy. Có chế độ power-up." />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+
+  <!-- ── SEO ────────────────────────────────────────────────────────────────
+       Canonical domain is https://battleshiponline.xyz (custom domain → Render).
+       If it ever changes, replace that string everywhere in this head — and in
+       robots.txt, sitemap.xml, .github/workflows/keepalive.yml. -->
+  <title>Sea Battle — Online Battleship | Play vs Friends or Bot</title>
+  <meta name="description" content="Play Sea Battle, free online Battleship. Create a room and share the 5-letter code to play a friend, or battle the bot. Classic and power-up modes, real-time turns, English & Vietnamese." />
+  <meta name="keywords" content="battleship, sea battle, online battleship, play battleship, hải chiến, cờ hải chiến, naval battle game, multiplayer battleship, battleship bot" />
+  <meta name="author" content="Battleship Online" />
+  <meta name="robots" content="index, follow" />
   <meta name="theme-color" content="#07182f" />
-  <meta property="og:title" content="Trận hải chiến · Battleship Online" />
-  <meta property="og:description" content="Bố trí hạm đội, mời bạn bằng mã phòng, hoặc đấu với máy." />
+  <link rel="canonical" href="https://battleshiponline.xyz/" />
+
+  <!-- Open Graph (Facebook / Zalo / Messenger link previews) -->
   <meta property="og:type" content="website" />
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2307182f'/%3E%3Ctext x='16' y='23' font-size='20' text-anchor='middle'%3E%E2%9A%93%3C/text%3E%3C/svg%3E" />
+  <meta property="og:site_name" content="Sea Battle" />
+  <meta property="og:title" content="Sea Battle — Online Battleship" />
+  <meta property="og:description" content="Create a room, share the code, and sink your friend's fleet. Or play the bot. Classic + power-up modes." />
+  <meta property="og:url" content="https://battleshiponline.xyz/" />
+  <meta property="og:image" content="https://battleshiponline.xyz/og-image.jpg" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:locale" content="en_US" />
+  <meta property="og:locale:alternate" content="vi_VN" />
+
+  <!-- Twitter / X card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Sea Battle — Online Battleship" />
+  <meta name="twitter:description" content="Create a room, share the code, and sink your friend's fleet. Or play the bot." />
+  <meta name="twitter:image" content="https://battleshiponline.xyz/og-image.jpg" />
+
+  <!-- Icons -->
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+  <link rel="manifest" href="/site.webmanifest" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Sea Battle" />
+
   <link rel="stylesheet" href="style.css" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <script src="/socket.io/socket.io.js"></script>
-  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+
+  <!-- Structured data: helps Google understand this is a free online game and
+       can enable richer search results. Keep facts accurate (no fake ratings). -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "VideoGame",
+    "name": "Sea Battle — Online Battleship",
+    "alternateName": ["Battleship Online", "Hải chiến Online", "Cờ hải chiến"],
+    "url": "https://battleshiponline.xyz/",
+    "description": "Free online Battleship. Create a room and share the 5-letter code to play a friend in real time, or battle the bot. Classic and power-up modes. Plays in the browser on desktop and mobile.",
+    "image": "https://battleshiponline.xyz/og-image.jpg",
+    "genre": ["Strategy", "Board game", "Multiplayer"],
+    "gamePlatform": ["Web browser", "Desktop", "Mobile"],
+    "applicationCategory": "GameApplication",
+    "operatingSystem": "Any (web browser)",
+    "playMode": ["MultiPlayer", "SinglePlayer"],
+    "inLanguage": ["en", "vi"],
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+  }
+  </script>
 </head>
 <body>
+  <!-- Crawlable content for search engines (off-screen via .sr-only; accurate,
+       not cloaking). The React app renders the interactive game into #root. -->
+  <header class="sr-only">
+    <h1>Sea Battle — Online Battleship (Trận hải chiến online)</h1>
+    <p>Play Battleship free in your browser. Create a room, share the 5-letter code with a friend, and take turns sinking each other's fleet — or play against the bot. Classic mode and a power-up mode. Works on desktop and mobile, English and Vietnamese.</p>
+    <p>Chơi cờ hải chiến (Battleship) online miễn phí ngay trên trình duyệt. Tạo phòng, gửi mã 5 ký tự cho bạn bè, bố trí hạm đội và bắn theo lượt — hoặc đấu với máy. Có chế độ cổ điển và chế độ power-up. Chạy trên máy tính lẫn điện thoại, song ngữ Anh/Việt.</p>
+  </header>
   <div id="root"></div>
-  <script type="text/babel" src="app.jsx"></script>
+  <noscript>
+    <section style="max-width:680px;margin:40px auto;padding:0 20px;color:#dbe7f3;font-family:system-ui,sans-serif;line-height:1.6">
+      <h1>Sea Battle — Online Battleship</h1>
+      <p>Sea Battle is a free, real-time online Battleship game you play in the browser. Create a room, share the 5-letter room code with a friend, place your fleet on the 11×11 grid, and take turns firing until one fleet is sunk. Prefer to play solo? Take on the bot. Two modes: <strong>Classic</strong> (pure Battleship) and <strong>Advance</strong> (collect and use power-ups).</p>
+      <h2>How to play</h2>
+      <p>Each turn has a countdown timer. A hit lets you fire again; a miss passes the turn. Sink all five enemy ships (Carrier, Battleship, Cruiser, Submarine, Destroyer) to win.</p>
+      <h2>Hải chiến online</h2>
+      <p>Trò chơi cờ hải chiến thời gian thực, miễn phí, chơi ngay trên trình duyệt. Tạo phòng và chia sẻ mã phòng cho bạn bè, hoặc đấu với máy. Hỗ trợ máy tính và điện thoại.</p>
+      <p><strong>This game needs JavaScript enabled to play.</strong> / <strong>Trò chơi cần bật JavaScript để chơi.</strong></p>
+    </section>
+  </noscript>
+  <script src="app.js"></script>
 </body>
 </html>

@@ -3,6 +3,6 @@ services:
     name: battleship-online
     runtime: node
     plan: free
-    buildCommand: npm install
+    buildCommand: npm install && npm run build:game
     startCommand: npm start
     autoDeploy: true
