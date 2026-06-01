@@ -102,13 +102,37 @@ Which phases cover which requirements. Populated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| (filled by roadmapper) | — | Pending |
+| DATA-01 | Phase 1 — Foundation | Pending |
+| DATA-02 | Phase 1 — Foundation | Pending |
+| SEC-01 | Phase 1 — Foundation | Pending |
+| SEC-02 | Phase 1 — Foundation | Pending |
+| SEC-03 | Phase 1 — Foundation | Pending |
+| SEC-04 | Phase 1 — Foundation | Pending |
+| SEC-05 | Phase 2 — Accounts & Identity | Pending |
+| AUTH-01 | Phase 2 — Accounts & Identity | Pending |
+| AUTH-02 | Phase 2 — Accounts & Identity | Pending |
+| AUTH-03 | Phase 2 — Accounts & Identity | Pending |
+| AUTH-04 | Phase 2 — Accounts & Identity | Pending |
+| PROF-01 | Phase 2 — Accounts & Identity | Pending |
+| PROF-02 | Phase 2 — Accounts & Identity | Pending |
+| MATCH-01 | Phase 3 — Match Recording | Pending |
+| MATCH-02 | Phase 3 — Match Recording | Pending |
+| MATCH-03 | Phase 3 — Match Recording | Pending |
+| RANK-01 | Phase 4 — Ranked Mode & Leaderboard | Pending |
+| RANK-02 | Phase 4 — Ranked Mode & Leaderboard | Pending |
+| RANK-03 | Phase 4 — Ranked Mode & Leaderboard | Pending |
+| RANK-04 | Phase 4 — Ranked Mode & Leaderboard | Pending |
+| RANK-05 | Phase 4 — Ranked Mode & Leaderboard | Pending |
+| QUEUE-01 | Phase 5 — Public Matchmaking | Pending |
+| QUEUE-02 | Phase 5 — Public Matchmaking | Pending |
+| QUEUE-03 | Phase 5 — Public Matchmaking | Pending |
+| BOT-01 | Phase 6 — Bot Difficulty Tiers | Pending |
 
 **Coverage:**
-- v1 requirements: 24 total
-- Mapped to phases: 0 (pending roadmap)
-- Unmapped: 24 ⚠️
+- v1 requirements: 25 total
+- Mapped to phases: 25
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-06-01*
-*Last updated: 2026-06-01 after initial definition*
+*Last updated: 2026-06-01 after roadmap creation*
