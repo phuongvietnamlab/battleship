@@ -57,10 +57,10 @@ Directly derived from `style.css` existing declarations. No new font sizes intro
 |------|------|--------|-------------|------|
 | Body / dropdown labels | 13px | 400 (regular) | 1.5 | "Be Vietnam Pro", system-ui |
 | Meta / secondary text | 12px | 400 (regular) | 1.5 | "Be Vietnam Pro", system-ui |
-| Button / CTA label | 16px | 600 (semibold) | 1 | "Oswald" uppercase |
+| Button / CTA label | 16px | 600 (semibold) | 1 | "Oswald" uppercase; Google sign-in button uses 16px weight 600 mixed-case (Google brand waiver on Oswald-uppercase styling only — not on size or weight) |
 | Profile stat figure | 22px | 700 (bold) | 1 | "Oswald" (matches `.pc-score`) |
 
-**Rule:** Only 2 weights used: 400 (body, labels, meta) and the existing bold range 600–700 (Oswald headings + stat figures). No intermediate weights (500) introduced.
+**Rule:** Exactly 4 sizes (12, 13, 16, 22px) and exactly 2 weight bands: 400 (body, labels, meta) and 600–700 (Oswald headings, CTA buttons, stat figures). No intermediate weights (500) are introduced anywhere in this phase.
 
 ---
 
@@ -85,6 +85,10 @@ Accent is NOT used on: generic dropdown items, avatar circle background, profile
 
 **Avatar fallback background:** `var(--sky)` = `#6fc3f3` with `color: #06182c` initial letter — matches existing `.pc-fallback` and `.avatar-fallback` pattern in `style.css`.
 
+**Focal points:**
+- Signed-out lobby: the "Sign in with Google" gold CTA button is the identity focal point — all other lobby actions recede visually.
+- Signed-in lobby: the `.profile-chip` avatar in `.topbar-right` is the identity anchor — it is the only element bearing the user's face and name.
+
 ---
 
 ## Component Inventory
@@ -106,12 +110,12 @@ Three net-new UI surfaces for this phase.
 
 **Visual spec:**
 - Width: 100% (matches all other `.btn` elements)
-- Height: 50px (padding: 15px top/bottom — matches `.btn` padding spec)
+- Height: 50px (padding: 16px top/bottom — matches `.btn` padding spec; multiples-of-4 compliant)
 - Background: `rgba(255, 255, 255, 0.92)` — white/off-white to match Google brand identity guidelines; not the gold gradient (gold is for game CTAs, Google has its own brand requirement)
 - Text color: `#1f1f1f` (Google brand dark)
 - Border: `1px solid rgba(255,255,255,0.20)` at rest; `1px solid rgba(255,255,255,0.50)` on hover
 - Border-radius: 12px (matches `.btn`)
-- Font: "Be Vietnam Pro", 15px, weight 500 — exception to the Oswald button rule; Google brand requires readable mixed-case, not all-caps Oswald. Label is NOT uppercase.
+- Font: "Be Vietnam Pro", 16px, weight 600, mixed-case — Google brand waiver applies to Oswald-uppercase styling only; the button uses the declared 16px/600 CTA size. Label is NOT uppercase.
 - Google logo: inline SVG `<svg viewBox="0 0 18 18">` — standard Google G mark, 18×18px, positioned left with 8px gap to label
 - Hover: `filter: brightness(1.04)` (subtle lift, consistent with `.btn:hover`)
 - Disabled state: `opacity: 0.5; cursor: not-allowed` — shown during OAuth redirect in-flight
@@ -144,8 +148,8 @@ Three net-new UI surfaces for this phase.
 - Close on: click outside, Escape key, item selection
 
 **Dropdown items** (`.avatar-menu-item` — new):
-- Padding: 11px 16px
-- Font: "Be Vietnam Pro", 14px, weight 400, color `#dbe7f3`
+- Padding: 12px 16px (multiples-of-4 compliant)
+- Font: "Be Vietnam Pro", 13px, weight 400, color `#dbe7f3`
 - Hover background: `rgba(255,255,255,0.06)`
 - Hover left indicator: `border-left: 2px solid var(--gold)`; padding-left compensates by 2px
 - Icon: 16px emoji prefix with 8px gap (matches existing power-btn icon pattern)
@@ -167,12 +171,12 @@ Three net-new UI surfaces for this phase.
 - Max-width: 480px (matches `.app` and `.lobby`)
 - Margin: `6vh auto 0` (matches `.lobby`)
 - Background/border/backdrop: same as `.lobby` — glass panel
-- Padding: 34px 30px (matches `.lobby`)
+- Padding: 32px 32px (multiples-of-4 compliant; matches `.lobby` rhythm)
 - Animation: `rise 0.55s cubic-bezier(.34,1.4,.4,1) both` (matches `.lobby`)
 
 **Profile header section (`.profile-header`):**
 - Avatar: 64px circle; `object-fit: cover`; fallback: `var(--sky)` background + 28px Oswald initial letter
-- Display name: 20px Oswald, weight 700, `#eaf2ff`; max-width 260px, truncated
+- Display name: 22px Oswald, weight 700, `#eaf2ff`; max-width 260px, truncated
 - Member since: 12px, `#a9ccec`, formatted as "Member since {month} {year}" / "Thành viên từ tháng {m} năm {y}"
 - Layout: row — avatar left (64px), name + since stacked right; gap 16px; align-items center
 
@@ -183,12 +187,13 @@ Three net-new UI surfaces for this phase.
 - "No games yet" sub-line: 13px `#a9ccec` centered below the stats row; only shown when all 3 figures are 0
 
 **Back navigation:**
-- Single `button.btn.ghost` labeled "Back" / "Quay lại" at bottom of the profile view
-- Width: auto; padding: 10px 20px; not full-width
+- Single `button.btn.ghost` labeled "Back to lobby" / "Quay lại sảnh" at bottom of the profile view
+- Width: auto; padding: 8px 20px; not full-width
 
 **Own vs. other-player profile:**
 - Own profile: shows "Sign out" ghost button below stats (shortcut — same as dropdown item)
 - Other player profile: no sign-out; adds "Challenge" button placeholder (disabled, `opacity: 0.4`) for Phase 5 wiring — renders it structurally so Phase 5 requires no layout change
+- Profile 404: `.error` block with "Player not found. Return to lobby." / "Không tìm thấy người chơi. Quay lại sảnh."
 
 ---
 
@@ -208,25 +213,26 @@ All copy is bilingual EN/VI. Keys follow the existing flat `"namespace.key"` pat
 | Profile: losses label | Losses | Thất bại |
 | Profile: games label | Games | Ván đấu |
 | Profile: empty state body | No games yet. Play some matches to see your record here. | Chưa có ván nào. Hãy chơi vài trận để xem thành tích tại đây. |
-| Profile: back button | Back | Quay lại |
+| Profile: back button | Back to lobby | Quay lại sảnh |
 | Profile: challenge placeholder | Challenge (coming soon) | Thách đấu (sắp có) |
+| Profile: 404 error | Player not found. Return to lobby. | Không tìm thấy người chơi. Quay lại sảnh. |
 | Auth error: OAuth failed | Sign-in failed. Please try again. | Đăng nhập thất bại. Vui lòng thử lại. |
 | Auth error: session expired | Your session has expired. Please sign in again. | Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại. |
 | Auth error: rate limited | Too many sign-in attempts. Please wait a moment. | Quá nhiều lần thử. Vui lòng chờ một chút. |
 | Sign-out all: confirmation heading | Sign out everywhere? | Đăng xuất khỏi tất cả thiết bị? |
 | Sign-out all: confirmation body | You will be signed out on all devices, including this one. | Bạn sẽ bị đăng xuất khỏi tất cả thiết bị, kể cả thiết bị này. |
 | Sign-out all: confirm button | Sign out all devices | Đăng xuất tất cả |
-| Sign-out all: cancel button | Cancel | Hủy |
+| Sign-out all: cancel button | Keep me signed in | Giữ đăng nhập |
 
 **I18N key map (to add to `I18N` object in `app.jsx`):**
 
 ```
 "auth.signInGoogle", "auth.viewProfile", "auth.signOut", "auth.signOutAll",
 "auth.signOutAllConfirmTitle", "auth.signOutAllConfirmBody",
-"auth.signOutAllConfirmBtn", "auth.cancel",
+"auth.signOutAllConfirmBtn", "auth.keepSignedIn",
 "auth.errFailed", "auth.errExpired", "auth.errRateLimited",
 "profile.memberSince", "profile.wins", "profile.losses", "profile.games",
-"profile.noGamesYet", "profile.back", "profile.challengeSoon"
+"profile.noGamesYet", "profile.back", "profile.challengeSoon", "profile.notFound"
 ```
 
 ---
@@ -246,14 +252,14 @@ All copy is bilingual EN/VI. Keys follow the existing flat `"namespace.key"` pat
 - Opens on single click/tap of `.profile-chip`.
 - Closes on: second click on chip, click anywhere outside `.avatar-menu`, Escape key.
 - "Sign out": no confirmation — immediate POST `/auth/signout` on click, optimistic UI (chip vanishes, lobby reverts to guest state; error toast on failure).
-- "Sign out all devices": clicking opens an inline confirmation within the dropdown (not a full modal). The dropdown widens slightly to accommodate the 2-button confirmation row. On confirm: POST `/auth/signout-all`, then same guest reversion.
+- "Sign out all devices": clicking opens an inline confirmation within the dropdown (not a full modal). The dropdown widens slightly to accommodate the 2-button confirmation row. On confirm: POST `/auth/signout-all`, then same guest reversion. On cancel ("Keep me signed in"): dismiss confirmation, return to normal dropdown state.
 
 ### Profile Screen
 
 - Enters via `setScreen('profile')` — lobby content unmounts, profile view mounts with `.rise` animation.
-- "Back" button: `setScreen('lobby')` — same `rise` animation.
+- "Back to lobby" button: `setScreen('lobby')` — same `rise` animation.
 - Profile load: GET `/api/profile/:id` on mount. While loading: show skeleton — avatar circle (gray pulse), name bar (gray pulse), stats row (gray pulse). Skeleton uses `animation: pulse 1.6s ease-in-out infinite` (existing keyframe).
-- Profile 404 (viewing another player who doesn't exist): show `.error` block with "Player not found." / "Không tìm thấy người chơi."
+- Profile 404 (viewing another player who doesn't exist): show `.error` block with "Player not found. Return to lobby." / "Không tìm thấy người chơi. Quay lại sảnh." with a "Return to lobby" / "Quay lại sảnh" link.
 
 ---
 
