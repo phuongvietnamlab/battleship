@@ -223,6 +223,8 @@ const Sound = (function () {
     miss() { tone(320, 0.12, "sine", 0.18, 160); },
     sunk() { noise(0.5, 0.5); tone(120, 0.5, "sawtooth", 0.35, 50); },
     fire() { tone(220, 0.08, "triangle", 0.2, 120); },
+    // power-up detonation: a punchy boom (initial crack + low rumble)
+    explode() { noise(0.5, 0.6); tone(180, 0.45, "sawtooth", 0.4, 50); setTimeout(() => { noise(0.3, 0.35); tone(80, 0.5, "sine", 0.35, 38); }, 40); },
     powerup() { tone(660, 0.1, "sine", 0.3); setTimeout(() => tone(990, 0.12, "sine", 0.3), 90); },
     mine() { noise(0.6, 0.6); tone(90, 0.6, "sawtooth", 0.45, 40); },
     win() { [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => tone(f, 0.22, "triangle", 0.3), i * 130)); },
@@ -1143,8 +1145,9 @@ function App() {
   }
 
   // áp dụng kết quả một loạt bắn (dùng chung cho fire + pháo kích)
-  function applyShotResult(res, label) {
+  function applyShotResult(res, label, isPower) {
     const cells = res.cells || [];
+    if (isPower) Sound.explode(); // boom on power-up detonation
     setMyShots((m) => { const n = new Map(m); cells.forEach((s) => n.set(key(s.r, s.c), s.hit)); return n; });
     if (cells.length) setFlashEnemy(key(cells[cells.length - 1].r, cells[cells.length - 1].c));
     if (typeof res.sunkCount === "number") setSunkOpp(res.sunkCount);
@@ -1169,7 +1172,7 @@ function App() {
       if (!res.ok) { if (res.code || res.error) addLog(errText(res)); return; }
       setAim(null);
       const label = power ? t("label.power", { name: POWER_NAME[power] }) : t("label.youFire", { cell: cellLabel(r, c) });
-      applyShotResult(res, label);
+      applyShotResult(res, label, !!power);
     });
   }
   function placeMine(r, c) {
@@ -1194,7 +1197,7 @@ function App() {
       }
       else if (res.type === "scatter") {
         addLog(t("log.scatterBoom"));
-        applyShotResult(res, POWER_NAME.scatter);
+        applyShotResult(res, POWER_NAME.scatter, true);
       }
     });
   }
