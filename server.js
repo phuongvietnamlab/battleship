@@ -159,6 +159,7 @@ function opponentOf(room, clientId) {
 // HTML-escape a string to prevent stored-XSS when names are rendered in future
 // leaderboards or profiles (SEC-04).
 function escapeHtml(s) {
+  if (typeof s !== "string") return ""; // guard-clause: defend reusable primitive (WR-03)
   return s
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -185,7 +186,11 @@ function sanitizeProfile(p) {
 // so the chat handler can early-return cleanly.
 function sanitizeChat(text) {
   if (typeof text !== "string") return null;
-  const cleaned = text.replace(/[\x00-\x1f\x7f]/g, "").replace(/\s+/g, " ").trim().slice(0, 200);
+  // HTML-escape like sanitizeProfile so relayed chat cannot inject markup —
+  // server-side defense, independent of how the client renders it (WR-02, SEC-04).
+  const cleaned = escapeHtml(
+    text.replace(/[\x00-\x1f\x7f]/g, "").replace(/\s+/g, " ").trim().slice(0, 200)
+  );
   return cleaned || null;
 }
 // Store a profile on a seat without wiping an existing one when none is supplied.
@@ -691,6 +696,7 @@ io.on("connection", (socket) => {
       const offlineId = room.order.find((id) => room.players[id] && !room.players[id].online);
       if (offlineId) {
         reclaimSeat(room, code, offlineId, clientId, socket);
+        upsertGuestCredential(clientId); // fire-and-forget: persist reclaimed identity (DATA-01, WR-05)
         return cb && cb({ ok: true, code, reclaimed: true });
       }
       return cb && cb({ ok: false, code: "ROOM_FULL" });
@@ -985,6 +991,10 @@ io.on("connection", (socket) => {
       } else {
         io.to(code).emit("opponentLeft");
         room.started = false;
+        // Reset turn state so a stale turn pointer / in-flight resolve flag does
+        // not wedge a later rematch with BAD_STATE (matches endGameForfeit/rematch) (WR-06).
+        room.turn = null;
+        room.resolving = false;
         io.to(code).emit("roomUpdate", roomPublic(room));
       }
     }
@@ -1009,26 +1019,38 @@ io.on("connection", (socket) => {
 });
 
 // Boot: run DB migrations (fail-loud), then connect optional store, then listen.
-(async () => {
-  await runMigrations(pool); // must succeed before server.listen() — exits non-zero on failure (DATA-02)
-  await store.init();
-  if (store.isEnabled()) {
+// Guarded by require.main === module so importing server.js in tests does not
+// boot the server / bind PORT / run migrations as an import side effect (WR-01).
+if (require.main === module) {
+  (async () => {
+    // Migrations must succeed before listen() (DATA-02). Wrap in try/catch so a
+    // DB failure exits cleanly with a logged, actionable message instead of an
+    // opaque unhandled rejection (WR-04).
     try {
-      const n = restoreRooms(await store.loadSnapshot());
-      if (n) console.log(`[store] restored ${n} room(s) from snapshot`);
+      await runMigrations(pool);
     } catch (e) {
-      console.error("[store] restore failed:", e.message);
+      console.error("[db] migration failed on boot, exiting:", e.message);
+      process.exit(1);
     }
-    // Periodic snapshot. unref() so it never keeps the process alive on its own.
-    setInterval(() => { store.saveSnapshot(serializeRooms()); }, SNAPSHOT_MS).unref();
-  }
-  // Room cleanup sweep: evict empty and idle rooms every 60s so memory is bounded
-  // by active games, not by all rooms ever created (SEC-03, ROOM_IDLE_THRESHOLD_MS).
-  setInterval(sweepRooms, CLEANUP_INTERVAL_MS).unref();
-  server.listen(PORT, () => {
-    console.log(`Battleship server running at http://localhost:${PORT}`);
-  });
-})();
+    await store.init();
+    if (store.isEnabled()) {
+      try {
+        const n = restoreRooms(await store.loadSnapshot());
+        if (n) console.log(`[store] restored ${n} room(s) from snapshot`);
+      } catch (e) {
+        console.error("[store] restore failed:", e.message);
+      }
+      // Periodic snapshot. unref() so it never keeps the process alive on its own.
+      setInterval(() => { store.saveSnapshot(serializeRooms()); }, SNAPSHOT_MS).unref();
+    }
+    // Room cleanup sweep: evict empty and idle rooms every 60s so memory is bounded
+    // by active games, not by all rooms ever created (SEC-03, ROOM_IDLE_THRESHOLD_MS).
+    setInterval(sweepRooms, CLEANUP_INTERVAL_MS).unref();
+    server.listen(PORT, () => {
+      console.log(`Battleship server running at http://localhost:${PORT}`);
+    });
+  })();
+}
 
 // Capture the latest state on redeploy (Render/Fly send SIGTERM) before exit.
 async function gracefulExit() {
@@ -1039,14 +1061,18 @@ process.on("SIGTERM", gracefulExit);
 process.on("SIGINT", gracefulExit);
 
 // TEST_EXPORTS: expose internal functions for unit tests only.
-// Not used by the production code path.
-export const TEST_EXPORTS = {
-  doShot,
-  rooms,
-  sweepRooms,
-  escapeHtml,
-  sanitizeProfile,
-  sanitizeChat,
-  cspMiddleware,
-  CSP_HEADER_VALUE,
+// Not used by the production code path. Exported via CommonJS so server.js
+// stays a CJS module — using `export` here forces Node to reparse the file as
+// an ES module, after which the top-level require() calls throw (CR-01).
+module.exports = {
+  TEST_EXPORTS: {
+    doShot,
+    rooms,
+    sweepRooms,
+    escapeHtml,
+    sanitizeProfile,
+    sanitizeChat,
+    cspMiddleware,
+    CSP_HEADER_VALUE,
+  },
 };

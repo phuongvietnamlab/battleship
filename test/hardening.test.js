@@ -46,7 +46,11 @@ function makeRoom(overrides = {}) {
 
 // ─── Task 1: doShot() null/shape guard (SEC-02) ──────────────────────────────
 
-import { TEST_EXPORTS } from "../server.js";
+// server.js is CommonJS (module.exports = { TEST_EXPORTS }). Vitest runs ESM,
+// so import the CJS module's default export and destructure TEST_EXPORTS (CR-01).
+import serverModule from "../server.js";
+
+const { TEST_EXPORTS } = serverModule;
 
 const { doShot, rooms, sweepRooms, escapeHtml, sanitizeProfile, sanitizeChat, cspMiddleware, CSP_HEADER_VALUE } = TEST_EXPORTS;
 
