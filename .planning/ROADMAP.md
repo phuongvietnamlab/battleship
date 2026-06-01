@@ -42,7 +42,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 01-02-PLAN.md — Rate-limiting + turn-clock race guard on fire/useAbility/chat (SEC-01)
+- [x] 01-02-PLAN.md — Rate-limiting + turn-clock race guard on fire/useAbility/chat (SEC-01)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 

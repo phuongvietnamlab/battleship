@@ -9,12 +9,12 @@ The competitive core: durable persistence, accounts, ranked play, and public mat
 
 ### Persistence (DATA)
 
-- [ ] **DATA-01**: Server connects to the self-hosted Postgres (on the EC2 box) via a single shared connection pool (`db.js`), with connection params from env vars
-- [ ] **DATA-02**: Database schema is created and migrated automatically on server startup (prestart migration)
+- [x] **DATA-01**: Server connects to the self-hosted Postgres (on the EC2 box) via a single shared connection pool (`db.js`), with connection params from env vars
+- [x] **DATA-02**: Database schema is created and migrated automatically on server startup (prestart migration)
 
 ### Security Hardening (SEC)
 
-- [ ] **SEC-01**: Server rate-limits `fire` and `useAbility` socket events per player
+- [x] **SEC-01**: Server rate-limits `fire` and `useAbility` socket events per player
 - [ ] **SEC-02**: `doShot()` guards against null/malformed opponent state without crashing the handler
 - [ ] **SEC-03**: Abandoned rooms are cleaned from the in-memory room map (bounded memory)
 - [ ] **SEC-04**: Server validates user-supplied profile and chat input server-side
@@ -100,9 +100,9 @@ Which phases cover which requirements. Populated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DATA-01 | Phase 1 — Foundation | Pending |
-| DATA-02 | Phase 1 — Foundation | Pending |
-| SEC-01 | Phase 1 — Foundation | Pending |
+| DATA-01 | Phase 1 — Foundation | Complete |
+| DATA-02 | Phase 1 — Foundation | Complete |
+| SEC-01 | Phase 1 — Foundation | Complete |
 | SEC-02 | Phase 1 — Foundation | Pending |
 | SEC-03 | Phase 1 — Foundation | Pending |
 | SEC-04 | Phase 1 — Foundation | Pending |
@@ -126,6 +126,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | BOT-01 | Phase 6 — Bot Difficulty Tiers | Pending |
 
 **Coverage:**
+
 - v1 requirements: 24 total
 - Mapped to phases: 24
 - Unmapped: 0 ✓

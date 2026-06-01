@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 1 context gathered
-last_updated: "2026-06-01T12:37:24.997Z"
-last_activity: 2026-06-01 -- Phase 01 execution started
+stopped_at: Phase 01 Plan 02 complete
+last_updated: "2026-06-01T19:43:00.000Z"
+last_activity: 2026-06-01 -- Phase 01 Plan 02 (rate limiting + race guard) complete
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 3
-  completed_plans: 1
-  percent: 0
+  completed_plans: 2
+  percent: 11
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-06-01)
 ## Current Position
 
 Phase: 01 (foundation) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
-Last activity: 2026-06-01 -- Phase 01 execution started
+Last activity: 2026-06-01 -- Phase 01 Plan 02 complete
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [█░░░░░░░░░] 11%
 
 ## Performance Metrics
 
@@ -52,7 +52,11 @@ Progress: [░░░░░░░░░░] 0%
 - Trend: —
 
 *Updated after each plan completion*
-| Phase 01-foundation P01 | 5 | 3 tasks | 7 files |
+
+| Phase | Plan | Duration | Tasks | Files |
+|-------|------|----------|-------|-------|
+| Phase 01-foundation | P01 | ~30 min | 3 tasks | 7 files |
+| Phase 01-foundation | P02 | ~25 min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -70,6 +74,8 @@ Recent decisions affecting current work:
 - [Phase ?]: Fail-loud migration runner: no try/catch in runMigrations; boot IIFE has no catch so bad migration exits process (DATA-02)
 - [Phase ?]: CTE upsert in upsertGuestCredential: single parameterized query prevents orphan users; all SQL uses $1 binding (T-01-02)
 - [Phase ?]: upsertGuestCredential wired into joinRoom P2 path (extends D-04): player 2 persists on first session not only on reconnect (DATA-01 gap)
+- [Phase 01 P02]: RateLimiterMemory (in-process) chosen over Redis store for rate limiting — Redis limiter deferred to Phase 5 (D-06 explicit)
+- [Phase 01 P02]: room.resolving uses try/finally to guarantee flag cleared even if doShot throws (D-09)
 
 ### Pending Todos
 
@@ -93,6 +99,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-06-01T12:37:24.992Z
-Stopped at: Phase 1 context gathered
-Resume file: .planning/phases/01-foundation/01-CONTEXT.md
+Last session: 2026-06-01T19:43:00.000Z
+Stopped at: Phase 01 Plan 02 complete — ready for Plan 03 (doShot guard, cleanup sweep, sanitization, CSP)
+Resume file: .planning/phases/01-foundation/01-03-PLAN.md
