@@ -62,8 +62,24 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. A signed-in player stays logged in across browser sessions and can revoke access server-side (sign out from all devices).
   5. A signed-in player can view their own profile showing win/loss record and lifetime stats; any player can view another player's public profile.
 
-**Plans**: TBD
+**Plans**: 4 plans
 **UI hint**: yes
+
+**Wave 1**
+
+- [ ] 02-01-PLAN.md — Foundation: auth-package legitimacy gate + install, 002_accounts.sql (profile cols + session table), linkOrPromoteAccount/sanitizeDisplayName, Wave 0 test stubs (AUTH-03, SEC-05)
+
+**Wave 2** *(blocked on Wave 1)*
+
+- [ ] 02-02-PLAN.md — OAuth sign-in slice: session+Passport middleware, /auth/google(+callback), /api/me, io.engine.use session-share, sign-in button + auth hydration (AUTH-02, SEC-05, AUTH-01, AUTH-03)
+
+**Wave 3** *(blocked on Wave 2)*
+
+- [ ] 02-03-PLAN.md — Sessions + revocation slice: /auth/signout + /auth/signout-all, avatar chip + dropdown menu with sign-out-all confirmation (AUTH-04)
+
+**Wave 4** *(blocked on Wave 3)*
+
+- [ ] 02-04-PLAN.md — Profile view slice: GET /api/profile/:id zero-state + ProfileView screen (own + other player) (PROF-01, PROF-02)
 
 ### Phase 3: Match Recording
 
@@ -132,7 +148,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 3/3 | Complete    | 2026-06-01 |
-| 2. Accounts & Identity | 0/TBD | Not started | - |
+| 2. Accounts & Identity | 0/4 | Planned | - |
 | 3. Match Recording | 0/TBD | Not started | - |
 | 4. Ranked Mode & Leaderboard | 0/TBD | Not started | - |
 | 5. Public Matchmaking | 0/TBD | Not started | - |
