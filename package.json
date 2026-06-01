@@ -5,7 +5,9 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "build:game": "node build-game.mjs"
+    "build": "node build-game.mjs",
+    "build:game": "node build-game.mjs",
+    "postinstall": "node build-game.mjs"
   },
   "dependencies": {
     "esbuild": "^0.24.0",

@@ -1,8 +1,11 @@
+# Render Blueprint. The client bundle (dist/) is built automatically by the
+# package.json "postinstall" hook, so any host that runs `npm install` produces
+# it — no special build command needed. buildCommand stays as plain install.
 services:
   - type: web
     name: battleship-online
     runtime: node
     plan: free
-    buildCommand: npm install && npm run build:game
+    buildCommand: npm install
     startCommand: npm start
     autoDeploy: true

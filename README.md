@@ -97,20 +97,21 @@ render.yaml            Deploy lên Render
 ## 4. Chạy local
 
 ```bash
-npm install
-npm run build:game      # bundle public/app.jsx → dist/
+npm install             # postinstall tự bundle public/app.jsx → dist/
 npm start               # server đọc dist/ rồi tới public/
 ```
 Mở http://localhost:4000 (đổi cổng: `PORT=5000 npm start`).
 
-> `server.js` phục vụ `dist/` trước, fallback `public/`. Sau khi sửa `app.jsx` phải `npm run build:game` lại.
+> `server.js` phục vụ `dist/` trước, fallback `public/`. `npm install` tự chạy `postinstall` → build `dist/`. Sau khi sửa `app.jsx` chạy lại `npm run build:game` để rebuild.
 
 ---
 
 ## 5. Deploy
 
 ### Render
-`render.yaml` đã sẵn: Build `npm install && npm run build:game`, Start `npm start`. Render tự cấp `PORT`. Đẩy repo → render.com → New → Web Service → chọn repo.
+`render.yaml` đã sẵn: Build `npm install` (hook `postinstall` tự build `dist/`), Start `npm start`. Render tự cấp `PORT`. Đẩy repo → render.com → New → Web Service → chọn repo.
+
+> Vì build nằm trong `postinstall`, **không cần** chỉnh Build Command trên dashboard — service tạo tay với build mặc định `npm install` vẫn tự sinh `dist/`.
 
 > Render free tier ngủ sau ~15 phút không có traffic → request đầu sau khi ngủ bị cold-start vài giây. Cần luôn warm thì dùng gói trả phí hoặc uptime-ping `/healthz` (xem §7).
 
