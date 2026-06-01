@@ -61,6 +61,16 @@ const GRACE_MS = 180000; // keep a disconnected player's seat for 3 min (reload 
 const RESTORE_GRACE_MS = 300000; // after a server restore, give seats 5 min to reconnect
 const SNAPSHOT_MS = 3000; // how often to snapshot rooms to Redis (when enabled)
 
+// Per-player rate limiters (D-06/D-07 — close rapid-fire DoS vector, SEC-01).
+// RateLimiterMemory is in-process (no Redis dependency — Redis store deferred to Phase 5).
+// Key: socket.data.clientId || socket.id (per-player isolation).
+const { RateLimiterMemory } = require("rate-limiter-flexible");
+const fireLimiter    = new RateLimiterMemory({ points: 2,  duration: 1  }); // 2 shots/s
+const abilityLimiter = new RateLimiterMemory({ points: 1,  duration: 1  }); // 1 ability/s
+const chatLimiter    = new RateLimiterMemory({ points: 5,  duration: 10 }); // 5 messages/10s
+// Consecutive violation threshold before forcibly disconnecting the abusing socket (D-08).
+const RL_ABUSE_THRESHOLD = 10;
+
 // rooms: code -> {
 //   players: { clientId: {sid, ready, occ:Set|null, hits:Set, online, timer} },
 //   order: [clientId, clientId],
@@ -468,6 +478,7 @@ function endGameForfeit(room, loserId, reason) {
 
 function onTurnTimeout(room, who) {
   if (rooms[room.code] !== room) return;            // room đã bị xóa
+  if (room.resolving) return;                       // D-09: shot in flight — skip double-resolution
   if (!room.started || room.turn !== who) return;   // lượt đã chuyển đi rồi
   const p = room.players[who];
   if (!p) return;
@@ -574,7 +585,7 @@ io.on("connection", (socket) => {
     const clientId = (arg && arg.clientId) || socket.id;
     const code = newCode();
     const mode = (arg && arg.mode) === "advance" ? "advance" : "classic";
-    rooms[code] = { code, players: {}, order: [], started: false, turn: null, scores: {}, lastStarter: null, mode, powerups: {}, turnTimer: null, turnDeadline: null };
+    rooms[code] = { code, players: {}, order: [], started: false, turn: null, scores: {}, lastStarter: null, mode, powerups: {}, turnTimer: null, turnDeadline: null, resolving: false };
     rooms[code].players[clientId] = {
       sid: socket.id, ready: false, occ: null, hits: new Set(), online: true, timer: null, inv: newInv(), bonus: 0,
       profile: sanitizeProfile(arg && arg.profile),
@@ -723,13 +734,25 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("fire", ({ r, c, power }, cb) => {
+  socket.on("fire", async ({ r, c, power }, cb) => {
+    // Rate limit: 2 shots/s per player (D-06/D-07, SEC-01)
+    const rlKey = socket.data.clientId || socket.id;
+    try {
+      await fireLimiter.consume(rlKey);
+      socket.data.rlFireHits = 0; // reset on successful consume
+    } catch (e) {
+      socket.data.rlFireHits = (socket.data.rlFireHits || 0) + 1;
+      if (socket.data.rlFireHits >= RL_ABUSE_THRESHOLD) socket.disconnect(true); // D-08: repeated abuse
+      return cb && cb({ ok: false, code: "RATE_LIMITED" });
+    }
     const code = socket.data.code;
     const clientId = socket.data.clientId;
     const room = rooms[code];
     if (!room || !room.started) return cb && cb({ ok: false });
     if (room.turn !== clientId) return cb && cb({ ok: false, code: "NOT_YOUR_TURN" });
     if (!inBounds(r, c)) return cb && cb({ ok: false, code: "BAD_CELL" });
+    // D-09: race guard — prevent simultaneous fire + turn-timeout from both resolving
+    if (room.resolving) return cb && cb({ ok: false, code: "BAD_STATE" });
     const me = room.players[clientId];
     me.inv = me.inv || newInv();
 
@@ -740,12 +763,28 @@ io.on("connection", (socket) => {
     } else {
       power = null;
     }
-    const summary = doShot(room, clientId, expandCells(power, r, c));
+    room.resolving = true;
+    let summary;
+    try {
+      summary = doShot(room, clientId, expandCells(power, r, c));
+    } finally {
+      room.resolving = false;
+    }
     cb && cb(summary);
   });
 
   // Advance abilities that aren't an aimed shot
-  socket.on("useAbility", ({ type, r, c }, cb) => {
+  socket.on("useAbility", async ({ type, r, c }, cb) => {
+    // Rate limit: 1 ability/s per player (D-06/D-07, SEC-01)
+    const rlKey = socket.data.clientId || socket.id;
+    try {
+      await abilityLimiter.consume(rlKey);
+      socket.data.rlAbilityHits = 0; // reset on successful consume
+    } catch (e) {
+      socket.data.rlAbilityHits = (socket.data.rlAbilityHits || 0) + 1;
+      if (socket.data.rlAbilityHits >= RL_ABUSE_THRESHOLD) socket.disconnect(true); // D-08: repeated abuse
+      return cb && cb({ ok: false, code: "RATE_LIMITED" });
+    }
     const code = socket.data.code;
     const clientId = socket.data.clientId;
     const room = rooms[code];
@@ -799,12 +838,20 @@ io.on("connection", (socket) => {
         if (!me.hits.has(k)) cand.push([rr, cc]);
       }
       if (!cand.length) return cb && cb({ ok: false, code: "NO_CELLS" });
+      // D-09: race guard for scatter (also calls doShot)
+      if (room.resolving) return cb && cb({ ok: false, code: "BAD_STATE" });
       me.inv.scatter--;
       const n = Math.min(cand.length, 3 + Math.floor(Math.random() * 3)); // 3..5
       const pick = [];
       for (let i = 0; i < n; i++) pick.push(cand.splice(Math.floor(Math.random() * cand.length), 1)[0]);
       emitInv(room, clientId);
-      const summary = doShot(room, clientId, pick);
+      room.resolving = true;
+      let summary;
+      try {
+        summary = doShot(room, clientId, pick);
+      } finally {
+        room.resolving = false;
+      }
       return cb && cb(Object.assign({ type: "scatter" }, summary));
     }
     cb && cb({ ok: false });
@@ -812,19 +859,28 @@ io.on("connection", (socket) => {
 
   // Relay a chat message to the opponent. Text is trimmed + length-capped, and a
   // light per-player throttle stops a flood. No persistence — chat is ephemeral.
-  socket.on("chat", (arg, cb) => {
+  // Relay a chat message to the opponent. Text is trimmed + length-capped, and a
+  // per-player rate limiter stops a flood (5 per 10s). No persistence — chat is ephemeral.
+  socket.on("chat", async (arg, cb) => {
+    // Rate limit: 5 messages/10s per player (D-06/D-07, SEC-01)
+    const rlKey = socket.data.clientId || socket.id;
+    try {
+      await chatLimiter.consume(rlKey);
+      socket.data.rlChatHits = 0; // reset on successful consume
+    } catch (e) {
+      socket.data.rlChatHits = (socket.data.rlChatHits || 0) + 1;
+      if (socket.data.rlChatHits >= RL_ABUSE_THRESHOLD) socket.disconnect(true); // D-08: repeated abuse
+      return cb && cb({ ok: false, code: "RATE_LIMITED" });
+    }
     const code = socket.data.code;
     const clientId = socket.data.clientId;
     const room = rooms[code];
     if (!room || !room.players[clientId]) return cb && cb({ ok: false });
-    const p = room.players[clientId];
-    const now = Date.now();
-    if (p.lastChat && now - p.lastChat < 400) return cb && cb({ ok: false }); // throttle
-    p.lastChat = now;
     let text = (arg && typeof arg.text === "string") ? arg.text : "";
     text = text.replace(/\s+/g, " ").trim().slice(0, 200);
     if (!text) return cb && cb({ ok: false });
     const opp = opponentOf(room, clientId);
+    const now = Date.now();
     if (opp) emitToClient(room, opp, "chat", { text, ts: now });
     cb && cb({ ok: true });
   });
