@@ -8,9 +8,9 @@
        Canonical domain is https://battleshiponline.xyz (custom domain → Render).
        If it ever changes, replace that string everywhere in this head — and in
        robots.txt, sitemap.xml, .github/workflows/keepalive.yml. -->
-  <title>Sea Battle — Online Battleship | Play vs Friends or Bot</title>
-  <meta name="description" content="Play Sea Battle, free online Battleship. Create a room and share the 5-letter code to play a friend, or battle the bot. Classic and power-up modes, real-time turns, English & Vietnamese." />
-  <meta name="keywords" content="battleship, sea battle, online battleship, play battleship, hải chiến, cờ hải chiến, naval battle game, multiplayer battleship, battleship bot" />
+  <title>Battleship Online — Play Free vs Friend or Bot | Sea Battle</title>
+  <meta name="description" content="Play Battleship online free, no download. Create a room and share the code to play a friend (2 player), or battle the bot. Sea Battle / cờ hải chiến / bắn tàu — desktop & mobile, EN & VI." />
+  <meta name="keywords" content="battleship online, play battleship online free, 2 player battleship, battleship vs computer, multiplayer battleship, sea battle game, naval battle game, bắn tàu, game bắn tàu, cờ hải chiến, cờ hải chiến online, game hải chiến, bắn tàu online" />
   <meta name="author" content="Battleship Online" />
   <meta name="robots" content="index, follow" />
   <meta name="theme-color" content="#07182f" />
@@ -66,6 +66,37 @@
     "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
   }
   </script>
+
+  <!-- FAQ structured data — can show as an FAQ rich result in Google.
+       The same Q&A is rendered visibly below (Google requires that). -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "Is Battleship online free to play?",
+        "acceptedAnswer": { "@type": "Answer", "text": "Yes. Battleship Online (Sea Battle) is 100% free — no download and no sign-up. It runs in your browser on desktop and mobile." }
+      },
+      {
+        "@type": "Question",
+        "name": "Can I play Battleship online with a friend?",
+        "acceptedAnswer": { "@type": "Answer", "text": "Yes. Create a room, share the 5-letter room code, and your friend joins to start a real-time 2-player match." }
+      },
+      {
+        "@type": "Question",
+        "name": "Can I play Battleship against the computer?",
+        "acceptedAnswer": { "@type": "Answer", "text": "Yes. Choose Play vs Bot for a single-player game against the computer — no opponent needed." }
+      },
+      {
+        "@type": "Question",
+        "name": "Cờ hải chiến (bắn tàu) chơi online miễn phí được không?",
+        "acceptedAnswer": { "@type": "Answer", "text": "Được. Game bắn tàu / cờ hải chiến chơi miễn phí ngay trên trình duyệt, không cần tải hay đăng ký. Tạo phòng gửi mã cho bạn, hoặc đấu với máy." }
+      }
+    ]
+  }
+  </script>
 </head>
 <body>
   <!-- Crawlable content for search engines (off-screen via .sr-only; accurate,
@@ -76,17 +107,44 @@
     <p>Chơi cờ hải chiến (Battleship) online miễn phí ngay trên trình duyệt. Tạo phòng, gửi mã 5 ký tự cho bạn bè, bố trí hạm đội và bắn theo lượt — hoặc đấu với máy. Có chế độ cổ điển và chế độ power-up. Chạy trên máy tính lẫn điện thoại, song ngữ Anh/Việt.</p>
   </header>
   <div id="root"></div>
-  <noscript>
-    <section style="max-width:680px;margin:40px auto;padding:0 20px;color:#dbe7f3;font-family:system-ui,sans-serif;line-height:1.6">
-      <h1>Sea Battle — Online Battleship</h1>
-      <p>Sea Battle is a free, real-time online Battleship game you play in the browser. Create a room, share the 5-letter room code with a friend, place your fleet on the 11×11 grid, and take turns firing until one fleet is sunk. Prefer to play solo? Take on the bot. Two modes: <strong>Classic</strong> (pure Battleship) and <strong>Advance</strong> (collect and use power-ups).</p>
-      <h2>How to play</h2>
-      <p>Each turn has a countdown timer. A hit lets you fire again; a miss passes the turn. Sink all five enemy ships (Carrier, Battleship, Cruiser, Submarine, Destroyer) to win.</p>
-      <h2>Hải chiến online</h2>
-      <p>Trò chơi cờ hải chiến thời gian thực, miễn phí, chơi ngay trên trình duyệt. Tạo phòng và chia sẻ mã phòng cho bạn bè, hoặc đấu với máy. Hỗ trợ máy tính và điện thoại.</p>
-      <p><strong>This game needs JavaScript enabled to play.</strong> / <strong>Trò chơi cần bật JavaScript để chơi.</strong></p>
+
+  <!-- Visible SEO content below the game. Real, accurate, keyword-natural —
+       gives Google crawlable text (the game itself is an interactive SPA) and
+       backs the FAQ rich result above. Bilingual EN/VI. -->
+  <footer class="seo">
+    <section>
+      <h2>Play Battleship Online — Free, in Your Browser</h2>
+      <p>Battleship Online (also called Sea Battle, or <em>cờ hải chiến</em> / <em>bắn tàu</em> in Vietnamese) is a free online version of the classic naval guessing game. Play 2-player with a friend using a room code, or play single-player against the computer bot. No download, no sign-up — it works on desktop and mobile.</p>
+
+      <h3>How to play Battleship</h3>
+      <ul>
+        <li>Place your fleet of 5 ships on the 11×11 grid — drag to move, double-tap to rotate, or shuffle randomly.</li>
+        <li>Take turns firing at the enemy waters. A hit lets you fire again; a miss passes the turn.</li>
+        <li>Each turn has a 20-second timer — stall too long and you forfeit.</li>
+        <li>Sink all five enemy ships (Carrier, Battleship, Cruiser, Submarine, Destroyer) to win.</li>
+      </ul>
+
+      <h3>Game modes</h3>
+      <p><strong>Classic</strong> — pure Battleship, no extras. <strong>Advance</strong> — power-ups appear on the enemy sea; hit them to collect, then use them on your turn (scatter blast, cross missile, extra turn, reveal, sea mine).</p>
+
+      <h2>Chơi cờ hải chiến / bắn tàu online miễn phí</h2>
+      <p>Game <strong>bắn tàu</strong> (cờ hải chiến) online thời gian thực, miễn phí, chơi ngay trên trình duyệt — không cần tải, không cần đăng ký. Tạo phòng và gửi mã 5 ký tự cho bạn bè để đấu 2 người, hoặc chơi với máy. Hỗ trợ cả máy tính lẫn điện thoại, giao diện song ngữ Anh/Việt.</p>
+
+      <h3>Frequently asked questions</h3>
+      <dl>
+        <dt>Is Battleship online free to play?</dt>
+        <dd>Yes. Battleship Online (Sea Battle) is 100% free — no download and no sign-up. It runs in your browser on desktop and mobile.</dd>
+        <dt>Can I play Battleship online with a friend?</dt>
+        <dd>Yes. Create a room, share the 5-letter room code, and your friend joins to start a real-time 2-player match.</dd>
+        <dt>Can I play Battleship against the computer?</dt>
+        <dd>Yes. Choose Play vs Bot for a single-player game against the computer — no opponent needed.</dd>
+        <dt>Cờ hải chiến (bắn tàu) chơi online miễn phí được không?</dt>
+        <dd>Được. Game bắn tàu / cờ hải chiến chơi miễn phí ngay trên trình duyệt, không cần tải hay đăng ký. Tạo phòng gửi mã cho bạn, hoặc đấu với máy.</dd>
+      </dl>
     </section>
-  </noscript>
+  </footer>
+
+  <noscript><p style="text-align:center;color:#dbe7f3;font-family:system-ui,sans-serif;padding:20px">This game needs JavaScript enabled to play. / Trò chơi cần bật JavaScript để chơi.</p></noscript>
   <script src="app.js"></script>
 </body>
 </html>
