@@ -511,3 +511,6 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 .help-pw-i { font-size:22px; line-height:1.2; flex:none; }
 .help-pw b { display:block; font-size:14px; color:#fff; }
 .help-pw span { font-size:13px; color:#aebfd0; }
+
+/* Crawlable heading/intro for search engines + screen readers (off-screen, not display:none). */
+.sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0; }

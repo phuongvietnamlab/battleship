@@ -12,8 +12,7 @@ const ROWS = ["A","B","C","D","E","F","G","H","I","J","K"];
 // t(key, params) interpolates {name} placeholders. Missing keys fall back to en.
 function detectLocale() {
   let loc = "";
-  try { if (typeof FBInstant !== "undefined" && FBInstant.getLocale) loc = FBInstant.getLocale() || ""; } catch (e) {}
-  if (!loc) { try { loc = navigator.language || ""; } catch (e) {} }
+  try { loc = navigator.language || ""; } catch (e) {}
   return /^vi/i.test(loc) ? "vi" : "en";
 }
 const LANG = detectLocale();
@@ -170,11 +169,11 @@ const FLEET_DEF = [
   { id: "destroyer", name: shipName("destroyer"), size: 2 },
 ];
 
-// Same-origin when SERVER_URL is empty (local dev served by this server);
-// absolute wss:// when bundled for Facebook Instant Games (client hosted by FB).
+// Same-origin when SERVER_URL is empty (server serves the client too); an
+// absolute wss:// can be injected at build time to point at a remote server.
 const SOCKET_URL = process.env.SERVER_URL || undefined;
-// autoConnect:false — we connect only after the boot chain finalizes clientId
-// (so the very first "resume" uses the stable FB player id).
+// autoConnect:false — connect only after the App effect attaches its listeners,
+// so the first "resume" isn't missed by a fast connect event.
 const socket = io(SOCKET_URL, { autoConnect: false });
 
 // ---------- âm thanh (Web Audio, không cần file) ----------
@@ -230,11 +229,8 @@ const Sound = (function () {
 })();
 
 // Persistent client identity so reconnects keep our seat. Resolution order:
-//   1. FBInstant.player.getID() — stable across app restarts even when the
-//      Instant Games iframe wipes localStorage; set later in the boot chain.
-//   2. localStorage random id — survives reloads when storage works.
-//   3. fresh random id — last resort (no persistence; rely on manual code).
-// `let` so the boot chain can upgrade it to the FB player id before connecting.
+//   1. localStorage random id — survives reloads when storage works.
+//   2. fresh random id — last resort (no persistence; rely on manual code).
 let clientId = (function () {
   try {
     let id = localStorage.getItem("bs_clientId");
@@ -244,92 +240,8 @@ let clientId = (function () {
 })();
 function saveRoom(c) { try { c ? localStorage.setItem("bs_room", c) : localStorage.removeItem("bs_room"); } catch (e) {} }
 function loadRoom() { try { return localStorage.getItem("bs_room"); } catch (e) { return null; } }
-
-// FB context id (the Messenger thread). Allowed under Zero Permissions and
-// stable + shared between two players launching from the same thread, so the
-// server can find/rejoin a room by it even when player id is null and the
-// mobile FB webview wiped localStorage. null outside FB / solo launch.
-function fbContextId() {
-  try {
-    if (typeof FBInstant !== "undefined" && FBInstant.context && FBInstant.context.getID) {
-      return FBInstant.context.getID() || null;
-    }
-  } catch (e) {}
-  return null;
-}
-
-// ---------- FB profile (auto-login: Instant Games authenticates the player for
-// us — getName/getPhoto need no extra permission, available after startGameAsync).
-let fbProfile = { name: null, photo: null };
-function captureFbProfile() {
-  try {
-    if (typeof FBInstant !== "undefined" && FBInstant.player) {
-      if (FBInstant.player.getName) fbProfile.name = FBInstant.player.getName() || fbProfile.name;
-      if (FBInstant.player.getPhoto) fbProfile.photo = FBInstant.player.getPhoto() || fbProfile.photo;
-    }
-  } catch (e) {}
-  return fbProfile;
-}
-
-// ---------- Mời qua Messenger (FBInstant.shareAsync) ----------
-// Only meaningful inside FB Instant Games; the receiving side already auto-joins
-// from getEntryPointData().roomCode on connect, so we just need to send.
-function canShare() {
-  return typeof FBInstant !== "undefined" && !!FBInstant.shareAsync;
-}
-// shareAsync requires a base64 image — draw a small branded card with the room
-// code so the Messenger preview is informative (and a touch viral).
-function makeShareImage(code) {
-  try {
-    const c = document.createElement("canvas");
-    c.width = 480; c.height = 480;
-    const x = c.getContext("2d");
-    x.fillStyle = "#07182f"; x.fillRect(0, 0, 480, 480);
-    x.textAlign = "center";
-    x.fillStyle = "#6fc3f3"; x.font = "bold 120px Georgia, serif";
-    x.fillText("⚓", 240, 170);
-    x.fillStyle = "#f0c14b"; x.font = "bold 52px Georgia, serif";
-    x.fillText(t("share.imgTitle"), 240, 260);
-    x.fillStyle = "#cfe0f0"; x.font = "30px Georgia, serif";
-    x.fillText(t("share.imgCode"), 240, 330);
-    x.fillStyle = "#7ff0aa"; x.font = "bold 76px monospace";
-    x.fillText(code, 240, 410);
-    return c.toDataURL("image/png");
-  } catch (e) { return null; }
-}
-function shareRoom(code) {
-  if (!canShare()) return Promise.resolve(false);
-  const image = makeShareImage(code);
-  if (!image) return Promise.resolve(false);
-  try {
-    return FBInstant.shareAsync({
-      intent: "INVITE",
-      image,
-      text: t("share.text", { code }),
-      data: { roomCode: code },
-    }).then(() => true).catch(() => false);
-  } catch (e) { return Promise.resolve(false); }
-}
-
-// FB Cloud Save (player.setDataAsync/getDataAsync). Player-scoped, persists on
-// FB's servers across app restarts, and does NOT require player.getID. This is
-// the only durable anchor when the mobile webview wipes localStorage and both
-// player id + context id are null. cloudReady flips true once a read/write works.
-let cloudReady = false;
-function fbHasCloud() {
-  try { return typeof FBInstant !== "undefined" && FBInstant.player && FBInstant.player.setDataAsync && FBInstant.player.getDataAsync; }
-  catch (e) { return false; }
-}
-function cloudSet(obj) {
-  if (!fbHasCloud()) return Promise.resolve(false);
-  try { return FBInstant.player.setDataAsync(obj).then(() => { cloudReady = true; return true; }).catch(() => false); }
-  catch (e) { return Promise.resolve(false); }
-}
-// Persist current room everywhere we can: localStorage (fast) + FB cloud (durable).
-function persistRoom(code) {
-  saveRoom(code);
-  cloudSet({ bs_room: code || "" });
-}
+// Persist the current room code in localStorage so a reload can auto-rejoin.
+function persistRoom(code) { saveRoom(code); }
 
 
 // App-like: block iOS pinch-zoom (Safari/WKWebView ignore user-scalable=no for
@@ -886,7 +798,6 @@ function App() {
   const [log, setLog] = useState([]);
   const [over, setOver] = useState(null); // {win}
   const [copied, setCopied] = useState(false);
-  const [sharing, setSharing] = useState(false); // đang mở hộp thoại share Messenger
   const [sunkOpp, setSunkOpp] = useState(0);   // địch bị ta đánh chìm
   const [sunkMine, setSunkMine] = useState(0); // thuyền của ta bị chìm
   const [mode, setMode] = useState("classic"); // classic | advance
@@ -906,7 +817,7 @@ function App() {
   const [oppOffline, setOppOffline] = useState(false); // đối thủ tạm mất kết nối
   const [graceLeft, setGraceLeft] = useState(0);        // đếm ngược giây chờ kết nối lại
   const [confirmLeave, setConfirmLeave] = useState(false); // hỏi xác nhận trước khi rời
-  const [profile, setProfile] = useState({ name: fbProfile.name, photo: fbProfile.photo });
+  const [profile, setProfile] = useState({ name: null, photo: null });
   const [helpOpen, setHelpOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [myBubble, setMyBubble] = useState(null);   // {id, text} — speech bubble over my avatar
@@ -922,7 +833,6 @@ function App() {
   const botShotsRef = useRef(new Set());       // ô máy đã bắn
   const botQueueRef = useRef([]);              // hàng đợi ô mục tiêu của máy
   const myShotsRef = useRef(new Set());         // ô ta đã bắn (đồng bộ tức thời cho bot)
-  const joinedInviteRef = useRef(false);        // chỉ auto-join từ lời mời FB 1 lần
 
   const addLog = useCallback((s) => setLog((l) => [s, ...l].slice(0, 40)), []);
   const showNotice = useCallback((s) => { setNotice(s); setTimeout(() => setNotice((n) => (n === s ? null : n)), 4000); }, []);
@@ -979,19 +889,13 @@ function App() {
     // on (re)connect, try to resume any in-progress game automatically.
     socket.on("connect", () => {
       // 1) Ask the server if our clientId already holds a seat in any room.
-      //    This needs NO locally-stored code, so it works even when the IG
-      //    iframe wiped localStorage — as long as clientId is the stable FB id.
-      const ctx = fbContextId();
-      socket.emit("resume", { clientId, contextId: ctx }, (res) => {
+      //    Needs no locally-stored code, so it resumes even if the room code
+      //    was lost — as long as clientId survived in localStorage.
+      socket.emit("resume", { clientId }, (res) => {
         if (res && res.ok) { setCode(res.code); persistRoom(res.code); return; }
-        // 2) Fallback: rejoin a room code we stored locally (storage available).
+        // 2) Fallback: rejoin a room code we stored locally.
         const r = loadRoom();
-        if (r) { socket.emit("rejoin", { code: r, clientId }, (rr) => { if (!rr || !rr.ok) persistRoom(null); }); return; }
-        // 3) Invite deep-link: auto-join from Messenger entry-point data.
-        if (!joinedInviteRef.current && typeof FBInstant !== "undefined" && FBInstant.getEntryPointData) {
-          let d = null; try { d = FBInstant.getEntryPointData(); } catch (e) {}
-          if (d && d.roomCode) { joinedInviteRef.current = true; joinRoom(d.roomCode); }
-        }
+        if (r) { socket.emit("rejoin", { code: r, clientId }, (rr) => { if (!rr || !rr.ok) persistRoom(null); }); }
       });
     });
     socket.on("gameStart", ({ yourTurn, mode: m }) => {
@@ -1051,7 +955,7 @@ function App() {
     // connected (hot remount), run resume immediately instead.
     if (!socket.connected) socket.connect();
     else if (socket.connected) {
-      socket.emit("resume", { clientId, contextId: fbContextId() }, (res) => {
+      socket.emit("resume", { clientId }, (res) => {
         if (res && res.ok) { setCode(res.code); persistRoom(res.code); return; }
         const r = loadRoom();
         if (r) socket.emit("rejoin", { code: r, clientId }, (rr) => { if (!rr || !rr.ok) persistRoom(null); });
@@ -1060,47 +964,17 @@ function App() {
     return () => socket.off();
   }, [addLog]);
 
-  // Re-attempt resume shortly after mount in case the durable FB identity (ASID)
-  // resolves after the fallback boot already connected the socket. Harmless if a
-  // resume already succeeded (server just re-syncs).
-  useEffect(() => {
-    const t = setTimeout(() => {
-      if (socket.connected && clientId.indexOf("fb_") === 0) {
-        socket.emit("resume", { clientId, contextId: fbContextId() });
-      }
-    }, 3500);
-    return () => clearTimeout(t);
-  }, []);
-
-  // Pick up the FB name/avatar. getName/getPhoto may resolve late (after the
-  // fallback boot rendered), so poll every 1s for ~8s, stopping once we have it.
-  useEffect(() => {
-    let n = 0, iv = null;
-    const grab = () => {
-      captureFbProfile();
-      setProfile({ name: fbProfile.name, photo: fbProfile.photo });
-      if (fbProfile.name || fbProfile.photo || ++n >= 8) { if (iv) clearInterval(iv); }
-    };
-    grab();
-    iv = setInterval(grab, 1000);
-    return () => { if (iv) clearInterval(iv); };
-  }, []);
-
-  function myProfilePayload() {
-    captureFbProfile();
-    return (fbProfile.name || fbProfile.photo) ? { name: fbProfile.name, photo: fbProfile.photo } : null;
-  }
   function createRoom(mode) {
     setError(null);
     setMyScore(0); setOppScore(0); setOppProfile(null); // phòng mới: tỉ số về 0-0
     setVsBot(false); setMode(mode === "advance" ? "advance" : "classic");
-    socket.emit("createRoom", { clientId, mode, contextId: fbContextId(), profile: myProfilePayload() }, (res) => {
+    socket.emit("createRoom", { clientId, mode }, (res) => {
       if (res.ok) { setCode(res.code); persistRoom(res.code); setScreen("room"); }
     });
   }
   function joinRoom(c) {
     setError(null);
-    socket.emit("joinRoom", { code: c, clientId, contextId: fbContextId(), profile: myProfilePayload() }, (res) => {
+    socket.emit("joinRoom", { code: c, clientId }, (res) => {
       if (!res.ok) { setError(errText(res)); return; }
       setCode(res.code); persistRoom(res.code);
       // reclaimed = took over a seat in an in-progress game (reconnect by code);
@@ -1344,14 +1218,6 @@ function App() {
     setChatOpen(false); // tự đóng ô soạn sau khi gửi
     try { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); } catch (e) {}
   }
-  function inviteMessenger() {
-    if (!code || sharing) return;
-    setSharing(true);
-    shareRoom(code).then((ok) => {
-      setSharing(false);
-      if (!ok) showNotice(t("notice.shareFail"));
-    });
-  }
 
   return (
     <div className="app">
@@ -1402,11 +1268,6 @@ function App() {
             </div>
           </div>
           <p className="sub copy-hint" style={{textAlign:"center",marginBottom:14}}>{copied ? t("common.copied") : t("common.tapToCopy")}</p>
-          {canShare() && (
-            <button className="btn primary" style={{width:"100%",marginBottom:12}} onClick={inviteMessenger} disabled={sharing}>
-              {sharing ? t("share.opening") : t("share.invite")}
-            </button>
-          )}
           <p className="sub" style={{textAlign:"center",marginBottom:16}}>{t("room.shareHint")}</p>
           {!oppPresent
             ? <div className="status-pill pill-wait" style={{textAlign:"center"}}>{t("room.waiting")}</div>
@@ -1434,11 +1295,6 @@ function App() {
             <div className={"status-pill " + (vsBot ? "pill-ready" : (oppReady ? "pill-ready" : "pill-wait"))}>
               {vsBot ? t("place.botReady") : (oppPresent ? (oppReady ? t("place.oppReady") : t("place.oppPlacing")) : t("place.waitOpp"))}
             </div>
-            {!vsBot && !oppPresent && canShare() && (
-              <button className="btn steel" style={{marginTop:8}} onClick={inviteMessenger} disabled={sharing}>
-                {sharing ? t("share.openingShort") : t("share.inviteShort")}
-              </button>
-            )}
           </div>
           <Placement onConfirm={confirmPlacement} ready={iReady} waiting={iReady && !oppReady} />
         </div>
@@ -1511,69 +1367,4 @@ function boot() {
   ReactDOM.createRoot(document.getElementById("root")).render(<App />);
 }
 
-// Prefer the FB player id as our identity: it is stable across app restarts
-// even when the Instant Games iframe wipes localStorage, which is what makes
-// auto-resume work without the player re-typing the room code.
-// Try the FB player id (legacy) as a durable identity. Often null under current
-// Instant Games; getASIDAsync (below) is the preferred source.
-function adoptFbIdentity() {
-  try {
-    if (typeof FBInstant !== "undefined" && FBInstant.player && FBInstant.player.getID) {
-      const pid = FBInstant.player.getID();
-      if (pid) { clientId = "fb_" + pid; try { localStorage.setItem("bs_clientId", clientId); } catch (e) {} }
-    }
-  } catch (e) {}
-}
-
-// Resolve the most durable identity available, then boot. Priority:
-//   1. App-Scoped ID (player.getASIDAsync) — stable per (player, app), survives
-//      app restarts. Becomes available once the app is provisioned / live.
-//   2. signed ASID, 3. legacy player id, 4. localStorage/random clientId.
-// Every FB call is best-effort: if the platform returns null/UNKNOWN (e.g. an
-// unprovisioned dev build) we silently fall back so the game still works, and
-// resume just relies on localStorage + manual room code instead.
-async function resolveIdentityAndBoot() {
-  const p = (typeof FBInstant !== "undefined" && FBInstant.player) ? FBInstant.player : null;
-  try {
-    if (p && typeof p.getASIDAsync === "function") {
-      const asid = await p.getASIDAsync();
-      if (asid) { clientId = "fb_" + asid; try { localStorage.setItem("bs_clientId", clientId); } catch (e) {} }
-      else adoptFbIdentity();
-    } else if (p && typeof p.getSignedASIDAsync === "function") {
-      const s = await p.getSignedASIDAsync();
-      const asid = s && (s.getASID ? s.getASID() : s.asid);
-      if (asid) { clientId = "fb_" + asid; try { localStorage.setItem("bs_clientId", clientId); } catch (e) {} }
-      else adoptFbIdentity();
-    } else { adoptFbIdentity(); }
-  } catch (e) { adoptFbIdentity(); }
-  captureFbProfile(); // name + avatar for the top-right profile chip
-  // Durable room pointer via cloud save (best-effort).
-  try {
-    if (fbHasCloud()) {
-      const d = await FBInstant.player.getDataAsync(["bs_room"]);
-      cloudReady = true;
-      if (d && d.bs_room) saveRoom(d.bs_room);
-    }
-  } catch (e) {}
-  boot();
-}
-
-// Facebook Instant Games lifecycle: must finish startGameAsync before showing
-// the game. On the real platform the chain resolves fast -> boot via the chain.
-// Outside FB (local dev / web preview) initializeAsync can hang, so a fallback
-// timer boots anyway after 4s.
-if (typeof FBInstant !== "undefined") {
-  FBInstant.initializeAsync()
-    .then(() => {
-      FBInstant.setLoadingProgress(100);
-      return FBInstant.startGameAsync();
-    })
-    .then(resolveIdentityAndBoot)
-    .catch((e) => {
-      console.error("FBInstant boot failed, booting anyway:", e);
-      boot();
-    });
-  setTimeout(boot, 4000); // fallback if initializeAsync hangs (e.g. dev preview)
-} else {
-  boot();
-}
+boot();

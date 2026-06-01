@@ -1,9 +1,9 @@
-// Builds the real game into dist/ as a self-contained Instant Games bundle.
+// Builds the web game into dist/ as a self-contained bundle.
 // No CDN: React + socket.io-client + app are bundled into app.js. SERVER_URL is
-// injected at build time (empty = same-origin for local dev; absolute wss:// for FB).
+// injected at build time (empty = same-origin; absolute wss:// for a remote server).
 //
-//   npm run build:game                                          # → same-origin (local preview)
-//   SERVER_URL=https://battleship.onrender.com npm run build:game   # → wss to Render, for FB upload
+//   npm run build:game                                              # → same-origin
+//   SERVER_URL=https://battleship.onrender.com npm run build:game   # → wss to a remote server
 import * as esbuild from "esbuild";
 import { mkdirSync, copyFileSync } from "fs";
 
@@ -25,7 +25,5 @@ await esbuild.build({
 
 copyFileSync("public/index.html", `${OUT}/index.html`);
 copyFileSync("public/style.css", `${OUT}/style.css`);
-copyFileSync("public/fbapp-config.json", `${OUT}/fbapp-config.json`);
 
 console.log(`Game built → ${OUT}/  (SERVER_URL=${SERVER_URL || "(same-origin)"})`);
-console.log("FB upload: zip the CONTENTS of dist/ (index.html must be at the ZIP top level).");

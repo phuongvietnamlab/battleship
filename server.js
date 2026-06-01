@@ -11,18 +11,32 @@ const store = require("./store"); // optional Redis snapshot; no-op without REDI
 
 const app = express();
 const server = http.createServer(app);
-// CORS: the Instant Games bundle is served from a dynamic Facebook subdomain
-// (e.g. shield-apps-<appid>.apps.fbsbx.com), so the WebSocket Origin is cross-origin
-// and NOT a fixed host. Match the fbsbx + facebook domains by regex; allow localhost.
+// CORS: the client is served same-origin in production, so a fixed allowlist is
+// enough. SITE_ORIGIN lets a separately-hosted front-end connect; localhost for
+// local dev. Empty SITE_ORIGIN falls back to same-origin only.
+const SITE_ORIGIN = process.env.SITE_ORIGIN;
 const io = new Server(server, {
   cors: {
     origin: [
-      /\.fbsbx\.com$/, // Instant Games bundle subdomains (shield-apps-*.apps.fbsbx.com)
-      /(^|\.)facebook\.com$/, // www / m / fb wrappers
       "http://localhost:4000",
+      ...(SITE_ORIGIN ? [SITE_ORIGIN] : []),
     ],
     methods: ["GET", "POST"],
   },
+});
+
+// Canonical host: when CANONICAL_HOST is set (e.g. "battleshiponline.xyz"),
+// 301-redirect the Render *.onrender.com host to it so Google indexes a single
+// URL (avoids duplicate-content between onrender.com and the custom domain).
+// Opt-in + scoped to onrender hosts, so localhost and the custom domain are
+// untouched. /healthz is exempt so uptime pings still hit any host directly.
+const CANONICAL_HOST = process.env.CANONICAL_HOST;
+app.use((req, res, next) => {
+  const host = req.headers.host;
+  if (CANONICAL_HOST && host && host !== CANONICAL_HOST && /\.onrender\.com$/i.test(host) && req.path !== "/healthz") {
+    return res.redirect(301, "https://" + CANONICAL_HOST + req.originalUrl);
+  }
+  next();
 });
 
 // Liveness probe for Render/uptime monitors: cheap, no room scan, always 200.
@@ -36,15 +50,13 @@ app.get("/metrics", (req, res) => res.json(computeStats()));
 // public/ for any unbuilt asset.
 app.use(express.static(path.join(__dirname, "dist")));
 app.use(express.static(path.join(__dirname, "public")));
-// Built T0 spike (run `npm run build:spike` first) at /spike/
-app.use("/spike", express.static(path.join(__dirname, "dist-spike")));
 
 const PORT = process.env.PORT || 4000;
 
 // Game config
 const BOARD = 11;
 const FLEET = [5, 4, 3, 3, 2];
-const GRACE_MS = 180000; // keep a disconnected player's seat for 3 min (app restart + cloud read)
+const GRACE_MS = 180000; // keep a disconnected player's seat for 3 min (reload / brief network drop)
 const RESTORE_GRACE_MS = 300000; // after a server restore, give seats 5 min to reconnect
 const SNAPSHOT_MS = 3000; // how often to snapshot rooms to Redis (when enabled)
 
@@ -193,7 +205,6 @@ function serializeRooms() {
       mode: r.mode || "classic",
       powerups: r.powerups || {},
       mines,
-      contextIds: r.contextIds || [],
       players,
     };
   }
@@ -239,7 +250,6 @@ function restoreRooms(snap) {
       mode: s.mode || "classic",
       powerups: s.powerups || {},
       mines,
-      contextIds: s.contextIds || [],
       turnTimer: null,
       turnDeadline: null,
     };
@@ -554,37 +564,16 @@ function reclaimSeat(room, code, seatId, newClientId, socket) {
   return true;
 }
 
-// Remember a context id (Messenger thread) seen for this room, so a returning
-// player from the same thread can be matched back to it.
-function rememberContext(room, contextId) {
-  if (!contextId) return;
-  room.contextIds = room.contextIds || [];
-  if (!room.contextIds.includes(contextId)) room.contextIds.push(contextId);
-}
-
 io.on("connection", (socket) => {
   socket.data.code = null;
   socket.data.clientId = null;
-
-  // T0 spike probe: confirms WSS reachability + echoes the FBInstant identity the
-  // client saw. Remove once the spike has been verified on real devices.
-  socket.on("spikePing", (arg, cb) => {
-    cb && cb({
-      pong: true,
-      serverTime: Date.now(),
-      sawPlayerId: arg && arg.playerId,
-      sawContextId: arg && arg.contextId,
-      transport: socket.conn.transport.name,
-    });
-  });
 
   socket.on("createRoom", (arg, cb) => {
     if (typeof arg === "function") { cb = arg; arg = {}; }
     const clientId = (arg && arg.clientId) || socket.id;
     const code = newCode();
     const mode = (arg && arg.mode) === "advance" ? "advance" : "classic";
-    rooms[code] = { code, players: {}, order: [], started: false, turn: null, scores: {}, lastStarter: null, mode, powerups: {}, contextIds: [], turnTimer: null, turnDeadline: null };
-    rememberContext(rooms[code], arg && arg.contextId);
+    rooms[code] = { code, players: {}, order: [], started: false, turn: null, scores: {}, lastStarter: null, mode, powerups: {}, turnTimer: null, turnDeadline: null };
     rooms[code].players[clientId] = {
       sid: socket.id, ready: false, occ: null, hits: new Set(), online: true, timer: null, inv: newInv(), bonus: 0,
       profile: sanitizeProfile(arg && arg.profile),
@@ -604,7 +593,6 @@ io.on("connection", (socket) => {
     code = (code || "").toUpperCase().trim();
     const room = rooms[code];
     if (!room) return cb && cb({ ok: false, code: "ROOM_NOT_FOUND" });
-    rememberContext(room, arg && arg.contextId);
     // allow rejoin of own seat
     if (room.players[clientId]) {
       const p = room.players[clientId];
@@ -621,11 +609,11 @@ io.on("connection", (socket) => {
       emitToClient(room, clientId, "sync", syncPayload(room, code, clientId));
       return;
     }
-    // Reclaim a disconnected (offline) seat by code. The Instant Games iframe
-    // can block localStorage, so a returning player's clientId may differ from
-    // the one they left with; matching by clientId then fails. Letting them take
-    // over the offline seat just by re-entering the room code makes reconnect
-    // work regardless. (Hijack risk during the 60s grace is acceptable here.)
+    // Reclaim a disconnected (offline) seat by code. If a returning player's
+    // clientId differs from the one they left with (e.g. localStorage cleared),
+    // matching by clientId fails. Letting them take over the offline seat just by
+    // re-entering the room code makes reconnect work regardless. (Hijack risk
+    // during the grace window is acceptable here.)
     if (room.order.length >= 2) {
       const offlineId = room.order.find((id) => room.players[id] && !room.players[id].online);
       if (offlineId) {
@@ -655,33 +643,17 @@ io.on("connection", (socket) => {
   });
 
   // Resume without a room code: find any room that already holds this clientId
-  // (online or in its disconnect-grace window) and reattach. This is what lets a
-  // player who killed and reopened the app land straight back in their game,
-  // even when the Instant Games iframe wiped the locally-stored room code —
-  // as long as clientId is the stable FB player id.
+  // (online or in its disconnect-grace window) and reattach. Lets a player who
+  // reloaded or reopened the tab land straight back in their game, as long as
+  // their clientId survived in localStorage.
   socket.on("resume", (arg, cb) => {
     const clientId = arg && arg.clientId;
-    const contextId = arg && arg.contextId;
-    // 1) Exact clientId seat — works when the id (localStorage) survived.
+    // Exact clientId seat — works when the id (localStorage) survived.
     if (clientId) {
       for (const code in rooms) {
         if (rooms[code].players && rooms[code].players[clientId]) {
           reclaimSeat(rooms[code], code, clientId, clientId, socket);
           return cb && cb({ ok: true, code });
-        }
-      }
-    }
-    // 2) Same Messenger thread — reclaim an offline seat in a room tagged with
-    //    this context id. This is the path that survives a wiped webview + null
-    //    player id, as long as both players launched from the same thread.
-    if (contextId) {
-      for (const code in rooms) {
-        const room = rooms[code];
-        if (!room.contextIds || !room.contextIds.includes(contextId)) continue;
-        const offlineId = room.order.find((id) => room.players[id] && !room.players[id].online);
-        if (offlineId) {
-          reclaimSeat(room, code, offlineId, clientId || offlineId, socket);
-          return cb && cb({ ok: true, code, reclaimed: true });
         }
       }
     }
