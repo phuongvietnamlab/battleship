@@ -13,7 +13,7 @@ This milestone evolves Battleship Online from an invite-only game into a competi
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Foundation** - Postgres persistence layer + security hardening prerequisites
+- [x] **Phase 1: Foundation** - Postgres persistence layer + security hardening prerequisites (completed 2026-06-01)
 - [ ] **Phase 2: Accounts & Identity** - Google OAuth, guest-to-account linking, player profiles
 - [ ] **Phase 3: Match Recording** - Durable match records + explicit forfeit handling
 - [ ] **Phase 4: Ranked Mode & Leaderboard** - Glicko-2 ratings, ranked queue gating, global leaderboard
@@ -46,7 +46,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 01-03-PLAN.md — doShot null guard, abandoned-room cleanup sweep, profile/chat sanitization + CSP (SEC-02, SEC-03, SEC-04)
+- [x] 01-03-PLAN.md — doShot null guard, abandoned-room cleanup sweep, profile/chat sanitization + CSP (SEC-02, SEC-03, SEC-04)
 
 ### Phase 2: Accounts & Identity
 
@@ -131,7 +131,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 1/3 | In Progress|  |
+| 1. Foundation | 3/3 | Complete   | 2026-06-01 |
 | 2. Accounts & Identity | 0/TBD | Not started | - |
 | 3. Match Recording | 0/TBD | Not started | - |
 | 4. Ranked Mode & Leaderboard | 0/TBD | Not started | - |

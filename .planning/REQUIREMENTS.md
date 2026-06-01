@@ -15,9 +15,9 @@ The competitive core: durable persistence, accounts, ranked play, and public mat
 ### Security Hardening (SEC)
 
 - [x] **SEC-01**: Server rate-limits `fire` and `useAbility` socket events per player
-- [ ] **SEC-02**: `doShot()` guards against null/malformed opponent state without crashing the handler
-- [ ] **SEC-03**: Abandoned rooms are cleaned from the in-memory room map (bounded memory)
-- [ ] **SEC-04**: Server validates user-supplied profile and chat input server-side
+- [x] **SEC-02**: `doShot()` guards against null/malformed opponent state without crashing the handler
+- [x] **SEC-03**: Abandoned rooms are cleaned from the in-memory room map (bounded memory)
+- [x] **SEC-04**: Server validates user-supplied profile and chat input server-side
 - [ ] **SEC-05**: OAuth callback validates a random `state` parameter and regenerates the session after login
 
 ### Accounts & Identity (AUTH)
@@ -103,9 +103,9 @@ Which phases cover which requirements. Populated during roadmap creation.
 | DATA-01 | Phase 1 — Foundation | Complete |
 | DATA-02 | Phase 1 — Foundation | Complete |
 | SEC-01 | Phase 1 — Foundation | Complete |
-| SEC-02 | Phase 1 — Foundation | Pending |
-| SEC-03 | Phase 1 — Foundation | Pending |
-| SEC-04 | Phase 1 — Foundation | Pending |
+| SEC-02 | Phase 1 — Foundation | Complete |
+| SEC-03 | Phase 1 — Foundation | Complete |
+| SEC-04 | Phase 1 — Foundation | Complete |
 | SEC-05 | Phase 2 — Accounts & Identity | Pending |
 | AUTH-01 | Phase 2 — Accounts & Identity | Pending |
 | AUTH-02 | Phase 2 — Accounts & Identity | Pending |
