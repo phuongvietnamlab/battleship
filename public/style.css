@@ -501,8 +501,9 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 }
 .chat-head { display:flex; align-items:center; justify-content:space-between; padding:10px 14px; border-bottom:1px solid var(--panel-brd); }
 .chat-emojis { display:flex; gap:4px; padding:8px 10px; flex-wrap:wrap; }
-.chat-emoji { background:rgba(255,255,255,.06); border:none; border-radius:8px; font-size:20px; padding:4px 8px; cursor:pointer; }
-.chat-emoji:active { background:rgba(255,255,255,.18); }
+.chat-emoji { background:rgba(255,255,255,.06); border:none; border-radius:8px; font-size:21px; padding:4px 8px; cursor:pointer; transition: transform .12s cubic-bezier(.34,1.6,.45,1), background .15s; }
+.chat-emoji:hover { background:rgba(255,255,255,.14); transform: scale(1.25) rotate(-4deg); }
+.chat-emoji:active { background:rgba(255,255,255,.22); transform: scale(.9); }
 .chat-input { display:flex; gap:8px; padding:10px; border-top:1px solid var(--panel-brd); }
 .chat-input input {
   flex:1; background:rgba(0,0,0,.25); border:1px solid var(--panel-brd); border-radius:10px;
@@ -525,6 +526,10 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 }
 .chat-bubble.opp { background:#dff1ff; }
 .chat-bubble.opp::after { border-top-color:#dff1ff; }
+/* emoji-only taunt/praise: big floating emoji, no pill, extra-bouncy pop */
+.chat-bubble.emoji { background:transparent; box-shadow:none; font-size:42px; padding:0 2px; filter:drop-shadow(0 4px 8px rgba(0,0,0,.5)); animation:emojiPop .4s cubic-bezier(.34,1.7,.4,1); }
+.chat-bubble.emoji::after { display:none; }
+@keyframes emojiPop { 0%{ transform:translateX(-50%) scale(0) rotate(-25deg); opacity:0; } 55%{ transform:translateX(-50%) scale(1.3) rotate(8deg); opacity:1; } 100%{ transform:translateX(-50%) scale(1) rotate(0); } }
 @keyframes bubblePop {
   from { opacity:0; transform:translateX(-50%) translateY(6px) scale(.7); }
   to   { opacity:1; transform:translateX(-50%) translateY(0) scale(1); }

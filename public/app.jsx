@@ -650,7 +650,7 @@ function PlayerCard({ profile, fallbackName, score, active, isBot, side, bubble 
         {photo
           ? <img className="pc-avatar" src={photo} alt="" referrerPolicy="no-referrer" />
           : <span className="pc-avatar pc-fallback">{isBot ? "🤖" : (name ? name.slice(0, 1) : "?")}</span>}
-        {bubble && <div className={"chat-bubble " + side} key={bubble.id}>{bubble.text}</div>}
+        {bubble && <div className={"chat-bubble " + side + (/^\p{Extended_Pictographic}{1,3}$/u.test((bubble.text || "").trim()) ? " emoji" : "")} key={bubble.id}>{bubble.text}</div>}
       </div>
       <div className="pc-meta">
         <span className="pc-name" title={name}>{name}</span>
@@ -778,7 +778,8 @@ function HelpModal({ open, onClose }) {
 // ---------- Chat (in-room, ephemeral) ----------
 // Messages are NOT logged — each one pops as a 3s speech bubble over the sender's
 // avatar (see PlayerCard `bubble`). This composer only sends.
-const CHAT_EMOJIS = ["👍", "😀", "😂", "😮", "😡", "🔥", "⚓", "🎯"];
+// Expressive taunt / mock / praise / challenge set — more fun than plain reactions.
+const CHAT_EMOJIS = ["😏", "😈", "💪", "🫵", "🥱", "🤡", "💀", "🤣", "👏", "🫡", "👑", "🔥", "🎯", "🤝"];
 function ChatComposer({ open, onSend, onToggle }) {
   const [text, setText] = useState("");
   if (!open) return null;
