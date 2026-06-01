@@ -677,7 +677,7 @@ function TurnRing({ secs, frac, show, myTurn }) {
     </div>
   );
 }
-function Battle({ myTurn, vsBot, occ, incoming, myShots, onFire, log, sunkOpp, sunkMine, sunkEnemyCells, sunkMyCells, myScore, oppScore, oppLabel, myProfile, oppProfile, myBubble, oppBubble, flashEnemy, flashMine, mode, inv, powerups, revealedEnemy, aim, onPower, myMines, onPlaceMine, turnDeadline, turnDur }) {
+function Battle({ myTurn, vsBot, occ, incoming, myShots, onFire, log, sunkOpp, sunkMine, sunkEnemyCells, sunkMyCells, myScore, oppScore, oppLabel, myProfile, oppProfile, myBubble, oppBubble, flashEnemy, flashMine, mode, inv, powerups, revealedEnemy, aim, onPower, myMines, onPlaceMine, turnDeadline, turnDur, shake }) {
   const [tab, setTab] = useState("enemy"); // enemy | own (mobile)
   // đếm ngược lượt từ deadline server gửi (null = không giới hạn, vd đấu máy)
   const [secs, setSecs] = useState(null);
@@ -716,7 +716,7 @@ function Battle({ myTurn, vsBot, occ, incoming, myShots, onFire, log, sunkOpp, s
       {aim === "mine" && (
         <div className="aim-banner">{t("battle.aimingMine")}</div>
       )}
-      <div className={"boards tab-" + tab}>
+      <div className={"boards tab-" + tab + (shake ? " shake" : "")}>
         <div className="board-wrap wrap-enemy">
           <div className="board-title enemy">{t("battle.enemyWaters")} {myTurn ? t("battle.fireSuffix") : ""}</div>
           <Grid enemy hits={myShots} shootable={myTurn} sunk={sunkEnemyCells} flash={flashEnemy}
@@ -829,6 +829,7 @@ function App() {
   const [aim, setAim] = useState(null); // power-up đang ngắm: null | "cluster" | "cross"
   const [flashEnemy, setFlashEnemy] = useState(null); // ô mình vừa bắn (biển địch)
   const [flashMine, setFlashMine] = useState(null);   // ô địch vừa bắn (hạm đội mình)
+  const [shake, setShake] = useState(false);          // board recoil khi trúng/nổ
   const [sunkEnemyCells, setSunkEnemyCells] = useState(new Set()); // ô thuyền địch đã chìm
   const [sunkMyCells, setSunkMyCells] = useState(new Set());       // ô thuyền ta đã chìm
   const [myScore, setMyScore] = useState(0);
@@ -847,6 +848,12 @@ function App() {
   const oppBubbleTimer = useRef(null);
   const graceTimerRef = useRef(null);
   const joinedUrlRef = useRef(false);   // chỉ auto-join từ link mời 1 lần
+  const shakeTimer = useRef(null);
+  const triggerShake = useCallback(() => {
+    setShake(true);
+    if (shakeTimer.current) clearTimeout(shakeTimer.current);
+    shakeTimer.current = setTimeout(() => setShake(false), 380);
+  }, []);
   const [soundOn, setSoundOn] = useState(true);
   function toggleSound() { const v = !soundOn; setSoundOn(v); Sound.setEnabled(v); }
   const [vsBot, setVsBot] = useState(false);   // chế độ chơi với máy
@@ -952,6 +959,7 @@ function App() {
       else if (list.length > 1) addLog(anyHit ? t("log.enemyPowerHit") : t("log.enemyPowerMiss"));
       else if (list.length === 1) addLog(anyHit ? t("log.enemyFireHit", { cell: cellLabel(list[0].r, list[0].c) }) : t("log.enemyFireMiss", { cell: cellLabel(list[0].r, list[0].c) }));
       if (newSunk > 0) Sound.sunk(); else if (anyHit) Sound.hit(); else if (list.length) Sound.miss();
+      if (newSunk > 0 || anyHit) triggerShake();
     });
     socket.on("chat", ({ text }) => {
       const id = Date.now() + Math.random();
@@ -1104,9 +1112,9 @@ function App() {
       if (sunk) {
         setSunkMine((n) => n + 1);
         setSunkMyCells((s) => { const n = new Set(s); sunk.forEach((kk) => n.add(kk)); return n; });
-        addLog(t("log.botSunk", { n: sunk.size })); Sound.sunk();
+        addLog(t("log.botSunk", { n: sunk.size })); Sound.sunk(); triggerShake();
       }
-      else { addLog(t("log.botFireHit", { cell: cellLabel(r, c) })); Sound.hit(); }
+      else { addLog(t("log.botFireHit", { cell: cellLabel(r, c) })); Sound.hit(); triggerShake(); }
     } else {
       addLog(t("log.botFireMiss", { cell: cellLabel(r, c) })); Sound.miss();
     }
@@ -1132,9 +1140,9 @@ function App() {
       setSunkOpp(cnt);
       if (sunk) {
         setSunkEnemyCells((s) => { const n = new Set(s); sunk.forEach((kk) => n.add(kk)); return n; });
-        addLog(t("log.youSunkOne", { n: sunk.size })); Sound.sunk();
+        addLog(t("log.youSunkOne", { n: sunk.size })); Sound.sunk(); triggerShake();
       }
-      else { addLog(t("log.youFireHit", { cell: cellLabel(r, c) })); Sound.hit(); }
+      else { addLog(t("log.youFireHit", { cell: cellLabel(r, c) })); Sound.hit(); triggerShake(); }
       if (cnt >= FLEET_DEF.length) { setMyScore((n) => n + 1); setOver({ win: true }); Sound.win(); return; }
       // trúng -> giữ lượt
     } else {
@@ -1147,15 +1155,15 @@ function App() {
   // áp dụng kết quả một loạt bắn (dùng chung cho fire + pháo kích)
   function applyShotResult(res, label, isPower) {
     const cells = res.cells || [];
-    if (isPower) Sound.explode(); // boom on power-up detonation
+    if (isPower) { Sound.explode(); triggerShake(); } // boom + recoil on power-up detonation
     setMyShots((m) => { const n = new Map(m); cells.forEach((s) => n.set(key(s.r, s.c), s.hit)); return n; });
     if (cells.length) setFlashEnemy(key(cells[cells.length - 1].r, cells[cells.length - 1].c));
     if (typeof res.sunkCount === "number") setSunkOpp(res.sunkCount);
     if (res.sunkCells) setSunkEnemyCells((s) => { const n = new Set(s); res.sunkCells.forEach((k) => n.add(k)); return n; });
     if (res.collected && res.collected.length) addLog(t("log.collected", { list: res.collected.map((p) => POWER_NAME[p]).join(", ") }));
     const anyHit = cells.some((s) => s.hit);
-    if (res.newSunk > 0) { addLog(t("log.youSunkN", { n: res.newSunk })); Sound.sunk(); }
-    else { addLog(anyHit ? t("log.labelHit", { label }) : t("log.labelMiss", { label })); anyHit ? Sound.hit() : Sound.miss(); }
+    if (res.newSunk > 0) { addLog(t("log.youSunkN", { n: res.newSunk })); Sound.sunk(); triggerShake(); }
+    else { addLog(anyHit ? t("log.labelHit", { label }) : t("log.labelMiss", { label })); if (anyHit) { Sound.hit(); triggerShake(); } else Sound.miss(); }
     if (res.collected && res.collected.length) Sound.powerup();
     if (res.mineHit) { addLog(t("log.youHitMine")); showNotice(t("notice.youHitMine")); Sound.mine(); return; }
     if (anyHit && !res.win) setMyTurn(true);
@@ -1343,7 +1351,7 @@ function App() {
 
       {screen === "battle" && (
         <div>
-          <Battle myTurn={myTurn} vsBot={vsBot} occ={occ} incoming={incoming} myShots={myShots} onFire={fire} log={log} sunkOpp={sunkOpp} sunkMine={sunkMine} sunkEnemyCells={sunkEnemyCells} sunkMyCells={sunkMyCells} myScore={myScore} oppScore={oppScore} oppLabel={vsBot ? t("common.bot") : t("common.opponent")} myProfile={profile} oppProfile={vsBot ? null : oppProfile} myBubble={myBubble} oppBubble={vsBot ? null : oppBubble} flashEnemy={flashEnemy} flashMine={flashMine} mode={vsBot ? "classic" : mode} inv={inv} powerups={powerups} revealedEnemy={revealedEnemy} aim={aim} onPower={activatePower} myMines={myMines} onPlaceMine={placeMine} turnDeadline={vsBot ? null : turnDeadline} turnDur={turnDur} />
+          <Battle myTurn={myTurn} vsBot={vsBot} occ={occ} incoming={incoming} myShots={myShots} onFire={fire} log={log} sunkOpp={sunkOpp} sunkMine={sunkMine} sunkEnemyCells={sunkEnemyCells} sunkMyCells={sunkMyCells} myScore={myScore} oppScore={oppScore} oppLabel={vsBot ? t("common.bot") : t("common.opponent")} myProfile={profile} oppProfile={vsBot ? null : oppProfile} myBubble={myBubble} oppBubble={vsBot ? null : oppBubble} flashEnemy={flashEnemy} flashMine={flashMine} mode={vsBot ? "classic" : mode} inv={inv} powerups={powerups} revealedEnemy={revealedEnemy} aim={aim} onPower={activatePower} myMines={myMines} onPlaceMine={placeMine} turnDeadline={vsBot ? null : turnDeadline} turnDur={turnDur} shake={shake} />
         </div>
       )}
 

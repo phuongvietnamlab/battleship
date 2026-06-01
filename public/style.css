@@ -194,41 +194,44 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
   width:var(--cell); height:var(--cell); border-radius:5px; display:grid; place-items:center; position:relative;
   background: linear-gradient(180deg, rgba(46,110,170,.45), rgba(12,52,100,.7));
   box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
-  transition: background .12s ease, box-shadow .12s ease;
+  transition: background .18s ease, box-shadow .18s ease, transform .16s cubic-bezier(.34,1.5,.45,1);
 }
 .grid.enemy .cell.shootable { cursor:crosshair; }
 .grid.enemy .cell.shootable:hover {
   background: rgba(111,195,243,.5);
-  box-shadow: inset 0 0 0 2px var(--gold), 0 0 16px rgba(240,193,75,.5);
+  box-shadow: inset 0 0 0 2px var(--gold), 0 0 18px rgba(240,193,75,.55);
+  transform: scale(1.1);
+  z-index:3;
 }
+.grid.enemy .cell.shootable:active { transform: scale(.92); }
 .cell.ship {
   background: linear-gradient(180deg, #7a8791, #444e57);
   box-shadow: inset 0 0 0 1px var(--ship-edge), inset 0 2px 4px rgba(255,255,255,.15);
 }
-.cell.hit { background: radial-gradient(circle, #ff5a67, #b71f2c); animation: boom .45s ease-out; }
-.cell.hit::after { content:"\1F525"; font-size:18px; }
-/* thuyền đã cháy rụi — thay đốm lửa bằng xác thuyền cháy đen */
+.cell.hit { background: radial-gradient(circle, #ff6b78, #b71f2c); animation: boom .5s ease-out, hitglow .65s ease-out; z-index:2; }
+.cell.hit::after { content:"\1F525"; font-size:18px; animation: firepop .55s cubic-bezier(.3,1.6,.5,1) both; }
+/* thuyền đã cháy rụi — thay đốm lửa bằng xác thuyền cháy đen, kèm cú "chìm" */
 .cell.sunk {
   background: linear-gradient(180deg, #3a3330, #181412) !important;
   box-shadow: inset 0 0 0 1px rgba(120,90,70,.5), inset 0 2px 6px rgba(0,0,0,.7) !important;
-  animation: none !important;
+  animation: sink .55s cubic-bezier(.34,1.4,.45,1) !important;
 }
 .cell.sunk::after {
   content:"\1F6A2" !important; font-size:17px;
   filter: grayscale(1) brightness(.45) contrast(1.2); opacity:.9;
 }
-.cell.miss { background: linear-gradient(180deg, rgba(46,110,170,.3), rgba(12,52,100,.5)); }
+.cell.miss { background: linear-gradient(180deg, rgba(46,110,170,.3), rgba(12,52,100,.5)); animation: missglow .55s ease-out; }
 
 /* ô vừa bị bắn — nhấp nháy vòng sáng để dễ thấy địch/mình đánh vào đâu */
 .cell.flash { z-index:2; }
 .cell.flash::before {
   content:""; position:absolute; inset:-3px; border-radius:7px; pointer-events:none;
-  border:3px solid var(--gold); box-shadow:0 0 16px rgba(240,193,75,.9);
-  animation: flashring 2s ease-out forwards;
+  border:3px solid var(--gold); box-shadow:0 0 18px rgba(240,193,75,.9), inset 0 0 12px rgba(240,193,75,.4);
+  animation: flashring 1.6s cubic-bezier(.2,.85,.3,1) forwards;
 }
 @keyframes flashring {
-  0%   { opacity:1; transform:scale(1.25); }
-  30%  { opacity:1; transform:scale(1); }
+  0%   { opacity:1; transform:scale(1.7); border-width:4px; }
+  22%  { opacity:1; transform:scale(1); border-width:3px; }
   100% { opacity:0; transform:scale(1); }
 }
 
@@ -315,8 +318,36 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
   background: radial-gradient(circle, #fff, var(--miss)); opacity:.85;
   box-shadow: 0 0 8px rgba(191,226,255,.6); animation: splash .4s ease-out;
 }
-@keyframes boom { 0%{ transform: scale(.3); filter: brightness(2);} 60%{ transform: scale(1.25);} 100%{ transform: scale(1);} }
-@keyframes splash { 0%{ transform: scale(0);} 70%{ transform: scale(1.4);} 100%{ transform: scale(1);} }
+@keyframes boom { 0%{ transform: scale(.25); filter: brightness(2.4);} 45%{ transform: scale(1.35); filter:brightness(1.6);} 70%{ transform: scale(.95);} 100%{ transform: scale(1); filter:brightness(1);} }
+@keyframes splash { 0%{ transform: scale(0); opacity:0;} 45%{ transform: scale(1.5); opacity:1;} 100%{ transform: scale(1); opacity:.85;} }
+/* hit: expanding fiery shockwave via box-shadow (no pseudo, so it can coexist with .flash) */
+@keyframes hitglow {
+  0%   { box-shadow: 0 0 0 0 rgba(255,120,90,.95), 0 0 20px rgba(255,90,60,.95); }
+  100% { box-shadow: 0 0 0 15px rgba(255,90,60,0), 0 0 6px rgba(255,90,60,.25); }
+}
+@keyframes firepop { 0%{ transform:scale(0) rotate(-18deg);} 60%{ transform:scale(1.35) rotate(6deg);} 100%{ transform:scale(1) rotate(0);} }
+/* miss: water ripple ring */
+@keyframes missglow {
+  0%   { box-shadow: 0 0 0 0 rgba(150,200,255,.6), inset 0 1px 0 rgba(255,255,255,.06); }
+  100% { box-shadow: 0 0 0 11px rgba(150,200,255,0), inset 0 1px 0 rgba(255,255,255,.06); }
+}
+/* sunk: ship settles under with a little shudder */
+@keyframes sink { 0%{ transform:scale(1.08); } 30%{ transform:translateY(-2px) scale(1.04);} 65%{ transform:translateY(1px) scale(.97);} 100%{ transform:none;} }
+/* board recoil on impact */
+@keyframes board-shake {
+  0%,100% { transform: translate(0,0); }
+  15% { transform: translate(-4px, 2px) rotate(-.4deg); }
+  35% { transform: translate(5px, -2px) rotate(.4deg); }
+  55% { transform: translate(-4px, 1px); }
+  75% { transform: translate(3px, -1px); }
+}
+.boards.shake { animation: board-shake .36s cubic-bezier(.36,.07,.19,.97); }
+
+/* accessibility: honor reduced-motion — keep state changes, drop the motion */
+@media (prefers-reduced-motion: reduce) {
+  .cell.hit, .cell.miss, .cell.sunk, .cell.hit::after, .boards.shake { animation: none !important; }
+  .grid.enemy .cell.shootable:hover { transform: none; }
+}
 
 /* labels (A–J / 1–10) removed — grid wraps tight with no gutter */
 .grid-outer { display:inline-block; }
