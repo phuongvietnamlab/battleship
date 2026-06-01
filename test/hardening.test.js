@@ -48,7 +48,7 @@ function makeRoom(overrides = {}) {
 
 import { TEST_EXPORTS } from "../server.js";
 
-const { doShot, rooms, sweepRooms, escapeHtml, sanitizeProfile, sanitizeChat } = TEST_EXPORTS;
+const { doShot, rooms, sweepRooms, escapeHtml, sanitizeProfile, sanitizeChat, cspMiddleware, CSP_HEADER_VALUE } = TEST_EXPORTS;
 
 describe("doShot — null/shape guard (SEC-02)", () => {
   it("returns BAD_STATE when opponent slot is null", () => {
@@ -313,5 +313,46 @@ describe("sanitizeChat (SEC-04)", () => {
   it("returns cleaned text for valid input", () => {
     const result = sanitizeChat("Hello, world!");
     expect(result).toBe("Hello, world!");
+  });
+});
+
+// ─── Content-Security-Policy middleware (SEC-04, T-03-E1) ────────────────────
+
+describe("cspMiddleware — Content-Security-Policy header (SEC-04)", () => {
+  function mockRes() {
+    const headers = {};
+    return {
+      setHeader(name, value) { headers[name] = value; },
+      getHeaders() { return headers; },
+    };
+  }
+
+  it("sets the Content-Security-Policy response header", () => {
+    const req = {};
+    const res = mockRes();
+    let nextCalled = false;
+    cspMiddleware(req, res, () => { nextCalled = true; });
+    expect(res.getHeaders()["Content-Security-Policy"]).toBeDefined();
+    expect(nextCalled).toBe(true);
+  });
+
+  it("CSP script-src is 'self' only — no unsafe-inline or unsafe-eval in script-src directive", () => {
+    const csp = CSP_HEADER_VALUE;
+    expect(csp).toContain("script-src 'self'");
+    // Extract the script-src directive and ensure it does not contain unsafe keywords
+    const scriptSrcMatch = csp.match(/script-src([^;]*)/);
+    expect(scriptSrcMatch).not.toBeNull();
+    const scriptSrc = scriptSrcMatch[1];
+    expect(scriptSrc).not.toContain("'unsafe-inline'");
+    expect(scriptSrc).not.toContain("'unsafe-eval'");
+  });
+
+  it("CSP includes connect-src with wss: for Socket.IO", () => {
+    expect(CSP_HEADER_VALUE).toContain("connect-src");
+    expect(CSP_HEADER_VALUE).toContain("wss:");
+  });
+
+  it("CSP includes frame-ancestors 'none' to block clickjacking", () => {
+    expect(CSP_HEADER_VALUE).toContain("frame-ancestors 'none'");
   });
 });

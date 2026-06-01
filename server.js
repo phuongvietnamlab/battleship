@@ -40,6 +40,16 @@ app.use((req, res, next) => {
   next();
 });
 
+// Content-Security-Policy: restrict script execution to same-origin, allow
+// Socket.IO WebSocket connections, block framing. No unsafe-inline in script-src
+// (defense-in-depth against XSS — SEC-04, T-03-E1).
+const CSP_HEADER_VALUE = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data:; connect-src 'self' wss: ws:; frame-ancestors 'none'";
+function cspMiddleware(req, res, next) {
+  res.setHeader("Content-Security-Policy", CSP_HEADER_VALUE);
+  next();
+}
+app.use(cspMiddleware);
+
 // Liveness probe for Render/uptime monitors: cheap, no room scan, always 200.
 app.get("/healthz", (req, res) => res.json({ ok: true, uptimeSec: Math.floor(process.uptime()) }));
 // Lightweight ops snapshot: room/game/player counts + memory. JSON, no auth
@@ -60,6 +70,8 @@ const FLEET = [5, 4, 3, 3, 2];
 const GRACE_MS = 180000; // keep a disconnected player's seat for 3 min (reload / brief network drop)
 const RESTORE_GRACE_MS = 300000; // after a server restore, give seats 5 min to reconnect
 const SNAPSHOT_MS = 3000; // how often to snapshot rooms to Redis (when enabled)
+const CLEANUP_INTERVAL_MS = 60000;    // run the room cleanup sweep every 60s (SEC-03)
+const ROOM_IDLE_THRESHOLD_MS = 300000; // evict rooms with no activity for > 5 min (SEC-03)
 
 // Per-player rate limiters (D-06/D-07 — close rapid-fire DoS vector, SEC-01).
 // RateLimiterMemory is in-process (no Redis dependency — Redis store deferred to Phase 5).
@@ -144,14 +156,37 @@ function opponentOf(room, clientId) {
   return room.order.find((x) => x !== clientId);
 }
 
+// HTML-escape a string to prevent stored-XSS when names are rendered in future
+// leaderboards or profiles (SEC-04).
+function escapeHtml(s) {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 // Validate a client-supplied FB profile before storing/relaying it.
 function sanitizeProfile(p) {
   if (!p || typeof p !== "object") return null;
-  const name = typeof p.name === "string" ? p.name.replace(/\s+/g, " ").trim().slice(0, 40) : null;
+  // Strip control chars, collapse whitespace, cap at 40, then HTML-escape so
+  // stored names cannot inject markup on future profiles/leaderboards (SEC-04).
+  const name = typeof p.name === "string"
+    ? escapeHtml(p.name.replace(/[\x00-\x1f\x7f]/g, "").replace(/\s+/g, " ").trim().slice(0, 40))
+    : null;
   let photo = typeof p.photo === "string" ? p.photo.trim().slice(0, 500) : null;
   if (photo && !/^https?:\/\//i.test(photo)) photo = null;
   if (!name && !photo) return null;
   return { name, photo };
+}
+
+// Validate and sanitize chat text (SEC-04). Returns null for invalid/empty input
+// so the chat handler can early-return cleanly.
+function sanitizeChat(text) {
+  if (typeof text !== "string") return null;
+  const cleaned = text.replace(/[\x00-\x1f\x7f]/g, "").replace(/\s+/g, " ").trim().slice(0, 200);
+  return cleaned || null;
 }
 // Store a profile on a seat without wiping an existing one when none is supplied.
 function setProfileIfAny(p, prof) {
@@ -450,6 +485,27 @@ function clearTurnTimer(room) {
   room.turnDeadline = null;
 }
 
+// Stamp last activity time so the cleanup sweep can evict truly idle rooms (SEC-03).
+function touchRoom(room) {
+  if (room) room.lastActivityAt = Date.now();
+}
+
+// Hybrid room-eviction sweep (SEC-03, D-10): run every CLEANUP_INTERVAL_MS.
+// - Immediately deletes rooms where both seats are gone (order.length === 0).
+// - Evicts rooms idle longer than ROOM_IDLE_THRESHOLD_MS (zombie / abandoned games).
+// Exported via TEST_EXPORTS so tests can invoke one sweep pass synchronously.
+function sweepRooms() {
+  const now = Date.now();
+  for (const code in rooms) {
+    const r = rooms[code];
+    if (r.order.length === 0) { delete rooms[code]; continue; }
+    if (r.lastActivityAt && now - r.lastActivityAt > ROOM_IDLE_THRESHOLD_MS) {
+      clearTurnTimer(r);
+      delete rooms[code];
+    }
+  }
+}
+
 // (Re)start the countdown for whoever holds the turn, and push the absolute
 // deadline to both clients so they render a synced countdown.
 function armTurnTimer(room) {
@@ -496,9 +552,13 @@ function onTurnTimeout(room, who) {
 // Resolve a set of shots fired by clientId at their opponent. Handles power-up pickup,
 // mines, sunk/win detection, turn handover and all emits. Returns a summary for the caller's cb.
 function doShot(room, clientId, cells) {
+  // Guard: null/shape check before any property access — prevents crash-probing
+  // a game mid-resolution (SEC-02, T-03-02).
+  if (!Array.isArray(cells) || !cells.length) return { ok: false, code: "BAD_STATE" };
   const opp = opponentOf(room, clientId);
   const oppData = room.players[opp];
   const me = room.players[clientId];
+  if (!oppData || !oppData.occ || !me) return { ok: false, code: "BAD_STATE" };
   me.inv = me.inv || newInv();
   me.timeouts = 0; // người chơi vừa thao tác -> reset chuỗi bỏ lượt
   const before = sunkShipCount(oppData, me.hits);
@@ -585,7 +645,7 @@ io.on("connection", (socket) => {
     const clientId = (arg && arg.clientId) || socket.id;
     const code = newCode();
     const mode = (arg && arg.mode) === "advance" ? "advance" : "classic";
-    rooms[code] = { code, players: {}, order: [], started: false, turn: null, scores: {}, lastStarter: null, mode, powerups: {}, turnTimer: null, turnDeadline: null, resolving: false };
+    rooms[code] = { code, players: {}, order: [], started: false, turn: null, scores: {}, lastStarter: null, mode, powerups: {}, turnTimer: null, turnDeadline: null, resolving: false, lastActivityAt: Date.now() };
     rooms[code].players[clientId] = {
       sid: socket.id, ready: false, occ: null, hits: new Set(), online: true, timer: null, inv: newInv(), bonus: 0,
       profile: sanitizeProfile(arg && arg.profile),
@@ -666,6 +726,7 @@ io.on("connection", (socket) => {
     if (clientId) {
       for (const code in rooms) {
         if (rooms[code].players && rooms[code].players[clientId]) {
+          touchRoom(rooms[code]); // SEC-03: stamp activity on resume so sweep doesn't evict
           reclaimSeat(rooms[code], code, clientId, clientId, socket);
           upsertGuestCredential(clientId); // fire-and-forget: ensure durable credential on resume (DATA-01)
           return cb && cb({ ok: true, code });
@@ -683,6 +744,7 @@ io.on("connection", (socket) => {
     if (!room || !clientId || !room.players[clientId]) {
       return cb && cb({ ok: false });
     }
+    touchRoom(room); // SEC-03: stamp activity on rejoin so sweep doesn't evict live room
     const p = room.players[clientId];
     if (p.timer) { clearTimeout(p.timer); p.timer = null; }
     p.sid = socket.id; p.online = true;
@@ -707,6 +769,7 @@ io.on("connection", (socket) => {
     room.players[clientId].occ = pv.occ;
     room.players[clientId].ships = pv.ships;
     room.players[clientId].ready = true;
+    touchRoom(room); // SEC-03: stamp activity
     cb && cb({ ok: true });
 
     const ids = room.order;
@@ -753,6 +816,7 @@ io.on("connection", (socket) => {
     if (!inBounds(r, c)) return cb && cb({ ok: false, code: "BAD_CELL" });
     // D-09: race guard — prevent simultaneous fire + turn-timeout from both resolving
     if (room.resolving) return cb && cb({ ok: false, code: "BAD_STATE" });
+    touchRoom(room); // SEC-03: stamp activity so idle sweep doesn't evict active games
     const me = room.players[clientId];
     me.inv = me.inv || newInv();
 
@@ -876,9 +940,9 @@ io.on("connection", (socket) => {
     const clientId = socket.data.clientId;
     const room = rooms[code];
     if (!room || !room.players[clientId]) return cb && cb({ ok: false });
-    let text = (arg && typeof arg.text === "string") ? arg.text : "";
-    text = text.replace(/\s+/g, " ").trim().slice(0, 200);
+    const text = sanitizeChat(arg && arg.text); // SEC-04: validate/sanitize chat input
     if (!text) return cb && cb({ ok: false });
+    touchRoom(room); // SEC-03: stamp activity
     const opp = opponentOf(room, clientId);
     const now = Date.now();
     if (opp) emitToClient(room, opp, "chat", { text, ts: now });
@@ -958,6 +1022,9 @@ io.on("connection", (socket) => {
     // Periodic snapshot. unref() so it never keeps the process alive on its own.
     setInterval(() => { store.saveSnapshot(serializeRooms()); }, SNAPSHOT_MS).unref();
   }
+  // Room cleanup sweep: evict empty and idle rooms every 60s so memory is bounded
+  // by active games, not by all rooms ever created (SEC-03, ROOM_IDLE_THRESHOLD_MS).
+  setInterval(sweepRooms, CLEANUP_INTERVAL_MS).unref();
   server.listen(PORT, () => {
     console.log(`Battleship server running at http://localhost:${PORT}`);
   });
@@ -970,3 +1037,16 @@ async function gracefulExit() {
 }
 process.on("SIGTERM", gracefulExit);
 process.on("SIGINT", gracefulExit);
+
+// TEST_EXPORTS: expose internal functions for unit tests only.
+// Not used by the production code path.
+export const TEST_EXPORTS = {
+  doShot,
+  rooms,
+  sweepRooms,
+  escapeHtml,
+  sanitizeProfile,
+  sanitizeChat,
+  cspMiddleware,
+  CSP_HEADER_VALUE,
+};
