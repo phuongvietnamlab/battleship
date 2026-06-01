@@ -38,7 +38,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 **Wave 1**
 
-- [ ] 01-01-PLAN.md — Persistence slice: pg.Pool (db.js), auto-migrated identity schema, guest-credential upsert, test harness (DATA-01, DATA-02)
+- [x] 01-01-PLAN.md — Persistence slice: pg.Pool (db.js), auto-migrated identity schema, guest-credential upsert, test harness (DATA-01, DATA-02)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -131,7 +131,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 0/3 | Not started | - |
+| 1. Foundation | 1/3 | In Progress|  |
 | 2. Accounts & Identity | 0/TBD | Not started | - |
 | 3. Match Recording | 0/TBD | Not started | - |
 | 4. Ranked Mode & Leaderboard | 0/TBD | Not started | - |
