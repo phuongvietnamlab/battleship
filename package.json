@@ -7,7 +7,8 @@
     "start": "node server.js",
     "build": "node build-game.mjs",
     "build:game": "node build-game.mjs",
-    "postinstall": "node build-game.mjs"
+    "postinstall": "node build-game.mjs",
+    "test": "vitest run"
   },
   "dependencies": {
     "esbuild": "^0.24.0",
