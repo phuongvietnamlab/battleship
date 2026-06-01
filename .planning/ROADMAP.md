@@ -131,7 +131,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 3/3 | Complete   | 2026-06-01 |
+| 1. Foundation | 3/3 | Complete    | 2026-06-01 |
 | 2. Accounts & Identity | 0/TBD | Not started | - |
 | 3. Match Recording | 0/TBD | Not started | - |
 | 4. Ranked Mode & Leaderboard | 0/TBD | Not started | - |
