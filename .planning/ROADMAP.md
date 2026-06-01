@@ -22,12 +22,12 @@ Decimal phases appear between their surrounding integers in numeric order.
 ## Phase Details
 
 ### Phase 1: Foundation
-**Goal**: The server durably stores data in Postgres and is hardened against the attack vectors that become critical under public play.
+**Goal**: The server durably stores data in self-hosted Postgres (on the dedicated EC2 box) and is hardened against the attack vectors that become critical under public play.
 **Mode:** mvp
-**Depends on**: Nothing (first phase)
+**Depends on**: Nothing (first phase). External: owner provisions the EC2 instance with Postgres + Redis installed and reachable before this phase runs.
 **Requirements**: DATA-01, DATA-02, SEC-01, SEC-02, SEC-03, SEC-04
 **Success Criteria** (what must be TRUE):
-  1. The server connects to Render-managed Postgres via a shared SSL pool and all queries succeed without crashing under normal play.
+  1. The server connects to the self-hosted Postgres via a shared pool (params from env vars) and all queries succeed without crashing under normal play.
   2. Database schema is created (or migrated) automatically when the server starts — no manual SQL steps required on deploy.
   3. `fire` and `useAbility` socket events are rate-limited per player; an attacker sending rapid-fire events receives errors, not a crash.
   4. A `doShot()` call with a null or malformed opponent state returns an error response instead of throwing an unhandled exception.

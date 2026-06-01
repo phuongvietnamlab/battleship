@@ -9,7 +9,7 @@ The competitive core: durable persistence, accounts, ranked play, and public mat
 
 ### Persistence (DATA)
 
-- [ ] **DATA-01**: Server connects to Render-managed Postgres via a single shared connection pool (`db.js`) with SSL
+- [ ] **DATA-01**: Server connects to the self-hosted Postgres (on the EC2 box) via a single shared connection pool (`db.js`), with connection params from env vars
 - [ ] **DATA-02**: Database schema is created and migrated automatically on server startup (prestart migration)
 
 ### Security Hardening (SEC)

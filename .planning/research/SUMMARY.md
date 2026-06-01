@@ -5,6 +5,8 @@
 **Researched:** 2026-06-01
 **Confidence:** HIGH
 
+> **INFRA UPDATE (post-research, 2026-06-01):** Hosting moved from Render to a dedicated AWS EC2 box running app + self-hosted Redis + self-hosted Postgres (owner-provisioned). Render-specific guidance below is **superseded**: ignore the "Render free tier deletes at 30 days / use paid Starter" note and the managed-DB `ssl: { rejectUnauthorized: false }` advice — app connects to Postgres/Redis over localhost/private address with env-var params. Single-box scaling limits still apply; Redis is now always available. See PROJECT.md Constraints + Key Decisions for canonical truth.
+
 ## Executive Summary
 
 This milestone evolves a working invite-only Battleship game into a competitive, social, replayable online platform. The research consensus is clear: every feature in scope depends on a single root capability — Postgres persistence. Nothing else (accounts, ranked play, matchmaking, social graph, replays) can be built until the database layer exists. The recommended approach is strictly additive: extend the existing Node/Express/Socket.IO/React stack with `pg` + `drizzle-orm` for persistence, `passport-google-oauth2` + `express-session` for accounts, an in-memory matchmaking queue, and an append-only event log for replays. No rewrites, no new runtimes, no external services beyond Render-managed Postgres.

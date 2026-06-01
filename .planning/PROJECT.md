@@ -69,15 +69,15 @@ Two players can find each other and play a fair, fast, satisfying game of Battle
 ## Context
 
 - Brownfield: mature codebase already mapped under `.planning/codebase/` (commit 943b76e). Server-authoritative game logic in `server.js` (~910 lines); React SPA in `public/app.jsx` (~1420 lines); optional Redis via `store.js`; esbuild bundling via `build-game.mjs`.
-- Hosting: Render.io free tier, auto-deploy on push to `main`. Adding managed Postgres is the foundational infra change this milestone.
+- Hosting (changing this milestone): migrating off Render onto a dedicated AWS EC2 instance that the owner provisions and manages — app server + self-hosted Redis + self-hosted Postgres all on that one box. This replaces Render's managed Postgres/auto-deploy and shifts ops ownership (OS patching, DB backups, TLS, security groups/firewall, process manager, reverse proxy, deploy pipeline) onto the project.
 - Known concerns to weigh during planning (from `CONCERNS.md`): no rate limiting on `fire`/`useAbility`, weak chat/profile sanitization, race conditions in `joinRoom`/`placeShips`/turn-clock, unbounded room-map memory growth, zero automated tests, monolithic `app.jsx`. Several of these (rate limiting, validation, room cleanup, tests) become higher-stakes once public matchmaking and persistent accounts exist.
 - Identity today is clientless (`clientId` in localStorage). New account system must layer on top without breaking instant guest play.
 
 ## Constraints
 
-- **Tech stack**: Stay on Node.js + Express + Socket.IO + React + esbuild — extend, don't rewrite. New persistence is Render-managed Postgres.
+- **Tech stack**: Stay on Node.js + Express + Socket.IO + React + esbuild — extend, don't rewrite. New persistence is self-hosted Postgres on the EC2 box.
 - **Identity**: Guest-first is non-negotiable — instant play must survive; accounts are strictly additive/optional.
-- **Hosting**: Must run on Render; in-memory game state + single process today means scaling/shared-state is a known limitation to address before heavy public-matchmaking load.
+- **Hosting**: Dedicated AWS EC2 instance running app + Redis + Postgres on one box (owner-provisioned). App must connect to Postgres/Redis over localhost (or private address) — no managed-DB SSL quirks; connection strings come from env vars. Single box = still single-process scaling limits; horizontal scaling is out of scope this milestone but Redis is now always available (not optional) for snapshots and a future Socket.IO adapter.
 - **Compatibility**: Preserve EN/VI i18n and existing reconnect/grace-window behavior.
 - **Security**: Public matchmaking + persistent accounts raise the bar — rate limiting, input sanitization, and OAuth handling must be addressed as features land, not deferred indefinitely.
 
@@ -85,7 +85,8 @@ Two players can find each other and play a fair, fast, satisfying game of Battle
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Render-managed Postgres for durable storage | Relational queries (leaderboards, history, ranked) fit SQL; managed = low ops burden | — Pending |
+| Self-hosted Postgres on dedicated EC2 (was: Render-managed) | Owner runs app + Redis + Postgres on one EC2 box; full control, no managed-tier limits; trades low ops burden for self-managed backups/patching/TLS | — Pending |
+| Redis always available (self-hosted on EC2) | Was optional on Render; now co-located — usable for snapshots and future Socket.IO adapter | — Pending |
 | Guest-first, optional sign-up | Preserve zero-friction instant play; accounts additive only | — Pending |
 | Google OAuth for sign-up (no email/password) | Avoid owning password storage/reset/security | — Pending |
 | Sequence milestone foundation-first | Persistence + identity unblock matchmaking, social, replays | — Pending |

@@ -55,6 +55,7 @@ Recent decisions affecting current work:
 
 - Roadmap: Glicko-2 chosen over ELO (handles provisional ratings; 40-line pure function in `elo.js`)
 - Roadmap: express-session + connect-pg-simple for OAuth sessions; JWT for guest identity only
+- Infra: Self-hosted Postgres + Redis on dedicated EC2 (was Render-managed); app connects over localhost/env-var params; Redis now always available
 - Scope: Saved replays cut from vision (MATCH-02 dropped) — live spectate covers "watch"; no per-move persistence needed
 - Roadmap: Phase 6 (Bot) depends only on Phase 1 — parallelizable if needed
 
@@ -64,7 +65,7 @@ None yet.
 
 ### Blockers/Concerns
 
-- Phase 1: Use Render Postgres Starter paid tier ($7/mo) — free tier auto-deletes at 30 days.
+- Infra: Migrating off Render to a dedicated AWS EC2 box (app + self-hosted Redis + Postgres, owner-provisioned). Owner-managed backups/patching/TLS/security-groups/deploy. EC2 must be reachable before Phase 1 runs.
 - Phase 4: Glicko-2 formula must be unit-tested against Lichess reference before connecting to ranked queue.
 - Phase 6: Probability-density targeting algorithm for "hard" bot needs a brief research spike.
 
