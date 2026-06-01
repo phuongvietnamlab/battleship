@@ -23,7 +23,7 @@ See: .planning/PROJECT.md (updated 2026-06-01)
 Phase: 1 of 6 (Foundation)
 Plan: 0 of TBD in current phase
 Status: Ready to plan
-Last activity: 2026-06-01 — Roadmap created; 25 requirements mapped across 6 phases.
+Last activity: 2026-06-01 — Roadmap created (6 phases); scope refined — replays cut, 24 requirements mapped.
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -55,7 +55,7 @@ Recent decisions affecting current work:
 
 - Roadmap: Glicko-2 chosen over ELO (handles provisional ratings; 40-line pure function in `elo.js`)
 - Roadmap: express-session + connect-pg-simple for OAuth sessions; JWT for guest identity only
-- Roadmap: Event-log table (`replay_events`) — no JSONB blob column (avoids TOAST bloat)
+- Scope: Saved replays cut from vision (MATCH-02 dropped) — live spectate covers "watch"; no per-move persistence needed
 - Roadmap: Phase 6 (Bot) depends only on Phase 1 — parallelizable if needed
 
 ### Pending Todos
@@ -73,9 +73,10 @@ None yet.
 | Category | Item | Status | Deferred At |
 |----------|------|--------|-------------|
 | Social | Friends list, direct challenge, rematch history (SOCL-01/02/03) | v2 | Roadmap |
-| Spectate | Live spectator mode, replay viewer UI, retention policy (SPEC-01/02/03) | v2 | Roadmap |
+| Spectate | Live spectator mode (SPEC-01) | v2 | Roadmap |
 | Retention | XP/levels, daily challenges (RETN-01/02) | v2 | Roadmap |
-| Modes/Scale | Configurable modes, Redis adapter, tournaments (MODE-01, SCAL-01, TOUR-01) | v2 | Roadmap |
+| Modes/Scale | Configurable modes, Redis adapter, tournaments (MODE-01, SCAL-01, TOUR-01) | v2 (tournaments = future) | Roadmap |
+| Replays | Saved game replays / review past matches | Cut from vision | Scope refinement |
 
 ## Session Continuity
 

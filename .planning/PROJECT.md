@@ -56,12 +56,12 @@ Two players can find each other and play a fair, fast, satisfying game of Battle
 
 **Spectate & share**
 - [ ] Live spectator mode (watch a game via link)
-- [ ] Saved game replays (review past matches)
-- [ ] Tournament brackets
+- [ ] Tournament brackets (future — deferred beyond this milestone)
 
 ### Out of Scope
 
 - Email + password auth — Google OAuth chosen to avoid owning password reset / credential-storage burden (revisitable)
+- Saved game replays (save / review past matches) — cut from product vision; live spectator mode covers the "watch" need without per-move persistence
 - Native mobile apps — web-first; PWA is sufficient for now
 - Real-money payments / monetization — not core to gameplay value this milestone
 - Voice chat — text/emoji chat covers social need; high complexity, low payoff

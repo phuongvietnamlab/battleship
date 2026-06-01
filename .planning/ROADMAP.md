@@ -2,7 +2,7 @@
 
 ## Overview
 
-This milestone evolves Battleship Online from an invite-only game into a competitive, social, replayable platform. The build order is strictly dependency-driven: Postgres persistence is the root that unlocks everything else. Security hardening co-locates with foundation because those concerns become critical attack vectors the moment a public matchmaking queue opens. Accounts and identity layer on top of persistence; match recording must precede ranked ratings; ranked ratings must precede ELO-weighted matchmaking. Bot difficulty tiers are account-independent and close out the milestone.
+This milestone evolves Battleship Online from an invite-only game into a competitive, social platform. The build order is strictly dependency-driven: Postgres persistence is the root that unlocks everything else. Security hardening co-locates with foundation because those concerns become critical attack vectors the moment a public matchmaking queue opens. Accounts and identity layer on top of persistence; match recording must precede ranked ratings; ranked ratings must precede ELO-weighted matchmaking. Bot difficulty tiers are account-independent and close out the milestone.
 
 ## Phases
 
@@ -14,7 +14,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [ ] **Phase 1: Foundation** - Postgres persistence layer + security hardening prerequisites
 - [ ] **Phase 2: Accounts & Identity** - Google OAuth, guest-to-account linking, player profiles
-- [ ] **Phase 3: Match Recording** - Durable match records + append-only replay event log
+- [ ] **Phase 3: Match Recording** - Durable match records + explicit forfeit handling
 - [ ] **Phase 4: Ranked Mode & Leaderboard** - Glicko-2 ratings, ranked queue gating, global leaderboard
 - [ ] **Phase 5: Public Matchmaking** - Quick-match and ranked queues, ELO-window pairing
 - [ ] **Phase 6: Bot Difficulty Tiers** - Easy / medium / hard / insane bot algorithms
@@ -49,14 +49,13 @@ Decimal phases appear between their surrounding integers in numeric order.
 **UI hint**: yes
 
 ### Phase 3: Match Recording
-**Goal**: Every completed game produces a durable match record and a full append-only event log, giving the system a reliable source of truth for ratings and future replay features.
+**Goal**: Every completed game produces a durable match record, giving the system a reliable source of truth for ratings.
 **Mode:** mvp
 **Depends on**: Phase 2
-**Requirements**: MATCH-01, MATCH-02, MATCH-03
+**Requirements**: MATCH-01, MATCH-03
 **Success Criteria** (what must be TRUE):
   1. When a game ends normally (win/loss), a match record (players, winner, reason, timestamps) is written to Postgres in a single transaction — verifiable by querying the `matches` table.
-  2. Every move in a completed game is captured to the `replay_events` append-only log; the row count per game equals the number of shots fired.
-  3. When a player disconnects and the 3-minute grace window expires without reconnect, the match is recorded as an explicit forfeit loss (not abandoned/null) — the losing player's record reflects the loss.
+  2. When a player disconnects and the 3-minute grace window expires without reconnect, the match is recorded as an explicit forfeit loss (not abandoned/null) — the losing player's record reflects the loss.
 **Plans**: TBD
 
 ### Phase 4: Ranked Mode & Leaderboard

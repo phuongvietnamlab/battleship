@@ -35,7 +35,6 @@ The competitive core: durable persistence, accounts, ranked play, and public mat
 ### Match Recording (MATCH)
 
 - [ ] **MATCH-01**: Every completed game writes a match record (players, winner, reason) in a single transaction
-- [ ] **MATCH-02**: Each game's moves are captured to an append-only replay event log (storage only; no viewer in v1)
 - [ ] **MATCH-03**: A disconnect that exceeds the grace window is recorded as an explicit forfeit loss
 
 ### Ranked & Leaderboard (RANK)
@@ -66,11 +65,9 @@ Deferred to a future milestone. Tracked but not in this roadmap.
 - **SOCL-02**: Direct challenge / private invite to a friend
 - **SOCL-03**: Rematch history between two players
 
-### Spectate & Replay Viewer
+### Spectate
 
-- **SPEC-01**: Live spectator mode with a mandatory delay and hidden ship positions
-- **SPEC-02**: Replay viewer UI that reconstructs a game from the replay event log
-- **SPEC-03**: Replay retention / cleanup policy
+- **SPEC-01**: Live spectator mode with a mandatory delay and hidden ship positions (rides live Socket.IO state; no persisted replay log required)
 
 ### Retention
 
@@ -95,6 +92,7 @@ Explicitly excluded. Documented to prevent scope creep.
 | Native mobile apps | Web-first; PWA sufficient |
 | Voice chat | Text/emoji chat covers the social need; high complexity, low payoff |
 | Spectators seeing both boards without delay | Enables external relay of ship positions — cheating vector |
+| Saved game replays (save / review past matches) | Cut from product vision — no per-move persistence; live spectate covers the "watch" need |
 
 ## Traceability
 
@@ -116,7 +114,6 @@ Which phases cover which requirements. Populated during roadmap creation.
 | PROF-01 | Phase 2 — Accounts & Identity | Pending |
 | PROF-02 | Phase 2 — Accounts & Identity | Pending |
 | MATCH-01 | Phase 3 — Match Recording | Pending |
-| MATCH-02 | Phase 3 — Match Recording | Pending |
 | MATCH-03 | Phase 3 — Match Recording | Pending |
 | RANK-01 | Phase 4 — Ranked Mode & Leaderboard | Pending |
 | RANK-02 | Phase 4 — Ranked Mode & Leaderboard | Pending |
@@ -129,10 +126,10 @@ Which phases cover which requirements. Populated during roadmap creation.
 | BOT-01 | Phase 6 — Bot Difficulty Tiers | Pending |
 
 **Coverage:**
-- v1 requirements: 25 total
-- Mapped to phases: 25
+- v1 requirements: 24 total
+- Mapped to phases: 24
 - Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-06-01*
-*Last updated: 2026-06-01 after roadmap creation*
+*Last updated: 2026-06-01 after scope refinement (replays cut)*
