@@ -116,7 +116,19 @@ Decimal phases appear between their surrounding integers in numeric order.
   1. When a game ends normally (win/loss), a match record (players, winner, reason, timestamps) is written to Postgres in a single transaction — verifiable by querying the `matches` table.
   2. When a player disconnects and the 3-minute grace window expires without reconnect, the match is recorded as an explicit forfeit loss (not abandoned/null) — the losing player's record reflects the loss.
 
-**Plans**: TBD
+**Plans**: 3 plans
+
+**Wave 1**
+
+- [ ] 03-01-PLAN.md — Schema + Nyquist test scaffold: migrations/004_matches.sql (matches table, reason CHECK, dedup UNIQUE, IDX_ indexes) + test/match.test.js (MATCH-01, MATCH-03)
+
+**Wave 2** *(blocked on Wave 1)*
+
+- [ ] 03-02-PLAN.md — recordMatch helper in db.js: single-transaction parameterized match write, graceful no-op without DB, server-side reason validation, never throws (MATCH-01, D-07)
+
+**Wave 3** *(blocked on Wave 2)*
+
+- [ ] 03-03-PLAN.md — Wire recordMatch into the four game-end paths (doShot win, endGameForfeit, scheduleSeatRelease grace expiry, leaveRoom inline) + room.startedAt + seat userId + room.recorded dedup; disconnect forfeit (MATCH-01, MATCH-03)
 
 ### Phase 4: Ranked Mode & Leaderboard
 
@@ -173,7 +185,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 |-------|----------------|--------|-----------|
 | 1. Foundation | 3/3 | Complete    | 2026-06-01 |
 | 2. Accounts & Identity | 9/9 | Complete   | 2026-06-02 |
-| 3. Match Recording | 0/TBD | Not started | - |
+| 3. Match Recording | 0/3 | Planned | - |
 | 4. Ranked Mode & Leaderboard | 0/TBD | Not started | - |
 | 5. Public Matchmaking | 0/TBD | Not started | - |
 | 6. Bot Difficulty Tiers | 0/TBD | Not started | - |
