@@ -79,7 +79,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 **Wave 3** *(blocked on Wave 2)*
 
-- [ ] 02-03-PLAN.md — Sessions + revocation slice: /auth/signout + /auth/signout-all, avatar chip + dropdown menu with sign-out-all confirmation (AUTH-04)
+- [x] 02-03-PLAN.md — Sessions + revocation slice: /auth/signout + /auth/signout-all, avatar chip + dropdown menu with sign-out-all confirmation (AUTH-04)
 
 **Wave 4** *(blocked on Wave 3)*
 
@@ -87,7 +87,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 **Wave 5** *(blocked on Wave 2 — reuses the Passport/session stack; mirrors Google)*
 
-- [ ] 02-05-PLAN.md — Facebook OAuth slice: passport-facebook strategy + /auth/facebook(+callback), provider-generic linkOrPromoteAccount, FB sign-in button (AUTH-05, SEC-05)
+- [x] 02-05-PLAN.md — Facebook OAuth slice: passport-facebook strategy + /auth/facebook(+callback), provider-generic linkOrPromoteAccount, FB sign-in button (AUTH-05, SEC-05)
 
 **Wave 6** *(blocked on Wave 5 — shares package.json/db.js)*
 
@@ -172,7 +172,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 3/3 | Complete    | 2026-06-01 |
-| 2. Accounts & Identity | 2/9 | In Progress|  |
+| 2. Accounts & Identity | 4/9 | In Progress|  |
 | 3. Match Recording | 0/TBD | Not started | - |
 | 4. Ranked Mode & Leaderboard | 0/TBD | Not started | - |
 | 5. Public Matchmaking | 0/TBD | Not started | - |
