@@ -35,6 +35,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. `fire` and `useAbility` socket events are rate-limited per player; an attacker sending rapid-fire events receives errors, not a crash.
   4. A `doShot()` call with a null or malformed opponent state returns an error response instead of throwing an unhandled exception.
   5. Abandoned rooms are evicted from the in-memory room map; the room count no longer grows unboundedly under load. User-supplied profile fields and chat inputs are validated server-side and rejected if malformed.
+
 **Plans**: 3 plans
 
 **Wave 1**
@@ -70,7 +71,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 **Wave 1**
 
-- [ ] 02-01-PLAN.md — Foundation: auth-package legitimacy gate + install, 002_accounts.sql (profile cols + session table), linkOrPromoteAccount/sanitizeDisplayName, Wave 0 test stubs (AUTH-03, SEC-05)
+- [x] 02-01-PLAN.md — Foundation: auth-package legitimacy gate + install, 002_accounts.sql (profile cols + session table), linkOrPromoteAccount/sanitizeDisplayName, Wave 0 test stubs (AUTH-03, SEC-05)
 
 **Wave 2** *(blocked on Wave 1)*
 
@@ -171,7 +172,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 3/3 | Complete    | 2026-06-01 |
-| 2. Accounts & Identity | 0/9 | Planned | - |
+| 2. Accounts & Identity | 1/9 | In Progress|  |
 | 3. Match Recording | 0/TBD | Not started | - |
 | 4. Ranked Mode & Leaderboard | 0/TBD | Not started | - |
 | 5. Public Matchmaking | 0/TBD | Not started | - |
