@@ -80,7 +80,7 @@ describe.skipIf(!hasDatabaseUrl)(
       await db.upsertGuestCredential(clientId);
 
       // Link to google
-      const user = await db.linkOrPromoteAccount(sub, "Alice", null, clientId);
+      const user = await db.linkOrPromoteAccount("google", sub, "Alice", null, clientId);
       expect(user).toBeTruthy();
       expect(typeof user.id).toBe("number");
 
@@ -103,7 +103,7 @@ describe.skipIf(!hasDatabaseUrl)(
       const sub = "test-sub-d06-stamp-" + Date.now();
 
       await db.upsertGuestCredential(clientId);
-      const user = await db.linkOrPromoteAccount(sub, "Bob", null, clientId);
+      const user = await db.linkOrPromoteAccount("google", sub, "Bob", null, clientId);
 
       const { rows } = await pool.query(
         "SELECT guest_migrated_at FROM users WHERE id=$1",
@@ -118,8 +118,8 @@ describe.skipIf(!hasDatabaseUrl)(
       const sub = "test-sub-d06-idem-" + Date.now();
 
       await db.upsertGuestCredential(clientId);
-      const user1 = await db.linkOrPromoteAccount(sub, "Carol", null, clientId);
-      const user2 = await db.linkOrPromoteAccount(sub, "Carol", null, clientId);
+      const user1 = await db.linkOrPromoteAccount("google", sub, "Carol", null, clientId);
+      const user2 = await db.linkOrPromoteAccount("google", sub, "Carol", null, clientId);
 
       // Same user returned
       expect(user1.id).toBe(user2.id);
@@ -135,7 +135,7 @@ describe.skipIf(!hasDatabaseUrl)(
     it("creates a new user row when pendingClientId is absent (rare: fresh browser no prior guest)", async () => {
       const sub = "test-sub-d06-nogust-" + Date.now();
 
-      const user = await db.linkOrPromoteAccount(sub, "NewUser", null, null);
+      const user = await db.linkOrPromoteAccount("google", sub, "NewUser", null, null);
       expect(user).toBeTruthy();
       expect(typeof user.id).toBe("number");
 
@@ -174,14 +174,14 @@ describe.skipIf(!hasDatabaseUrl)(
       const firstClientId = "test-client-d07-first-" + Date.now();
       const sub = "test-sub-d07-returning-" + Date.now();
       await db.upsertGuestCredential(firstClientId);
-      const googleUser = await db.linkOrPromoteAccount(sub, "Dave", null, firstClientId);
+      const googleUser = await db.linkOrPromoteAccount("google", sub, "Dave", null, firstClientId);
 
       // Step 2: Create a new guest (second device/session)
       const secondClientId = "test-client-d07-second-" + Date.now();
       await db.upsertGuestCredential(secondClientId);
 
       // Step 3: D-07 — returning Google user adopts the new guest credential
-      const resultUser = await db.linkOrPromoteAccount(sub, "Dave", null, secondClientId);
+      const resultUser = await db.linkOrPromoteAccount("google", sub, "Dave", null, secondClientId);
 
       // Same google user returned
       expect(resultUser.id).toBe(googleUser.id);
@@ -201,7 +201,7 @@ describe.skipIf(!hasDatabaseUrl)(
       const sub = "test-sub-d07-nodup-" + Date.now();
 
       await db.upsertGuestCredential(clientId1);
-      const googleUser = await db.linkOrPromoteAccount(sub, "Eve", null, clientId1);
+      const googleUser = await db.linkOrPromoteAccount("google", sub, "Eve", null, clientId1);
 
       await db.upsertGuestCredential(clientId2);
 
@@ -213,7 +213,7 @@ describe.skipIf(!hasDatabaseUrl)(
       const countBefore = beforeRows[0].n;
 
       // D-07 adopt
-      await db.linkOrPromoteAccount(sub, "Eve", null, clientId2);
+      await db.linkOrPromoteAccount("google", sub, "Eve", null, clientId2);
 
       // Count users after D-07 — should not increase
       const { rows: afterRows } = await pool.query(

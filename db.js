@@ -138,30 +138,34 @@ function sanitizeDisplayName(name) {
 }
 
 // ─── linkOrPromoteAccount ────────────────────────────────────────────────────
-// D-06: First-time Google sign-in (new sub) — promote the guest users row by
-//   attaching a new google credential to the existing user_id, stamp guest_migrated_at.
-//   If no pendingClientId (rare: fresh browser), create a new users row instead.
-// D-07: Returning Google user (sub already linked) — adopt the guest credential
-//   by re-pointing it to the existing Google account's user_id.
+// D-06: First-time OAuth sign-in (new externalId for provider) — promote the
+//   guest users row by attaching a new provider credential to the existing
+//   user_id, stamp guest_migrated_at. If no pendingClientId (rare: fresh
+//   browser), create a new users row instead.
+// D-07: Returning OAuth user (externalId already linked) — adopt the guest
+//   credential by re-pointing it to the existing account's user_id.
+//
+// provider: 'google' | 'facebook' | 'email' — parameterized, never hardcoded.
+// Dedup key: (provider, externalId) — NEVER email (D-20 / D-16).
 //
 // All SQL parameterized ($1/$2/...) — never string-concatenated (T-02-02).
 // Transaction: BEGIN/COMMIT/ROLLBACK with pool.connect() release in finally.
 // On error: logs + rethrows — caller (Passport verify callback) passes err to done(err).
 
-async function linkOrPromoteAccount(sub, name, avatarUrl, pendingClientId) {
+async function linkOrPromoteAccount(provider, externalId, name, avatarUrl, pendingClientId) {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
 
-    // Check if this Google sub is already in credentials (D-07 path)
+    // Check if this (provider, externalId) pair is already in credentials (D-07 path)
     const { rows: existing } = await client.query(
-      "SELECT user_id FROM credentials WHERE type='google' AND external_id=$1",
-      [sub]
+      "SELECT user_id FROM credentials WHERE type=$1 AND external_id=$2",
+      [provider, externalId]
     );
 
     let userId;
     if (existing.length === 0) {
-      // D-06: New Google sub — promote guest row if we have a pendingClientId
+      // D-06: New provider credential — promote guest row if we have a pendingClientId
       if (pendingClientId) {
         const { rows: guest } = await client.query(
           "SELECT user_id FROM credentials WHERE type='guest' AND external_id=$1",
@@ -169,10 +173,10 @@ async function linkOrPromoteAccount(sub, name, avatarUrl, pendingClientId) {
         );
         if (guest.length > 0) {
           userId = guest[0].user_id;
-          // Attach google credential to existing user_id; ON CONFLICT is idempotency guard
+          // Attach provider credential to existing user_id; ON CONFLICT is idempotency guard
           await client.query(
-            "INSERT INTO credentials (user_id, type, external_id) VALUES ($1,'google',$2) ON CONFLICT (type, external_id) DO NOTHING",
-            [userId, sub]
+            "INSERT INTO credentials (user_id, type, external_id) VALUES ($1,$2,$3) ON CONFLICT (type, external_id) DO NOTHING",
+            [userId, provider, externalId]
           );
           const safeName = sanitizeDisplayName(name);
           await client.query(
@@ -188,8 +192,8 @@ async function linkOrPromoteAccount(sub, name, avatarUrl, pendingClientId) {
         );
         userId = newUser[0].id;
         await client.query(
-          "INSERT INTO credentials (user_id, type, external_id) VALUES ($1,'google',$2)",
-          [userId, sub]
+          "INSERT INTO credentials (user_id, type, external_id) VALUES ($1,$2,$3)",
+          [userId, provider, externalId]
         );
         const safeName = sanitizeDisplayName(name);
         await client.query(
@@ -198,7 +202,7 @@ async function linkOrPromoteAccount(sub, name, avatarUrl, pendingClientId) {
         );
       }
     } else {
-      // D-07: Returning Google user — adopt guest credential into existing account
+      // D-07: Returning user — adopt guest credential into existing account
       userId = existing[0].user_id;
       if (pendingClientId) {
         await client.query(
@@ -206,7 +210,7 @@ async function linkOrPromoteAccount(sub, name, avatarUrl, pendingClientId) {
           [userId, pendingClientId]
         );
       }
-      // Update display_name/avatar_url in case they changed on the Google side
+      // Update display_name/avatar_url in case they changed on the provider side
       const safeName = sanitizeDisplayName(name);
       await client.query(
         "UPDATE users SET display_name=$1, avatar_url=$2 WHERE id=$3",

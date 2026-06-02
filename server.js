@@ -70,6 +70,7 @@ const expressSession = require("express-session");
 const pgSession = require("connect-pg-simple")(expressSession);
 const passport = require("passport");
 const { Strategy: GoogleStrategy } = require("passport-google-oauth20");
+const { Strategy: FacebookStrategy } = require("passport-facebook");
 
 app.set("trust proxy", 1); // cookie.secure:'auto' works correctly behind EC2/Render reverse proxy
 
@@ -121,7 +122,39 @@ if (process.env.GOOGLE_CLIENT_ID) passport.use(new GoogleStrategy(
     const avatarUrl = profile.photos?.[0]?.value ?? null;
     const pendingClientId = req.session.pendingClientId ?? null;
     try {
-      const user = await linkOrPromoteAccount(sub, name, avatarUrl, pendingClientId);
+      const user = await linkOrPromoteAccount("google", sub, name, avatarUrl, pendingClientId);
+      return done(null, user);
+    } catch (err) {
+      return done(err);
+    }
+  }
+));
+
+// ─── Passport Facebook Strategy ──────────────────────────────────────────────
+// state:true: per-flow nonce (SEC-05/T-02-21). passReqToCallback:true: reads pendingClientId.
+// profileFields: request id, displayName, photos — email intentionally NOT requested as
+// identity key (D-16/D-20: dedup on (type='facebook', external_id=profile.id); email may
+// be absent and must never be the dedup key — T-02-23).
+// Guard: skip in test environments where credentials are absent (mirrors Google WR-01).
+if (process.env.FACEBOOK_CLIENT_ID) passport.use(new FacebookStrategy(
+  {
+    clientID:          process.env.FACEBOOK_CLIENT_ID,
+    clientSecret:      process.env.FACEBOOK_CLIENT_SECRET,
+    callbackURL:       process.env.FACEBOOK_CALLBACK_URL,
+    profileFields:     ["id", "displayName", "photos"],
+    scope:             ["email"],
+    state:             true,  // SEC-05/T-02-21: cryptographic nonce per flow
+    passReqToCallback: true,  // allow verify callback to read req.session.pendingClientId
+  },
+  async (req, accessToken, refreshToken, profile, done) => {
+    // NEVER persist the access token — only users.id stored via serializeUser (T-02-24)
+    // Dedup key: profile.id (stable FB user id) — NOT email (D-16/D-20/T-02-23)
+    const externalId     = profile.id;
+    const name           = profile.displayName;
+    const avatarUrl      = profile.photos?.[0]?.value ?? null;
+    const pendingClientId = req.session.pendingClientId ?? null;
+    try {
+      const user = await linkOrPromoteAccount("facebook", externalId, name, avatarUrl, pendingClientId);
       return done(null, user);
     } catch (err) {
       return done(err);
@@ -207,6 +240,46 @@ app.get("/auth/google/callback",
   authRateLimit,
   passport.authenticate("google", { failureRedirect: "/?authError=1" }),
   onGoogleCallbackSuccess
+);
+
+// ─── Facebook auth routes ─────────────────────────────────────────────────────
+// Mirrors the Google routes exactly (T-02-25: authRateLimit on both routes;
+// T-02-21: state nonce validated by FacebookStrategy; T-02-22: session.regenerate
+// automatic via Passport 0.6+; T-02-26: onFacebookCallbackSuccess stamps user_id).
+
+// Initiate Facebook OAuth — save guest clientId so callback can link the account.
+// Explicit req.session.save before redirect ensures pendingClientId persists in
+// the store before the browser follows the Location header (PITFALLS #1 / Open Q3).
+app.get("/auth/facebook", authRateLimit, (req, res, next) => {
+  if (req.query.clientId) {
+    req.session.pendingClientId = req.query.clientId;
+    req.session.save((err) => {
+      if (err) return res.redirect("/?authError=1");
+      passport.authenticate("facebook")(req, res, next);
+    });
+  } else {
+    passport.authenticate("facebook")(req, res, next);
+  }
+});
+
+// Named success handler mirrors onGoogleCallbackSuccess (Plan 03's pattern):
+// stamps req.session.user_id BEFORE req.session.save so the indexed DELETE works
+// for sign-out-all (T-02-26). res.redirect fires ONLY inside the save callback.
+function onFacebookCallbackSuccess(req, res) {
+  req.session.user_id = req.user.id;
+  req.session.save((err) => {
+    if (err) {
+      console.error("[auth] session save failed after facebook login:", err.message);
+      return res.redirect("/?authError=1");
+    }
+    res.redirect("/");
+  });
+}
+
+app.get("/auth/facebook/callback",
+  authRateLimit,
+  passport.authenticate("facebook", { failureRedirect: "/?authError=1" }),
+  onFacebookCallbackSuccess
 );
 
 // POST /auth/signout — destroy current session (this device only).
