@@ -99,7 +99,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 **Wave 8** *(blocked on Wave 7)*
 
-- [ ] 02-08-PLAN.md — Email verification slice: resend gate + graceful-degrade mailer.js, async non-blocking verification email, GET /auth/verify (AUTH-07)
+- [x] 02-08-PLAN.md — Email verification slice: resend gate + graceful-degrade mailer.js, async non-blocking verification email, GET /auth/verify (AUTH-07)
 
 **Wave 9** *(blocked on Wave 8)*
 
@@ -172,7 +172,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 3/3 | Complete    | 2026-06-01 |
-| 2. Accounts & Identity | 7/9 | In Progress|  |
+| 2. Accounts & Identity | 8/9 | In Progress|  |
 | 3. Match Recording | 0/TBD | Not started | - |
 | 4. Ranked Mode & Leaderboard | 0/TBD | Not started | - |
 | 5. Public Matchmaking | 0/TBD | Not started | - |
