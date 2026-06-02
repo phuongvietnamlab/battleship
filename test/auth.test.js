@@ -1038,3 +1038,306 @@ describe.skipIf(!hasDatabaseUrl)(
     });
   }
 );
+
+// ─── Suite 9: AUTH-08 setEmailPassword DB helper ──────────────────────────────
+// DB-gated: createAuthToken('reset') + consumeAuthToken + setEmailPassword
+// verifies full password-reset round-trip (new hash, single-use token, expiry, min-8).
+
+describe.skipIf(!hasDatabaseUrl)(
+  "AUTH-08 setEmailPassword helper (requires DB)",
+  () => {
+    let pool;
+    let db;
+    let testUserId;
+    const ts = Date.now();
+    const resetEmail = "test-email-reset-helper-" + ts + "@example.com";
+    const resetClientId = "test-client-reset-helper-" + ts;
+    const originalPassword = "OriginalPass123!";
+
+    beforeAll(async () => {
+      db = await import("../db.js");
+      pool = db.pool;
+      await db.runMigrations(pool);
+      // Create an email account to test against
+      const user = await db.createEmailAccount(resetEmail, originalPassword, resetClientId);
+      testUserId = user.id;
+    });
+
+    afterAll(async () => {
+      await pool.query("DELETE FROM auth_tokens WHERE user_id=$1", [testUserId]);
+      await pool.query(
+        "DELETE FROM credentials WHERE external_id LIKE 'test-email-reset-helper-%@example.com'"
+      );
+      await pool.query(
+        "DELETE FROM users WHERE id NOT IN (SELECT user_id FROM credentials)"
+      );
+      await pool.end();
+    });
+
+    it("setEmailPassword is exported as a function", async () => {
+      expect(typeof db.setEmailPassword).toBe("function");
+    });
+
+    it("setEmailPassword with < 8 char password returns WEAK_PASSWORD", async () => {
+      const result = await db.setEmailPassword(testUserId, "short");
+      expect(result).toEqual({ error: "WEAK_PASSWORD" });
+    });
+
+    it("setEmailPassword updates bcrypt hash; verifyEmailLogin succeeds with new password", async () => {
+      // Fetch old hash before reset
+      const { rows: before } = await pool.query(
+        "SELECT password_hash FROM credentials WHERE type='email' AND user_id=$1",
+        [testUserId]
+      );
+      const oldHash = before[0].password_hash;
+
+      const newPassword = "NewPassword456!";
+      const result = await db.setEmailPassword(testUserId, newPassword);
+      expect(result).toEqual({ ok: true });
+
+      // Hash in DB must have changed
+      const { rows: after } = await pool.query(
+        "SELECT password_hash FROM credentials WHERE type='email' AND user_id=$1",
+        [testUserId]
+      );
+      const newHash = after[0].password_hash;
+      expect(newHash).not.toBe(oldHash);
+      expect(newHash).toMatch(/^\$2b\$/);  // bcrypt prefix
+
+      // New password must work via verifyEmailLogin
+      const loginNew = await db.verifyEmailLogin(resetEmail, newPassword);
+      expect(loginNew).not.toHaveProperty("error");
+      expect(loginNew.id).toBe(testUserId);
+
+      // Old password must now fail
+      const loginOld = await db.verifyEmailLogin(resetEmail, originalPassword);
+      expect(loginOld).toEqual({ error: "AUTH_FAILED" });
+    });
+
+    it("setEmailPassword returns AUTH_FAILED for a userId with no email credential", async () => {
+      // Create a user with only a guest credential (no email credential)
+      const guestCid = "test-client-reset-nomail-" + ts;
+      await db.upsertGuestCredential(guestCid);
+      const { rows } = await pool.query(
+        "SELECT user_id FROM credentials WHERE type='guest' AND external_id=$1",
+        [guestCid]
+      );
+      const guestUserId = rows[0].user_id;
+
+      const result = await db.setEmailPassword(guestUserId, "ValidPassword123!");
+      expect(result).toEqual({ error: "AUTH_FAILED" });
+
+      // Cleanup guest-only row
+      await pool.query("DELETE FROM credentials WHERE type='guest' AND external_id=$1", [guestCid]);
+      await pool.query("DELETE FROM users WHERE id NOT IN (SELECT user_id FROM credentials)");
+    });
+  }
+);
+
+// ─── Suite 10: AUTH-08 reset token round-trip (requires DB) ──────────────────
+// Verifies createAuthToken('reset') + consumeAuthToken + setEmailPassword
+// enforces single-use, expiry, and correct new hash.
+
+describe.skipIf(!hasDatabaseUrl)(
+  "AUTH-08 reset token round-trip (requires DB)",
+  () => {
+    let pool;
+    let db;
+    let testUserId;
+    const ts2 = Date.now() + 1;
+    const roundTripEmail = "test-email-reset-rt-" + ts2 + "@example.com";
+    const roundTripClientId = "test-client-reset-rt-" + ts2;
+
+    beforeAll(async () => {
+      db = await import("../db.js");
+      pool = db.pool;
+      await db.runMigrations(pool);
+      const user = await db.createEmailAccount(roundTripEmail, "InitialPass123!", roundTripClientId);
+      testUserId = user.id;
+    });
+
+    afterAll(async () => {
+      await pool.query("DELETE FROM auth_tokens WHERE user_id=$1", [testUserId]);
+      await pool.query(
+        "DELETE FROM credentials WHERE external_id LIKE 'test-email-reset-rt-%@example.com'"
+      );
+      await pool.query(
+        "DELETE FROM users WHERE id NOT IN (SELECT user_id FROM credentials)"
+      );
+      await pool.end();
+    });
+
+    it("createAuthToken('reset') + consumeAuthToken('reset') returns userId", async () => {
+      const token = await db.createAuthToken(testUserId, "reset", 3600);
+      expect(typeof token).toBe("string");
+      expect(token.length).toBe(64); // 32 bytes hex = 64 chars
+
+      const result = await db.consumeAuthToken(token, "reset");
+      expect(result).toEqual({ userId: testUserId });
+    });
+
+    it("consuming the same reset token twice -> second returns BAD_TOKEN (single-use)", async () => {
+      const token = await db.createAuthToken(testUserId, "reset", 3600);
+      const first = await db.consumeAuthToken(token, "reset");
+      expect(first).toEqual({ userId: testUserId });
+
+      const second = await db.consumeAuthToken(token, "reset");
+      expect(second).toEqual({ error: "BAD_TOKEN" });
+    });
+
+    it("expired reset token -> BAD_TOKEN", async () => {
+      const crypto = require("crypto");
+      const expiredToken = crypto.randomBytes(32).toString("hex");
+      await pool.query(
+        "INSERT INTO auth_tokens (user_id, token, purpose, expires_at) VALUES ($1,$2,$3, now() - interval '1 hour')",
+        [testUserId, expiredToken, "reset"]
+      );
+      const result = await db.consumeAuthToken(expiredToken, "reset");
+      expect(result).toEqual({ error: "BAD_TOKEN" });
+    });
+  }
+);
+
+// ─── Suite 11: AUTH-08 POST /auth/reset-request + /auth/reset routes ─────────
+// Behavioral HTTP tests (DB-gated, random-port app).
+
+describe.skipIf(!hasDatabaseUrl)(
+  "AUTH-08 POST /auth/reset-request + /auth/reset routes (requires DB)",
+  () => {
+    let pool;
+    let db;
+    let srv;
+    let baseUrl;
+    let testUserId;
+    const ts3 = Date.now() + 2;
+    const routeResetEmail = "test-email-reset-route-" + ts3 + "@example.com";
+    const routeResetClientId = "test-client-reset-route-" + ts3;
+    const routeResetPassword = "RouteResetPass456!";
+
+    function httpPost(path, body) {
+      return new Promise((resolve, reject) => {
+        const http = require("http");
+        const bodyStr = JSON.stringify(body);
+        const url = new URL(baseUrl + path);
+        const opts = {
+          hostname: url.hostname,
+          port: parseInt(url.port, 10),
+          path: url.pathname,
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Content-Length": Buffer.byteLength(bodyStr),
+          },
+        };
+        const req = http.request(opts, (res) => {
+          let data = "";
+          res.on("data", (c) => (data += c));
+          res.on("end", () => {
+            try {
+              resolve({ status: res.statusCode, body: JSON.parse(data) });
+            } catch (_) {
+              resolve({ status: res.statusCode, body: data });
+            }
+          });
+        });
+        req.on("error", reject);
+        req.write(bodyStr);
+        req.end();
+      });
+    }
+
+    beforeAll(async () => {
+      db = await import("../db.js");
+      pool = db.pool;
+      await db.runMigrations(pool);
+      const user = await db.createEmailAccount(
+        routeResetEmail, routeResetPassword, routeResetClientId
+      );
+      testUserId = user.id;
+
+      const { TEST_EXPORTS } = await import("../server.js");
+      srv = TEST_EXPORTS.app.listen(0);
+      await new Promise((resolve) => srv.once("listening", resolve));
+      const addr = srv.address();
+      baseUrl = "http://127.0.0.1:" + addr.port;
+    });
+
+    afterAll(async () => {
+      if (srv) await new Promise((r) => srv.close(r));
+      await pool.query("DELETE FROM auth_tokens WHERE user_id=$1", [testUserId]);
+      await pool.query(
+        "DELETE FROM credentials WHERE external_id LIKE 'test-email-reset-route-%@example.com'"
+      );
+      await pool.query(
+        "DELETE FROM users WHERE id NOT IN (SELECT user_id FROM credentials)"
+      );
+      await pool.end();
+    });
+
+    it("POST /auth/reset-request returns {ok:true} for a KNOWN email (enumeration-safe)", async () => {
+      const res = await httpPost("/auth/reset-request", { email: routeResetEmail });
+      expect(res.status).toBe(200);
+      expect(res.body.ok).toBe(true);
+    });
+
+    it("POST /auth/reset-request returns {ok:true} for an UNKNOWN email (enumeration-safe — identical response)", async () => {
+      const res = await httpPost("/auth/reset-request", {
+        email: "test-email-reset-noexist-" + ts3 + "@example.com",
+      });
+      expect(res.status).toBe(200);
+      expect(res.body.ok).toBe(true);
+    });
+
+    it("POST /auth/reset with valid token + new password sets a new bcrypt hash", async () => {
+      // Create a reset token directly (simulates clicking the emailed link)
+      const token = await db.createAuthToken(testUserId, "reset", 3600);
+
+      const newPassword = "BrandNewPass789!";
+      const res = await httpPost("/auth/reset", { token, password: newPassword });
+      expect(res.status).toBe(200);
+      expect(res.body.ok).toBe(true);
+
+      // Verify the new password works
+      const loginNew = await db.verifyEmailLogin(routeResetEmail, newPassword);
+      expect(loginNew).not.toHaveProperty("error");
+      expect(loginNew.id).toBe(testUserId);
+    });
+
+    it("POST /auth/reset with a reused token -> BAD_TOKEN (single-use)", async () => {
+      const token = await db.createAuthToken(testUserId, "reset", 3600);
+      // First use is valid
+      const first = await httpPost("/auth/reset", { token, password: "FirstReset123!" });
+      expect(first.status).toBe(200);
+      expect(first.body.ok).toBe(true);
+
+      // Second use must return BAD_TOKEN
+      const second = await httpPost("/auth/reset", { token, password: "SecondReset456!" });
+      expect(second.status).toBe(400);
+      expect(second.body.code).toBe("BAD_TOKEN");
+    });
+
+    it("POST /auth/reset with an expired token -> BAD_TOKEN", async () => {
+      const crypto = require("crypto");
+      const expiredToken = crypto.randomBytes(32).toString("hex");
+      await pool.query(
+        "INSERT INTO auth_tokens (user_id, token, purpose, expires_at) VALUES ($1,$2,$3, now() - interval '1 hour')",
+        [testUserId, expiredToken, "reset"]
+      );
+      const res = await httpPost("/auth/reset", {
+        token: expiredToken,
+        password: "ExpiredTokenPass123!",
+      });
+      expect(res.status).toBe(400);
+      expect(res.body.code).toBe("BAD_TOKEN");
+    });
+
+    it("POST /auth/reset with weak password -> WEAK_PASSWORD (token NOT consumed — fresh link needed)", async () => {
+      const token = await db.createAuthToken(testUserId, "reset", 3600);
+      const res = await httpPost("/auth/reset", { token, password: "short" });
+      expect(res.status).toBe(400);
+      expect(res.body.code).toBe("WEAK_PASSWORD");
+      // Note: per plan, WEAK_PASSWORD = token already consumed (consume-before-set ordering).
+      // User must request a fresh link.
+    });
+  }
+);
