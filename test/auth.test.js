@@ -1,4 +1,5 @@
 // test/auth.test.js — Wave 0 test scaffold for SEC-05, AUTH-02, AUTH-03, AUTH-04.
+// AUTH-07 (Plan 08): email verification token flip, single-use, expiry, mailer no-op.
 // DB-gated suites skip cleanly when DATABASE_URL is not set.
 // Follows the test/db.test.js pattern: describe.skipIf, beforeAll runMigrations, afterAll cleanup.
 
@@ -766,6 +767,274 @@ describe.skipIf(!hasDatabaseUrl)(
 
       // Clean up the other-user row (not covered by afterAll prefix filter)
       await pool.query("DELETE FROM session WHERE sid = $1", [sidOther]);
+    });
+  }
+);
+
+// ─── Suite 6: AUTH-07 mailer no-op (no DB required) ──────────────────────────
+// Verifies mailer graceful degradation in isolation — no DB or network needed.
+
+describe("AUTH-07 mailer graceful degradation (no DB required)", () => {
+  it("sendVerificationEmail returns {skipped:true} when RESEND_API_KEY is unset", async () => {
+    // Temporarily clear the key (test env should not have it, but be explicit)
+    const saved = process.env.RESEND_API_KEY;
+    delete process.env.RESEND_API_KEY;
+    try {
+      const mailer = await import("../mailer.js");
+      const result = await mailer.sendVerificationEmail("test@example.com", "http://localhost/auth/verify?token=abc");
+      expect(result).toEqual({ skipped: true });
+    } finally {
+      if (saved !== undefined) process.env.RESEND_API_KEY = saved;
+    }
+  });
+
+  it("sendMail returns {skipped:true} when RESEND_API_KEY is unset", async () => {
+    const saved = process.env.RESEND_API_KEY;
+    delete process.env.RESEND_API_KEY;
+    try {
+      const mailer = await import("../mailer.js");
+      const result = await mailer.sendMail({ to: "x@example.com", subject: "Test", html: "<p>hi</p>", text: "hi" });
+      expect(result).toEqual({ skipped: true });
+    } finally {
+      if (saved !== undefined) process.env.RESEND_API_KEY = saved;
+    }
+  });
+
+  it("sendVerificationEmail never throws when RESEND_API_KEY is unset", async () => {
+    const saved = process.env.RESEND_API_KEY;
+    delete process.env.RESEND_API_KEY;
+    try {
+      const mailer = await import("../mailer.js");
+      await expect(mailer.sendVerificationEmail("x@example.com", "http://localhost/verify")).resolves.not.toThrow();
+    } finally {
+      if (saved !== undefined) process.env.RESEND_API_KEY = saved;
+    }
+  });
+});
+
+// ─── Suite 7: AUTH-07 email verification DB-gated suites ─────────────────────
+// Tests the verify-token flip: createAuthToken(user,'verify') -> consumeAuthToken
+// -> markEmailVerified flips email_verified; second consume -> BAD_TOKEN;
+// expired token -> BAD_TOKEN (no flip).
+// Cleanup prefixes: test-email-verify-* for credentials, test-client-verify-* for guests.
+
+describe.skipIf(!hasDatabaseUrl)(
+  "AUTH-07 email verification token + markEmailVerified (requires DB)",
+  () => {
+    let pool;
+    let db;
+    let testUserId;
+    const ts = Date.now();
+    const verifyEmail = "test-email-verify-" + ts + "@example.com";
+    const verifyClientId = "test-client-verify-" + ts;
+
+    beforeAll(async () => {
+      db = await import("../db.js");
+      pool = db.pool;
+      await db.runMigrations(pool);
+      // Seed an email account for verify-token tests
+      const user = await db.createEmailAccount(verifyEmail, "VerifyPass123!", verifyClientId);
+      testUserId = user.id;
+    });
+
+    afterAll(async () => {
+      await pool.query("DELETE FROM auth_tokens WHERE user_id=$1", [testUserId]);
+      await pool.query(
+        "DELETE FROM credentials WHERE external_id LIKE 'test-email-verify-%@example.com'"
+      );
+      await pool.query(
+        "DELETE FROM users WHERE id NOT IN (SELECT user_id FROM credentials)"
+      );
+      await pool.end();
+    });
+
+    it("createAuthToken + consumeAuthToken + markEmailVerified flips email_verified to true", async () => {
+      // Ensure email_verified starts as false
+      const { rows: before } = await pool.query(
+        "SELECT email_verified FROM users WHERE id=$1",
+        [testUserId]
+      );
+      expect(before[0].email_verified).toBe(false);
+
+      // Create a verify token (24h TTL)
+      const token = await db.createAuthToken(testUserId, "verify", 86400);
+      expect(typeof token).toBe("string");
+      expect(token.length).toBeGreaterThan(0);
+
+      // Consume the token — should return {userId}
+      const consumed = await db.consumeAuthToken(token, "verify");
+      expect(consumed).toHaveProperty("userId");
+      expect(consumed.userId).toBe(testUserId);
+
+      // Flip email_verified
+      await db.markEmailVerified(consumed.userId);
+
+      // Assert email_verified is now true
+      const { rows: after } = await pool.query(
+        "SELECT email_verified FROM users WHERE id=$1",
+        [testUserId]
+      );
+      expect(after[0].email_verified).toBe(true);
+    });
+
+    it("consuming the same token a second time returns BAD_TOKEN (single-use)", async () => {
+      const token = await db.createAuthToken(testUserId, "verify", 86400);
+
+      // First consume succeeds
+      const first = await db.consumeAuthToken(token, "verify");
+      expect(first).toHaveProperty("userId");
+
+      // Second consume returns BAD_TOKEN (single-use enforced by consumed_at guard)
+      const second = await db.consumeAuthToken(token, "verify");
+      expect(second).toEqual({ error: "BAD_TOKEN" });
+
+      // email_verified remains true (markEmailVerified is idempotent; prior test set it)
+      const { rows } = await pool.query(
+        "SELECT email_verified FROM users WHERE id=$1",
+        [testUserId]
+      );
+      expect(rows[0].email_verified).toBe(true);
+    });
+
+    it("an expired token (past expires_at) returns BAD_TOKEN and does not verify", async () => {
+      // Reset email_verified to false to make the assertion meaningful
+      await pool.query("UPDATE users SET email_verified=false WHERE id=$1", [testUserId]);
+
+      // Insert a token that already expired
+      const crypto = require("crypto");
+      const expiredToken = crypto.randomBytes(32).toString("hex");
+      await pool.query(
+        "INSERT INTO auth_tokens (user_id, token, purpose, expires_at) VALUES ($1,$2,$3, now() - interval '1 hour')",
+        [testUserId, expiredToken, "verify"]
+      );
+
+      // Consume should return BAD_TOKEN
+      const result = await db.consumeAuthToken(expiredToken, "verify");
+      expect(result).toEqual({ error: "BAD_TOKEN" });
+
+      // email_verified must still be false — expired token did not verify the account
+      const { rows } = await pool.query(
+        "SELECT email_verified FROM users WHERE id=$1",
+        [testUserId]
+      );
+      expect(rows[0].email_verified).toBe(false);
+    });
+
+    it("a token with wrong purpose returns BAD_TOKEN", async () => {
+      const token = await db.createAuthToken(testUserId, "reset", 3600);
+      const result = await db.consumeAuthToken(token, "verify");
+      expect(result).toEqual({ error: "BAD_TOKEN" });
+    });
+  }
+);
+
+// ─── Suite 8: AUTH-07 GET /auth/verify route (requires DB) ───────────────────
+// Behavioral test: real HTTP to GET /auth/verify?token=... verifies the redirect
+// and the DB state change. Uses Node built-in http module (mirrors Suite 5 pattern).
+
+describe.skipIf(!hasDatabaseUrl)(
+  "AUTH-07 GET /auth/verify route (requires DB)",
+  () => {
+    let pool;
+    let db;
+    let srv;
+    let baseUrl;
+    let testUserId;
+    const ts = Date.now();
+    const routeEmail = "test-email-route-verify-" + ts + "@example.com";
+    const routeClientId = "test-client-route-verify-" + ts;
+
+    function httpGet(url) {
+      return new Promise((resolve, reject) => {
+        const http = require("http");
+        const reqOpts = new URL(url);
+        const opts = {
+          hostname: reqOpts.hostname,
+          port: parseInt(reqOpts.port, 10),
+          path: reqOpts.pathname + reqOpts.search,
+          method: "GET",
+        };
+        const req = http.request(opts, (res) => {
+          let body = "";
+          res.on("data", (c) => { body += c; });
+          res.on("end", () => resolve({ status: res.statusCode, headers: res.headers, body }));
+        });
+        req.on("error", reject);
+        req.end();
+      });
+    }
+
+    beforeAll(async () => {
+      db = await import("../db.js");
+      pool = db.pool;
+      await db.runMigrations(pool);
+
+      const user = await db.createEmailAccount(routeEmail, "RouteVerify123!", routeClientId);
+      testUserId = user.id;
+
+      // Import and start the Express app on a random port
+      const { TEST_EXPORTS } = await import("../server.js");
+      srv = TEST_EXPORTS.app.listen(0);
+      await new Promise((resolve) => srv.once("listening", resolve));
+      const addr = srv.address();
+      baseUrl = "http://127.0.0.1:" + addr.port;
+    });
+
+    afterAll(async () => {
+      if (srv) await new Promise((r) => srv.close(r));
+      await pool.query("DELETE FROM auth_tokens WHERE user_id=$1", [testUserId]);
+      await pool.query(
+        "DELETE FROM credentials WHERE external_id LIKE 'test-email-route-verify-%@example.com'"
+      );
+      await pool.query(
+        "DELETE FROM users WHERE id NOT IN (SELECT user_id FROM credentials)"
+      );
+      await pool.end();
+    });
+
+    it("valid verify token -> redirects to /?verified=1 and flips email_verified", async () => {
+      // Ensure email_verified is false before the test
+      await pool.query("UPDATE users SET email_verified=false WHERE id=$1", [testUserId]);
+
+      const token = await db.createAuthToken(testUserId, "verify", 86400);
+      const res = await httpGet(baseUrl + "/auth/verify?token=" + token);
+
+      // Should redirect (302) to /?verified=1
+      expect(res.status).toBe(302);
+      expect(res.headers.location).toMatch(/verified=1/);
+
+      // email_verified should now be true
+      const { rows } = await pool.query(
+        "SELECT email_verified FROM users WHERE id=$1",
+        [testUserId]
+      );
+      expect(rows[0].email_verified).toBe(true);
+    });
+
+    it("missing token -> redirects to /?verifyError=1", async () => {
+      const res = await httpGet(baseUrl + "/auth/verify");
+      expect(res.status).toBe(302);
+      expect(res.headers.location).toMatch(/verifyError=1/);
+    });
+
+    it("bad/unknown token -> redirects to /?verifyError=1", async () => {
+      const res = await httpGet(baseUrl + "/auth/verify?token=not-a-real-token-xyz");
+      expect(res.status).toBe(302);
+      expect(res.headers.location).toMatch(/verifyError=1/);
+    });
+
+    it("reused (already-consumed) token -> redirects to /?verifyError=1 (single-use)", async () => {
+      const token = await db.createAuthToken(testUserId, "verify", 86400);
+
+      // First request consumes the token
+      const first = await httpGet(baseUrl + "/auth/verify?token=" + token);
+      expect(first.status).toBe(302);
+      expect(first.headers.location).toMatch(/verified=1/);
+
+      // Second request on same token is rejected
+      const second = await httpGet(baseUrl + "/auth/verify?token=" + token);
+      expect(second.status).toBe(302);
+      expect(second.headers.location).toMatch(/verifyError=1/);
     });
   }
 );
