@@ -63,12 +63,8 @@ app.use(express.static(path.join(__dirname, "dist")));
 app.use(express.static(path.join(__dirname, "public")));
 
 // ─── Session + Passport middleware ──────────────────────────────────────────
-// SESSION_SECRET is required — fail loud at boot so misconfigured deploys are
-// caught immediately (mirrors migration fail-loud pattern in boot sequence).
-if (!process.env.SESSION_SECRET) {
-  console.error("[auth] SESSION_SECRET env var is required — exiting");
-  process.exit(1);
-}
+// SESSION_SECRET check is in the require.main boot block (below) so importing
+// server.js in tests does not trigger process.exit (WR-01 pattern).
 
 const expressSession = require("express-session");
 const pgSession = require("connect-pg-simple")(expressSession);
@@ -82,7 +78,10 @@ const sessionMiddleware = expressSession({
     pool,                         // reuse shared pool — NEVER new Pool() (PITFALLS #4)
     createTableIfMissing: false,  // session table DDL is in 002_accounts.sql
   }),
-  secret: process.env.SESSION_SECRET,
+  // SESSION_SECRET must be set at runtime; the boot guard (require.main block) exits if absent.
+  // The "test-placeholder" fallback is only reached in test imports where auth routes are never
+  // exercised — it prevents express-session from emitting a deprecation for missing secret (WR-01).
+  secret: process.env.SESSION_SECRET || "test-placeholder-not-used-in-production",
   resave: false,
   rolling: true,                  // refresh maxAge on every response (D-04)
   saveUninitialized: false,
@@ -105,7 +104,8 @@ io.engine.use(sessionMiddleware);
 // ─── Passport Google Strategy ────────────────────────────────────────────────
 // state:true: Passport generates + validates a random nonce per flow (SEC-05, T-02-05).
 // passReqToCallback:true: verify callback receives req so it can read req.session.pendingClientId.
-passport.use(new GoogleStrategy(
+// Guard: skip strategy registration in test environments where credentials are absent (WR-01).
+if (process.env.GOOGLE_CLIENT_ID) passport.use(new GoogleStrategy(
   {
     clientID:          process.env.GOOGLE_CLIENT_ID,
     clientSecret:      process.env.GOOGLE_CLIENT_SECRET,
@@ -160,6 +160,52 @@ const abilityLimiter = new RateLimiterMemory({ points: 1,  duration: 1  }); // 1
 const chatLimiter    = new RateLimiterMemory({ points: 5,  duration: 10 }); // 5 messages/10s
 // Consecutive violation threshold before forcibly disconnecting the abusing socket (D-08).
 const RL_ABUSE_THRESHOLD = 10;
+
+// ─── Auth rate limiter ───────────────────────────────────────────────────────
+// Extends existing RateLimiterMemory pattern (lines above) to OAuth endpoints.
+// 10 auth attempts/min per IP — protects against auth-route brute-force (T-02-09).
+const authLimiter = new RateLimiterMemory({ points: 10, duration: 60 });
+function authRateLimit(req, res, next) {
+  authLimiter.consume(req.ip).then(next).catch(() => res.status(429).json({ code: "RATE_LIMITED" }));
+}
+
+// ─── Auth routes ─────────────────────────────────────────────────────────────
+
+// Initiate Google OAuth — save guest clientId so callback can link the account.
+// Explicit req.session.save before redirect ensures pendingClientId persists in
+// the store before the browser follows the Location header (PITFALLS #1 / Open Q3).
+app.get("/auth/google", authRateLimit, (req, res, next) => {
+  if (req.query.clientId) {
+    req.session.pendingClientId = req.query.clientId;
+    req.session.save((err) => {
+      if (err) return res.redirect("/?authError=1");
+      passport.authenticate("google")(req, res, next);
+    });
+  } else {
+    passport.authenticate("google")(req, res, next);
+  }
+});
+
+// Declare the success handler as a named function so Plan 03 can extend its body
+// (add user_id stamp + session save) without re-parsing an inline arrow chain.
+// Passport 0.6+ calls req.session.regenerate() automatically at req.logIn() —
+// this named handler runs AFTER that regeneration (SEC-05 / T-02-06).
+function onGoogleCallbackSuccess(req, res) {
+  res.redirect("/");
+}
+
+app.get("/auth/google/callback",
+  authRateLimit,
+  passport.authenticate("google", { failureRedirect: "/?authError=1" }),
+  onGoogleCallbackSuccess
+);
+
+// Current session info — client SPA calls this on mount to hydrate auth state.
+// Returns {user:null} for guests; {user:{id,displayName,avatarUrl}} for signed-in.
+app.get("/api/me", (req, res) => {
+  if (!req.user) return res.json({ user: null });
+  res.json({ user: { id: req.user.id, displayName: req.user.display_name, avatarUrl: req.user.avatar_url } });
+});
 
 // rooms: code -> {
 //   players: { clientId: {sid, ready, occ:Set|null, hits:Set, online, timer} },
@@ -723,6 +769,13 @@ io.on("connection", (socket) => {
   socket.data.code = null;
   socket.data.clientId = null;
 
+  // D-11: read userId from the shared session (io.engine.use(sessionMiddleware) wired above).
+  // socket.request.session is populated because Socket.IO runs the same session middleware.
+  // null = guest; integer = authenticated account.
+  const userId = socket.request.session?.passport?.user ?? null;
+  socket.data.userId = userId;
+  console.log("[auth] socket connected, clientId:", socket.data.clientId, "userId:", userId);
+
   socket.on("createRoom", (arg, cb) => {
     if (typeof arg === "function") { cb = arg; arg = {}; }
     const clientId = (arg && arg.clientId) || socket.id;
@@ -1100,6 +1153,12 @@ io.on("connection", (socket) => {
 // Guarded by require.main === module so importing server.js in tests does not
 // boot the server / bind PORT / run migrations as an import side effect (WR-01).
 if (require.main === module) {
+  // SESSION_SECRET is required for cookie-backed sessions. Fail-loud here
+  // (not at module load) so tests can import server.js without triggering exit (WR-01).
+  if (!process.env.SESSION_SECRET) {
+    console.error("[auth] SESSION_SECRET env var is required — exiting");
+    process.exit(1);
+  }
   (async () => {
     // Migrations must succeed before listen() (DATA-02). Wrap in try/catch so a
     // DB failure exits cleanly with a logged, actionable message instead of an
