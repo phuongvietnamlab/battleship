@@ -8,7 +8,7 @@ const http = require("http");
 const path = require("path");
 const { Server } = require("socket.io");
 const store = require("./store"); // optional Redis snapshot; no-op without REDIS_URL
-const { pool, runMigrations, upsertGuestCredential, linkOrPromoteAccount, createEmailAccount, verifyEmailLogin, createAuthToken, consumeAuthToken, markEmailVerified, setEmailPassword } = require("./db"); // Postgres: identity persistence
+const { pool, runMigrations, upsertGuestCredential, linkOrPromoteAccount, createEmailAccount, verifyEmailLogin, createAuthToken, consumeAuthToken, markEmailVerified, setEmailPassword, recordMatch } = require("./db"); // Postgres: identity persistence
 const mailer = require("./mailer"); // optional email wrapper (graceful-degrade when RESEND_API_KEY unset)
 
 const app = express();
@@ -731,6 +731,21 @@ function scheduleSeatRelease(room, code, clientId, ms) {
     const r2 = rooms[code];
     if (!r2 || !r2.players[clientId]) return;
     if (r2.players[clientId].online) return; // came back
+    // Capture match recording data BEFORE seat deletion (Pitfall 2+6: seat gone after delete)
+    // Guard: r2.started (D-05 no lobby-abandon writes) and order.length===2 (D-04 belt-and-suspenders)
+    let disconnectRecord = null;
+    if (r2.started && !r2.recorded && r2.order.length === 2) {
+      const winnerId = opponentOf(r2, clientId);
+      if (winnerId) {
+        disconnectRecord = {
+          wId: r2.players[winnerId]?.userId ?? null,
+          lId: r2.players[clientId]?.userId ?? null,
+          mode: r2.mode,
+          startedAt: r2.startedAt,
+        };
+        r2.recorded = true; // synchronous dedup guard (D-06) — set BEFORE delete
+      }
+    }
     r2.order = r2.order.filter((id) => id !== clientId);
     delete r2.players[clientId];
     clearTurnTimer(r2);
@@ -740,6 +755,10 @@ function scheduleSeatRelease(room, code, clientId, ms) {
       io.to(code).emit("opponentLeft");
       r2.started = false;
       io.to(code).emit("roomUpdate", roomPublic(r2));
+    }
+    // Fire-and-forget match record after opponentLeft emit (D-07)
+    if (disconnectRecord) {
+      recordMatch(disconnectRecord.wId, disconnectRecord.lId, "disconnect", disconnectRecord.mode, disconnectRecord.startedAt).catch(() => {});
     }
   }, ms != null ? ms : GRACE_MS);
 }
@@ -1058,6 +1077,14 @@ function endGameForfeit(room, loserId, reason) {
   emitToClient(room, loserId, "gameOver", { win: false, reason });
   room.started = false;
   room.turn = null;
+  // Record match after both gameOver emits (D-07); room.started was true entering forfeit.
+  // Guard: !room.recorded dedup (D-06); order.length===2 belt-and-suspenders.
+  if (winnerId && !room.recorded && room.order.length === 2) {
+    room.recorded = true; // synchronous dedup guard (D-06) — set BEFORE the promise
+    const wId = room.players[winnerId]?.userId ?? null;
+    const lId = room.players[loserId]?.userId ?? null;
+    recordMatch(wId, lId, reason, room.mode, room.startedAt).catch(() => {});
+  }
 }
 
 function onTurnTimeout(room, who) {
@@ -1123,6 +1150,15 @@ function doShot(room, clientId, cells) {
     emitToClient(room, opp, "gameOver", { win: false });
     room.started = false;
     clearTurnTimer(room);
+    // Record match after gameOver emits (D-07: never block end-game on DB write).
+    // room.started was true entering doShot win; order.length===2 belt-and-suspenders.
+    // Bot/single-player never reach server (no server room created — no guard needed).
+    if (!room.recorded && room.order.length === 2) {
+      room.recorded = true; // synchronous dedup guard (D-06) — set BEFORE the promise
+      const wId = room.players[clientId]?.userId ?? null;
+      const lId = room.players[opp]?.userId ?? null;
+      recordMatch(wId, lId, "normal", room.mode, room.startedAt).catch(() => {});
+    }
     return { ok: true, cells: results, collected, sunkCells, sunkCount, newSunk, win, anyHit, mineHit };
   }
   // turn: a hit keeps it; a clean miss can be saved by a bonus shot; a mine forces a loss + skip
@@ -1520,6 +1556,18 @@ io.on("connection", (socket) => {
     const clientId = socket.data.clientId;
     const room = rooms[code];
     if (room && clientId && room.players[clientId]) {
+      // Record match BEFORE any mutation (Pitfall 1: room.started cleared after delete).
+      // Guard: room.started (D-05) and !room.recorded (D-06) and order.length===2 (D-04).
+      // Keep existing opponentLeft emit — do NOT route through endGameForfeit (locked decision).
+      if (room.started && !room.recorded && room.order.length === 2) {
+        const winnerId = opponentOf(room, clientId);
+        if (winnerId) {
+          room.recorded = true; // synchronous dedup guard (D-06) — set BEFORE promise
+          const wId = room.players[winnerId]?.userId ?? null;
+          const lId = room.players[clientId]?.userId ?? null;
+          recordMatch(wId, lId, "leave", room.mode, room.startedAt).catch(() => {});
+        }
+      }
       const p = room.players[clientId];
       if (p.timer) { clearTimeout(p.timer); p.timer = null; }
       room.order = room.order.filter((id) => id !== clientId);

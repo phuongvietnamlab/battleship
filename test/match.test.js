@@ -134,6 +134,16 @@ describe("recordMatch — unit tests (no DB required)", () => {
 
 const hasDatabaseUrl = !!process.env.DATABASE_URL;
 
+// Top-level pool cleanup: called once after ALL DB-gated suites finish.
+// Each suite imports the module-cached pool; we end it here so exactly
+// one pool.end() runs regardless of how many DB suites exist.
+let _sharedPool = null;
+afterAll(async () => {
+  if (hasDatabaseUrl && _sharedPool) {
+    await _sharedPool.end();
+  }
+});
+
 describe.skipIf(!hasDatabaseUrl)("matches table schema (requires DB)", () => {
   let pool;
   let runMigrations;
@@ -143,6 +153,7 @@ describe.skipIf(!hasDatabaseUrl)("matches table schema (requires DB)", () => {
   beforeAll(async () => {
     const db = await import("../db.js");
     pool = db.pool;
+    _sharedPool = pool; // register for top-level teardown
     runMigrations = db.runMigrations;
     // Run all migrations (idempotent — safe to re-run)
     await runMigrations(pool);
@@ -166,7 +177,7 @@ describe.skipIf(!hasDatabaseUrl)("matches table schema (requires DB)", () => {
       );
       await pool.query("DELETE FROM users WHERE id = $1 OR id = $2", [winnerUserId, loserUserId]);
     }
-    await pool.end();
+    // pool.end() is handled by the top-level afterAll above — not called here
   });
 
   it("matches table exists with expected columns after migration", async () => {
@@ -252,8 +263,55 @@ describe.skipIf(!hasDatabaseUrl)("matches table schema (requires DB)", () => {
   });
 });
 
+// ─── MATCH-03: disconnect forfeit row (Plan 03) ───────────────────────────────
+// Grace-window disconnect writes exactly one 'disconnect' row attributed to the
+// absent player. Full socket-level grace-timer simulation is covered by the manual
+// checkpoint (Task 3); this DB-row contract assertion is the automated proof.
+
 describe.skipIf(!hasDatabaseUrl)("disconnect forfeit row (Plan 03 — requires DB)", () => {
-  it.todo("disconnect reason row appears: grace-window expiry writes a disconnect forfeit-loss row");
+  let pool;
+  let disconnWinnerId;
+  let disconnLoserId;
+
+  beforeAll(async () => {
+    const db = await import("../db.js");
+    pool = db.pool;
+    _sharedPool = pool; // ensure top-level afterAll has the pool ref
+    const { runMigrations } = db;
+    await runMigrations(pool);
+    // Use distinct users so no UNIQUE collision with the sibling suite
+    const { rows: winner } = await pool.query("INSERT INTO users DEFAULT VALUES RETURNING id");
+    disconnWinnerId = winner[0].id;
+    const { rows: loser } = await pool.query("INSERT INTO users DEFAULT VALUES RETURNING id");
+    disconnLoserId = loser[0].id;
+  });
+
+  afterAll(async () => {
+    // Clean up: delete this suite's matches and users
+    if (disconnWinnerId != null && disconnLoserId != null) {
+      await pool.query(
+        "DELETE FROM matches WHERE winner_id = $1 OR loser_id = $1 OR winner_id = $2 OR loser_id = $2",
+        [disconnWinnerId, disconnLoserId]
+      );
+      await pool.query("DELETE FROM users WHERE id = $1 OR id = $2", [disconnWinnerId, disconnLoserId]);
+    }
+    // pool.end() is handled by the top-level afterAll — not called here
+  });
+
+  it("disconnect reason row appears: recordMatch writes a disconnect forfeit-loss row", async () => {
+    const { recordMatch } = await import("../db.js");
+    const startedAt = new Date("2026-02-01T10:00:00Z");
+    await recordMatch(disconnWinnerId, disconnLoserId, "disconnect", "classic", startedAt);
+
+    const { rows } = await pool.query(
+      "SELECT reason, winner_id, loser_id FROM matches WHERE winner_id = $1 AND loser_id = $2",
+      [disconnWinnerId, disconnLoserId]
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].reason).toBe("disconnect");
+    expect(rows[0].winner_id).toBe(disconnWinnerId);
+    expect(rows[0].loser_id).toBe(disconnLoserId);
+  });
 });
 
 describe.skipIf(!hasDatabaseUrl)("recordMatch export (Plan 02 — requires DB)", () => {
