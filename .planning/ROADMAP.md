@@ -124,7 +124,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 **Wave 2** *(blocked on Wave 1)*
 
-- [ ] 03-02-PLAN.md — recordMatch helper in db.js: single-transaction parameterized match write, graceful no-op without DB, server-side reason validation, never throws (MATCH-01, D-07)
+- [x] 03-02-PLAN.md — recordMatch helper in db.js: single-transaction parameterized match write, graceful no-op without DB, server-side reason validation, never throws (MATCH-01, D-07)
 
 **Wave 3** *(blocked on Wave 2)*
 
@@ -185,7 +185,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 |-------|----------------|--------|-----------|
 | 1. Foundation | 3/3 | Complete    | 2026-06-01 |
 | 2. Accounts & Identity | 9/9 | Complete   | 2026-06-02 |
-| 3. Match Recording | 1/3 | In Progress|  |
+| 3. Match Recording | 2/3 | In Progress|  |
 | 4. Ranked Mode & Leaderboard | 0/TBD | Not started | - |
 | 5. Public Matchmaking | 0/TBD | Not started | - |
 | 6. Bot Difficulty Tiers | 0/TBD | Not started | - |
