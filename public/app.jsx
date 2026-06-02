@@ -84,6 +84,7 @@ const I18N = {
     "err.NO_REVEAL": "No cells left to reveal", "err.MINE_ON_SHIP": "Can't place a mine on a ship", "err.CELL_SHOT": "This cell was already shot",
     "err.MINE_EXISTS": "There's already a mine here", "err.NO_CELLS": "No cells left to shoot",
     "auth.signInGoogle": "Sign in with Google",
+    "auth.signInFacebook": "Sign in with Facebook",
     "auth.errFailed": "Sign-in failed. Please try again.",
     "auth.errExpired": "Your session has expired. Please sign in again.",
     "auth.errRateLimited": "Too many sign-in attempts. Please wait a moment.",
@@ -162,6 +163,7 @@ const I18N = {
     "err.NO_REVEAL": "Không còn ô để lộ", "err.MINE_ON_SHIP": "Không đặt mìn lên thuyền", "err.CELL_SHOT": "Ô này đã bị bắn",
     "err.MINE_EXISTS": "Đã có mìn ở đây", "err.NO_CELLS": "Hết ô để bắn",
     "auth.signInGoogle": "Đăng nhập bằng Google",
+    "auth.signInFacebook": "Đăng nhập bằng Facebook",
     "auth.errFailed": "Đăng nhập thất bại. Vui lòng thử lại.",
     "auth.errExpired": "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.",
     "auth.errRateLimited": "Quá nhiều lần thử. Vui lòng chờ một chút.",
@@ -397,6 +399,8 @@ function Lobby({ onCreate, onJoin, onBot, onHelp, error, authUser, authError, cl
             </div>
           )}
           <GoogleSignInButton clientId={clientId} disabled={signInDisabled} onDisable={onSignInDisable} />
+          <div style={{ height: 8 }} />
+          <FacebookSignInButton clientId={clientId} disabled={signInDisabled} onDisable={onSignInDisable} />
         </>
       )}
       <button className="btn ghost help-link" onClick={onHelp}>{t("help.open")}</button>
@@ -861,6 +865,33 @@ function GoogleSignInButton({ clientId, disabled, onDisable }) {
         </g>
       </svg>
       <span>{t("auth.signInGoogle")}</span>
+    </button>
+  );
+}
+
+// ---------- FacebookSignInButton ----------
+// Renders the "Sign in with Facebook" button for guests.
+// onClick sets disabled (in-flight redirect guard) and navigates to /auth/facebook.
+// clientId is passed as a query param so the server can link the guest identity (D-06/D-07).
+function FacebookSignInButton({ clientId, disabled, onDisable }) {
+  function handleSignIn() {
+    if (disabled) return;
+    onDisable();
+    window.location.href = "/auth/facebook?clientId=" + encodeURIComponent(clientId || "");
+  }
+  return (
+    <button
+      className="btn facebook-signin"
+      aria-label={t("auth.signInFacebook")}
+      disabled={disabled}
+      onClick={handleSignIn}
+    >
+      {/* Facebook "f" logo — inline SVG 18x18, brand mark */}
+      <svg className="facebook-logo" width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <rect width="18" height="18" rx="3" fill="#1877f2"/>
+        <path d="M12.5 9H10.5V15H8V9H6.5V7H8V5.5C8 4.1 8.9 3 10.5 3H12.5V5H11C10.7 5 10.5 5.2 10.5 5.5V7H12.5L12.5 9Z" fill="#ffffff"/>
+      </svg>
+      <span>{t("auth.signInFacebook")}</span>
     </button>
   );
 }

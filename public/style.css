@@ -160,6 +160,19 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 .btn.google-signin::after { display: none; } /* no shimmer on brand button */
 .btn.google-signin:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 .google-logo { flex-shrink: 0; }
+/* Facebook sign-in button — brand color #1877f2, white text, mixed-case Be Vietnam Pro */
+.btn.facebook-signin {
+  background: #1877f2; color: #ffffff;
+  border: 1px solid rgba(255,255,255,0.12); border-radius: 12px;
+  font-family: "Be Vietnam Pro", system-ui; font-size: 16px; font-weight: 600;
+  letter-spacing: 0; text-transform: none; height: 50px; padding: 16px;
+  gap: 8px; width: 100%;
+}
+.btn.facebook-signin:hover { filter: brightness(1.04); }
+.btn.facebook-signin:disabled { opacity: .5; cursor: not-allowed; }
+.btn.facebook-signin::after { display: none; } /* no shimmer on brand button */
+.btn.facebook-signin:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.facebook-logo { flex-shrink: 0; }
 .divider { text-align: center; color: #5f81a8; margin: 20px 0; font-size: 12px; position: relative; }
 .divider::before, .divider::after { content:""; position:absolute; top:50%; width:38%; height:1px; background: rgba(150,200,255,.16); }
 .divider::before { left:0; } .divider::after { right:0; }
