@@ -83,7 +83,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 **Wave 4** *(blocked on Wave 3)*
 
-- [ ] 02-04-PLAN.md — Profile view slice: GET /api/profile/:id zero-state + ProfileView screen (own + other player) (PROF-01, PROF-02)
+- [x] 02-04-PLAN.md — Profile view slice: GET /api/profile/:id zero-state + ProfileView screen (own + other player) (PROF-01, PROF-02)
 
 **Wave 5** *(blocked on Wave 2 — reuses the Passport/session stack; mirrors Google)*
 
@@ -91,7 +91,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 **Wave 6** *(blocked on Wave 5 — shares package.json/db.js)*
 
-- [ ] 02-06-PLAN.md — Email-account foundation: bcryptjs gate, NEW migration 003_email_accounts.sql (email/email_verified/password_hash + auth_tokens), createEmailAccount/verifyEmailLogin/token helpers (AUTH-06)
+- [x] 02-06-PLAN.md — Email-account foundation: bcryptjs gate, NEW migration 003_email_accounts.sql (email/email_verified/password_hash + auth_tokens), createEmailAccount/verifyEmailLogin/token helpers (AUTH-06)
 
 **Wave 7** *(blocked on Wave 6)*
 
@@ -172,7 +172,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 3/3 | Complete    | 2026-06-01 |
-| 2. Accounts & Identity | 4/9 | In Progress|  |
+| 2. Accounts & Identity | 6/9 | In Progress|  |
 | 3. Match Recording | 0/TBD | Not started | - |
 | 4. Ranked Mode & Leaderboard | 0/TBD | Not started | - |
 | 5. Public Matchmaking | 0/TBD | Not started | - |
