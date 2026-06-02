@@ -315,6 +315,33 @@ app.get("/api/me", (req, res) => {
   res.json({ user: { id: req.user.id, displayName: req.user.display_name, avatarUrl: req.user.avatar_url } });
 });
 
+// Profile read path — zero-state scaffold (D-08/D-10); Phase 3 adds real stats.
+// T-02-16: parseInt + Number.isInteger guard (400 INVALID_ID) before parameterized $1 query.
+// T-02-17: explicit SELECT of public columns only — never SELECT * (no email/credential/session).
+app.get("/api/profile/:userId", async (req, res) => {
+  const userId = parseInt(req.params.userId, 10);
+  if (!Number.isInteger(userId)) return res.status(400).json({ error: "INVALID_ID" });
+  try {
+    const { rows } = await pool.query(
+      "SELECT id, display_name, avatar_url, created_at, guest_migrated_at FROM users WHERE id=$1",
+      [userId]
+    );
+    if (!rows[0]) return res.status(404).json({ error: "NOT_FOUND" });
+    const u = rows[0];
+    res.json({
+      id: u.id,
+      displayName: u.display_name,
+      avatarUrl: u.avatar_url,
+      memberSince: u.created_at,
+      isLinkedAccount: u.guest_migrated_at !== null,
+      stats: { wins: 0, losses: 0, gamesPlayed: 0 },  // D-10: Phase 3 fills real numbers
+    });
+  } catch (e) {
+    console.error("[auth] profile fetch failed:", e.message);
+    res.status(500).json({ error: "SERVER_ERROR" });
+  }
+});
+
 // rooms: code -> {
 //   players: { clientId: {sid, ready, occ:Set|null, hits:Set, online, timer} },
 //   order: [clientId, clientId],

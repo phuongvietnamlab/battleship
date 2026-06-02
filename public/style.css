@@ -614,3 +614,78 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 .seo dt { font-weight:600; color:#eaf2ff; margin-top:14px; }
 .seo dd { margin:4px 0 0; color:#aebfd0; }
 .seo a { color:var(--sky); }
+
+/* ── Profile view (Plan 04: PROF-01 / PROF-02 zero-state profile screen) ── */
+/* Glass panel identical to .lobby; max-width/margin matches lobby rhythm */
+.profile-view {
+  max-width:480px; margin:6vh auto 0; border-radius:20px; padding:32px;
+  background:var(--panel); border:1px solid var(--panel-brd);
+  backdrop-filter:blur(14px) saturate(1.2); -webkit-backdrop-filter:blur(14px) saturate(1.2);
+  box-shadow:0 24px 70px rgba(2,12,30,.6), inset 0 1px 0 rgba(255,255,255,.12);
+  animation:rise .55s cubic-bezier(.34,1.4,.4,1) both;
+}
+/* Header: 64px avatar left, name + member-since stacked right */
+.profile-header {
+  display:flex; align-items:center; gap:16px; margin-bottom:24px;
+}
+.profile-avatar-wrap { flex:none; }
+.profile-avatar {
+  width:64px; height:64px; border-radius:50%; object-fit:cover; display:block;
+}
+.profile-avatar-fallback {
+  display:flex; align-items:center; justify-content:center;
+  width:64px; height:64px; border-radius:50%;
+  background:var(--sky); color:#06182c; font-family:"Oswald",sans-serif;
+  font-size:28px; font-weight:700; text-transform:uppercase;
+}
+.profile-meta { min-width:0; }
+.profile-name {
+  font-family:"Oswald",sans-serif; font-size:22px; font-weight:700; color:#eaf2ff;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:260px;
+  margin-bottom:4px;
+}
+.profile-since { font-size:12px; color:#a9ccec; }
+/* Stats: 3-column grid (Wins | Losses | Games) */
+.profile-stats {
+  display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:16px;
+}
+.stat-cell { text-align:center; padding:12px 0; }
+.stat-label {
+  font-size:12px; text-transform:uppercase; letter-spacing:1px;
+  color:#a9ccec; margin-bottom:6px;
+}
+.stat-fig {
+  font-family:"Oswald",sans-serif; font-size:22px; font-weight:700; color:var(--gold);
+}
+/* "No games yet" sub-line below stats */
+.profile-no-games {
+  font-size:13px; color:#a9ccec; text-align:center; margin-bottom:20px;
+}
+/* Action buttons row */
+.profile-actions {
+  display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-start; margin-top:8px;
+}
+/* Skeleton loading pulse (reuses existing pulse keyframe) */
+@media (prefers-reduced-motion: no-preference) {
+  .skeleton-pulse {
+    background:rgba(255,255,255,.07); border-radius:6px;
+    animation:skeletonPulse 1.4s ease-in-out infinite;
+  }
+  @keyframes skeletonPulse {
+    0%,100%{ opacity:.4; } 50%{ opacity:.85; }
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-pulse { background:rgba(255,255,255,.07); border-radius:6px; opacity:.5; }
+}
+.profile-avatar-skel { width:64px; height:64px; border-radius:50%; }
+.profile-name-skel { width:160px; height:20px; margin-bottom:8px; }
+.profile-since-skel { width:100px; height:13px; }
+.stat-label-skel { width:48px; height:12px; margin:0 auto 8px; }
+.stat-fig-skel { width:30px; height:22px; margin:0 auto; }
+/* Error block in profile-view */
+.profile-view .error {
+  background:rgba(255,77,94,.10); border:1px solid rgba(255,77,94,.35);
+  border-radius:8px; padding:12px 16px; color:#ff9aa4; font-size:13px;
+  margin-bottom:16px;
+}

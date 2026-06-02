@@ -95,6 +95,14 @@ const I18N = {
     "auth.signOutAllConfirmBody": "You will be signed out on all devices, including this one.",
     "auth.signOutAllConfirmBtn": "Sign out all devices",
     "auth.keepSignedIn": "Keep me signed in",
+    "profile.memberSince": "Member since {month} {year}",
+    "profile.wins": "Wins",
+    "profile.losses": "Losses",
+    "profile.games": "Games",
+    "profile.noGamesYet": "No games yet. Play some matches to see your record here.",
+    "profile.back": "Back to lobby",
+    "profile.challengeSoon": "Challenge (coming soon)",
+    "profile.notFound": "Player not found. Return to lobby.",
   },
   vi: {
     "common.or": "HOẶC", "common.copied": "Đã chép ✓",
@@ -174,6 +182,14 @@ const I18N = {
     "auth.signOutAllConfirmBody": "Bạn sẽ bị đăng xuất khỏi tất cả thiết bị, kể cả thiết bị này.",
     "auth.signOutAllConfirmBtn": "Đăng xuất tất cả",
     "auth.keepSignedIn": "Giữ đăng nhập",
+    "profile.memberSince": "Thành viên từ tháng {month} năm {year}",
+    "profile.wins": "Chiến thắng",
+    "profile.losses": "Thất bại",
+    "profile.games": "Ván đấu",
+    "profile.noGamesYet": "Chưa có ván nào. Hãy chơi vài trận để xem thành tích tại đây.",
+    "profile.back": "Quay lại sảnh",
+    "profile.challengeSoon": "Thách đấu (sắp có)",
+    "profile.notFound": "Không tìm thấy người chơi. Quay lại sảnh.",
   },
 };
 function t(k, p) {
@@ -996,9 +1012,143 @@ function AvatarMenu({ open, user, onViewProfile, onSignOut, onSignOutAll, confir
   );
 }
 
+// ---------- ProfileView ----------
+// Renders own or another player's public zero-state profile.
+// PROF-01: own profile shows sign-out shortcut + member-since + 0/0/0 stats.
+// PROF-02: other player shows disabled Challenge placeholder, no sign-out.
+function ProfileView({ userId, currentUserId, onBack, onSignOut }) {
+  const [data, setData] = React.useState(null);
+  const [loading, setLoading] = React.useState(true);
+  const [notFound, setNotFound] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!userId) { setNotFound(true); setLoading(false); return; }
+    setLoading(true);
+    setNotFound(false);
+    setData(null);
+    fetch("/api/profile/" + userId)
+      .then((r) => {
+        if (r.status === 404) { setNotFound(true); setLoading(false); return null; }
+        return r.json();
+      })
+      .then((json) => {
+        if (json) { setData(json); }
+        setLoading(false);
+      })
+      .catch(() => { setNotFound(true); setLoading(false); });
+  }, [userId]);
+
+  const isOwn = userId != null && currentUserId != null && String(userId) === String(currentUserId);
+
+  // Format memberSince date into {month} {year}
+  function formatMemberSince(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    const month = d.getMonth() + 1;
+    const year = d.getFullYear();
+    return t("profile.memberSince", { month, year });
+  }
+
+  const allZero = data && data.stats && data.stats.wins === 0 && data.stats.losses === 0 && data.stats.gamesPlayed === 0;
+
+  if (notFound) {
+    return (
+      <div className="profile-view" role="main">
+        <div className="error" style={{ textAlign: "center", marginBottom: 20 }}>
+          {t("profile.notFound")}
+        </div>
+        <div style={{ textAlign: "center" }}>
+          <button className="btn ghost" style={{ padding: "8px 20px" }} onClick={onBack}>{t("profile.back")}</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="profile-view" role="main" aria-busy="true">
+        <div className="profile-header profile-skeleton">
+          <div className="profile-avatar-wrap">
+            <div className="profile-avatar-skel skeleton-pulse" aria-hidden="true" />
+          </div>
+          <div className="profile-meta-skel">
+            <div className="skeleton-pulse profile-name-skel" aria-hidden="true" />
+            <div className="skeleton-pulse profile-since-skel" aria-hidden="true" />
+          </div>
+        </div>
+        <div className="profile-stats profile-skeleton" aria-hidden="true">
+          <div className="stat-cell">
+            <div className="skeleton-pulse stat-label-skel" />
+            <div className="skeleton-pulse stat-fig-skel" />
+          </div>
+          <div className="stat-cell">
+            <div className="skeleton-pulse stat-label-skel" />
+            <div className="skeleton-pulse stat-fig-skel" />
+          </div>
+          <div className="stat-cell">
+            <div className="skeleton-pulse stat-label-skel" />
+            <div className="skeleton-pulse stat-fig-skel" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!data) return null;
+
+  const avatarLetter = data.displayName ? data.displayName.slice(0, 1).toUpperCase() : "?";
+
+  return (
+    <div className="profile-view" role="main">
+      <div className="profile-header">
+        <div className="profile-avatar-wrap">
+          {data.avatarUrl
+            ? <img className="profile-avatar" src={data.avatarUrl} alt={data.displayName || ""} referrerPolicy="no-referrer" />
+            : <span className="profile-avatar profile-avatar-fallback">{avatarLetter}</span>}
+        </div>
+        <div className="profile-meta">
+          <div className="profile-name">{data.displayName || "—"}</div>
+          <div className="profile-since">{formatMemberSince(data.memberSince)}</div>
+        </div>
+      </div>
+
+      <div className="profile-stats">
+        <div className="stat-cell">
+          <div className="stat-label">{t("profile.wins")}</div>
+          <div className="stat-fig">{data.stats.wins}</div>
+        </div>
+        <div className="stat-cell">
+          <div className="stat-label">{t("profile.losses")}</div>
+          <div className="stat-fig">{data.stats.losses}</div>
+        </div>
+        <div className="stat-cell">
+          <div className="stat-label">{t("profile.games")}</div>
+          <div className="stat-fig">{data.stats.gamesPlayed}</div>
+        </div>
+      </div>
+
+      {allZero && (
+        <div className="profile-no-games">{t("profile.noGamesYet")}</div>
+      )}
+
+      <div className="profile-actions">
+        {isOwn && onSignOut && (
+          <button className="btn ghost" style={{ padding: "8px 20px" }} onClick={onSignOut}>{t("auth.signOut")}</button>
+        )}
+        {!isOwn && (
+          <button className="btn ghost" style={{ padding: "8px 20px", opacity: 0.4, cursor: "not-allowed" }} disabled aria-disabled="true">
+            {t("profile.challengeSoon")}
+          </button>
+        )}
+        <button className="btn ghost" style={{ padding: "8px 20px" }} onClick={onBack}>{t("profile.back")}</button>
+      </div>
+    </div>
+  );
+}
+
 // ---------- App ----------
 function App() {
-  const [screen, setScreen] = useState("lobby"); // lobby | room | placement | battle
+  const [screen, setScreen] = useState("lobby"); // lobby | room | placement | battle | profile
   const [code, setCode] = useState(null);
   const [error, setError] = useState(null);
   const [oppPresent, setOppPresent] = useState(false);
@@ -1045,6 +1195,10 @@ function App() {
   // Avatar dropdown state (Plan 03)
   const [avatarMenuOpen, setAvatarMenuOpen] = useState(false);
   const [signOutAllConfirm, setSignOutAllConfirm] = useState(false);
+  // Profile screen state (Plan 04)
+  const [viewProfileId, setViewProfileId] = useState(null); // opaque users.id to view
+  const [profileData, setProfileData] = useState(null);     // loaded profile JSON
+  const [profileLoading, setProfileLoading] = useState(false); // skeleton while fetching
   const [myBubble, setMyBubble] = useState(null);   // {id, text} — speech bubble over my avatar
   const [oppBubble, setOppBubble] = useState(null); // {id, text} — over opponent avatar
   const myBubbleTimer = useRef(null);
@@ -1087,8 +1241,11 @@ function App() {
     setSignOutAllConfirm(false);
   }
 
-  function handleViewProfile() {
-    // Profile screen lands in Plan 04; set screen state cleanly for when it arrives
+  function handleViewProfile(userId) {
+    // Navigate to profile screen; userId defaults to own id when viewing self
+    const id = userId != null ? userId : (authUser ? authUser.id : null);
+    setViewProfileId(id);
+    setProfileData(null);  // clear any prior loaded profile
     setScreen("profile");
     setAvatarMenuOpen(false);
     setSignOutAllConfirm(false);
@@ -1569,6 +1726,15 @@ function App() {
       {notice && <div className="notice-toast">{notice}</div>}
 
       {screen === "lobby" && <Lobby onCreate={createRoom} onJoin={joinRoom} onBot={startBot} onHelp={() => setHelpOpen(true)} error={error} authUser={authUser} authError={authError} clientId={clientId} signInDisabled={signInDisabled} onSignInDisable={() => setSignInDisabled(true)} />}
+
+      {screen === "profile" && (
+        <ProfileView
+          userId={viewProfileId}
+          currentUserId={authUser ? authUser.id : null}
+          onBack={() => setScreen("lobby")}
+          onSignOut={handleSignOut}
+        />
+      )}
 
       <HelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />
 
