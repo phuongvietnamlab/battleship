@@ -14,7 +14,7 @@ This milestone evolves Battleship Online from an invite-only game into a competi
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Foundation** - Postgres persistence layer + security hardening prerequisites (completed 2026-06-01)
-- [ ] **Phase 2: Accounts & Identity** - Google + Facebook OAuth + email/password sign-in, guest-to-account linking, player profiles
+- [x] **Phase 2: Accounts & Identity** - Google + Facebook OAuth + email/password sign-in, guest-to-account linking, player profiles (completed 2026-06-02)
 - [ ] **Phase 3: Match Recording** - Durable match records + explicit forfeit handling
 - [ ] **Phase 4: Ranked Mode & Leaderboard** - Glicko-2 ratings, ranked queue gating, global leaderboard
 - [ ] **Phase 5: Public Matchmaking** - Quick-match and ranked queues, ELO-window pairing
@@ -103,7 +103,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 **Wave 9** *(blocked on Wave 8)*
 
-- [ ] 02-09-PLAN.md — Password reset slice: enumeration-safe POST /auth/reset-request + /auth/reset (single-use token -> new bcrypt hash), reset UI (AUTH-08)
+- [x] 02-09-PLAN.md — Password reset slice: enumeration-safe POST /auth/reset-request + /auth/reset (single-use token -> new bcrypt hash), reset UI (AUTH-08)
 
 ### Phase 3: Match Recording
 
@@ -172,7 +172,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 3/3 | Complete    | 2026-06-01 |
-| 2. Accounts & Identity | 8/9 | In Progress|  |
+| 2. Accounts & Identity | 9/9 | Complete   | 2026-06-02 |
 | 3. Match Recording | 0/TBD | Not started | - |
 | 4. Ranked Mode & Leaderboard | 0/TBD | Not started | - |
 | 5. Public Matchmaking | 0/TBD | Not started | - |
