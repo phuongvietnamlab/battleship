@@ -40,6 +40,7 @@ All values are the existing project 8-point scale as read from `style.css`. Exte
 |-------|-------|-------|
 | xs | 4px | Icon-to-text gaps, avatar inner padding, form label gap |
 | sm | 8px | Dropdown item vertical padding, avatar chip gap, input focus outline offset |
+| sm+ | 12px | OAuth button group gap; dropdown item / verify-hint vertical rhythm (multiple-of-4; documented as explicit token) |
 | md | 16px | Lobby button vertical padding, form section spacing, profile section spacing |
 | lg | 24px | Profile card padding, lobby section gaps, auth screen between-group gaps |
 | xl | 32px | Profile stats row spacing, auth screen top padding |
@@ -49,7 +50,7 @@ All values are the existing project 8-point scale as read from `style.css`. Exte
 **Exceptions:**
 - Avatar touch target: 44px minimum (`.profile-chip` height 34px + 5px top/bottom padding). Source: WCAG 2.5.5 AA.
 - Dropdown menu minimum width: 200px.
-- Email form inputs: height 48px (padding 14px 16px) — matches existing `.code-input` rhythm, multiples-of-4 compliant.
+- Email form inputs: height 48px (padding 16px) — matches existing `.code-input` rhythm, multiples-of-4 compliant.
 - OAuth buttons: height 52px (padding 16px) — 4px taller than standard `.btn` to provide visual separation from game-action CTAs.
 
 ---
@@ -123,7 +124,7 @@ Five surfaces for this phase. Surfaces 1–3 are new; surfaces 4–5 are additio
 
 **Auth screen header:**
 - Heading: "Sign in" / "Đăng nhập" — 22px Oswald weight 700 `#eaf2ff`, `margin: 0 0 6px`
-- Sub: "Continue as guest to play instantly, or sign in to save your progress." / "Chơi ngay với tư cách khách, hoặc đăng nhập để lưu thành tích." — 14px `#a9ccec`, `margin: 0 0 24px`
+- Sub: "Continue as guest to play instantly, or sign in to save your progress." / "Chơi ngay với tư cách khách, hoặc đăng nhập để lưu thành tích." — 13px `#a9ccec`, `margin: 0 0 24px`
 
 **OAuth button group (`.oauth-btn-group`):**
 - Stack direction: column, `gap: 12px`
@@ -160,7 +161,7 @@ Five surfaces for this phase. Surfaces 1–3 are new; surfaces 4–5 are additio
 
 **Collapsible email form section (`.email-form-section`):**
 - Trigger: `<button class="btn ghost" aria-expanded={open}>` labeled `t("auth.continueEmail")` — "or continue with email" / "hoặc tiếp tục bằng email"
-- Width: 100%; height: 44px; padding: 10px 16px; font-size 13px; NOT Oswald, NOT uppercase — distinguishes from game CTAs
+- Width: 100%; height: 44px; padding: 8px 16px; font-size 13px; NOT Oswald, NOT uppercase — distinguishes from game CTAs
 - On expand: the button transforms into a section header (collapses to a small "sign in with email" label row); the form animates in with `rise 0.3s ease both`
 - `aria-controls` pointing to the form panel; `aria-expanded` toggled on click
 
@@ -255,7 +256,7 @@ Five surfaces for this phase. Surfaces 1–3 are new; surfaces 4–5 are additio
 - Positioned below the profile header section, above stats
 - Background: `rgba(240, 161, 75, 0.12)` (amber tint)
 - Border: `1px solid rgba(240, 161, 75, 0.35)`
-- Border-radius: 8px; padding: 10px 12px; font-size: 13px; color: `#f0c47b`
+- Border-radius: 8px; padding: 8px 12px; font-size: 13px; color: `#f0c47b`
 - Copy: `t("auth.verifyEmailHint")` + `<button class="link-btn">` `t("auth.resendVerify")` inline
 - Shown ONLY on own profile when account was created via email/password and is unverified
 
@@ -281,7 +282,7 @@ Five surfaces for this phase. Surfaces 1–3 are new; surfaces 4–5 are additio
 
 **Visual:**
 - Full width of the lobby container; background: `rgba(240, 161, 75, 0.10)`; border-bottom: `1px solid rgba(240, 161, 75, 0.25)`
-- Padding: 10px 16px; font-size: 13px; color: `#f0c47b`
+- Padding: 8px 16px; font-size: 13px; color: `#f0c47b`
 - Layout: icon (📧 emoji) + text + "Resend" link inline
 - Dismissible: `×` button (16px, `#a9ccec`) at right; dismissed state persisted in `sessionStorage` only (re-appears on next load until verified)
 
