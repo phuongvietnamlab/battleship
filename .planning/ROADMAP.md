@@ -34,7 +34,8 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. Database schema is created (or migrated) automatically when the server starts — no manual SQL steps required on deploy.
   3. `fire` and `useAbility` socket events are rate-limited per player; an attacker sending rapid-fire events receives errors, not a crash.
   4. A `doShot()` call with a null or malformed opponent state returns an error response instead of throwing an unhandled exception.
-  5. Abandoned rooms are evicted from the in-memory room map; the room count no longer grows unboundedly under load. User-supplied profile fields and chat inputs are validated server-side and rejected if malformed.**Plans**: 3 plans
+  5. Abandoned rooms are evicted from the in-memory room map; the room count no longer grows unboundedly under load. User-supplied profile fields and chat inputs are validated server-side and rejected if malformed.
+**Plans**: 3 plans
 
 **Wave 1**
 
@@ -64,7 +65,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   6. A signed-in player stays logged in across browser sessions and can revoke access server-side (sign out from all devices).
   7. A signed-in player can view their own profile showing win/loss record and lifetime stats; any player can view another player's public profile.
 
-**Plans**: 4 plans (Google-only, complete) + new plans for Facebook (AUTH-05) and email/password + verification/reset (AUTH-06..08) — being added via `/gsd-plan-phase 2` add-plans
+**Plans**: 9 plans (Google: 02-01..04; Facebook: 02-05; email/password + verification/reset: 02-06..09)
 **UI hint**: yes
 
 **Wave 1**
@@ -82,6 +83,26 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Wave 4** *(blocked on Wave 3)*
 
 - [ ] 02-04-PLAN.md — Profile view slice: GET /api/profile/:id zero-state + ProfileView screen (own + other player) (PROF-01, PROF-02)
+
+**Wave 5** *(blocked on Wave 2 — reuses the Passport/session stack; mirrors Google)*
+
+- [ ] 02-05-PLAN.md — Facebook OAuth slice: passport-facebook strategy + /auth/facebook(+callback), provider-generic linkOrPromoteAccount, FB sign-in button (AUTH-05, SEC-05)
+
+**Wave 6** *(blocked on Wave 5 — shares package.json/db.js)*
+
+- [ ] 02-06-PLAN.md — Email-account foundation: bcryptjs gate, NEW migration 003_email_accounts.sql (email/email_verified/password_hash + auth_tokens), createEmailAccount/verifyEmailLogin/token helpers (AUTH-06)
+
+**Wave 7** *(blocked on Wave 6)*
+
+- [ ] 02-07-PLAN.md — Email signup/login slice: rate-limited POST /auth/signup + /auth/login (manual session.regenerate + stamp), collapsible "or continue with email" form (AUTH-06)
+
+**Wave 8** *(blocked on Wave 7)*
+
+- [ ] 02-08-PLAN.md — Email verification slice: resend gate + graceful-degrade mailer.js, async non-blocking verification email, GET /auth/verify (AUTH-07)
+
+**Wave 9** *(blocked on Wave 8)*
+
+- [ ] 02-09-PLAN.md — Password reset slice: enumeration-safe POST /auth/reset-request + /auth/reset (single-use token -> new bcrypt hash), reset UI (AUTH-08)
 
 ### Phase 3: Match Recording
 
@@ -150,7 +171,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 3/3 | Complete    | 2026-06-01 |
-| 2. Accounts & Identity | 0/4 | Planned | - |
+| 2. Accounts & Identity | 0/9 | Planned | - |
 | 3. Match Recording | 0/TBD | Not started | - |
 | 4. Ranked Mode & Leaderboard | 0/TBD | Not started | - |
 | 5. Public Matchmaking | 0/TBD | Not started | - |
