@@ -8,7 +8,7 @@ const http = require("http");
 const path = require("path");
 const { Server } = require("socket.io");
 const store = require("./store"); // optional Redis snapshot; no-op without REDIS_URL
-const { pool, runMigrations, upsertGuestCredential } = require("./db"); // Postgres: identity persistence
+const { pool, runMigrations, upsertGuestCredential, linkOrPromoteAccount } = require("./db"); // Postgres: identity persistence
 
 const app = express();
 const server = http.createServer(app);
@@ -61,6 +61,84 @@ app.get("/metrics", (req, res) => res.json(computeStats()));
 // public/ for any unbuilt asset.
 app.use(express.static(path.join(__dirname, "dist")));
 app.use(express.static(path.join(__dirname, "public")));
+
+// ─── Session + Passport middleware ──────────────────────────────────────────
+// SESSION_SECRET is required — fail loud at boot so misconfigured deploys are
+// caught immediately (mirrors migration fail-loud pattern in boot sequence).
+if (!process.env.SESSION_SECRET) {
+  console.error("[auth] SESSION_SECRET env var is required — exiting");
+  process.exit(1);
+}
+
+const expressSession = require("express-session");
+const pgSession = require("connect-pg-simple")(expressSession);
+const passport = require("passport");
+const { Strategy: GoogleStrategy } = require("passport-google-oauth20");
+
+app.set("trust proxy", 1); // cookie.secure:'auto' works correctly behind EC2/Render reverse proxy
+
+const sessionMiddleware = expressSession({
+  store: new pgSession({
+    pool,                         // reuse shared pool — NEVER new Pool() (PITFALLS #4)
+    createTableIfMissing: false,  // session table DDL is in 002_accounts.sql
+  }),
+  secret: process.env.SESSION_SECRET,
+  resave: false,
+  rolling: true,                  // refresh maxAge on every response (D-04)
+  saveUninitialized: false,
+  cookie: {
+    httpOnly: true,
+    secure: "auto",               // true on HTTPS, false on HTTP — works localhost + Render (A4)
+    sameSite: "lax",              // 'strict' breaks OAuth callback redirect (PITFALLS #5)
+    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days rolling (D-04)
+  },
+});
+
+app.use(sessionMiddleware);       // 1. session before passport
+app.use(passport.initialize());   // 2. passport init
+app.use(passport.session());      // 3. passport session (populates req.user)
+
+// D-11: share SAME sessionMiddleware reference with Socket.IO so socket.request.session
+// is the same store as Express sessions. NEVER call session() a second time here.
+io.engine.use(sessionMiddleware);
+
+// ─── Passport Google Strategy ────────────────────────────────────────────────
+// state:true: Passport generates + validates a random nonce per flow (SEC-05, T-02-05).
+// passReqToCallback:true: verify callback receives req so it can read req.session.pendingClientId.
+passport.use(new GoogleStrategy(
+  {
+    clientID:          process.env.GOOGLE_CLIENT_ID,
+    clientSecret:      process.env.GOOGLE_CLIENT_SECRET,
+    callbackURL:       process.env.GOOGLE_CALLBACK_URL,
+    scope:             ["openid", "profile"],
+    state:             true,  // SEC-05: cryptographic nonce per flow
+    passReqToCallback: true,  // allow verify callback to read req.session.pendingClientId
+  },
+  async (req, accessToken, refreshToken, profile, done) => {
+    // NEVER persist the access token — only users.id is stored via serializeUser (T-02-08 / PITFALLS #6)
+    const sub       = profile.id;          // stable Google identifier (not email — PITFALLS anti-pattern)
+    const name      = profile.displayName;
+    const avatarUrl = profile.photos?.[0]?.value ?? null;
+    const pendingClientId = req.session.pendingClientId ?? null;
+    try {
+      const user = await linkOrPromoteAccount(sub, name, avatarUrl, pendingClientId);
+      return done(null, user);
+    } catch (err) {
+      return done(err);
+    }
+  }
+));
+
+// Passport serialization: store only users.id in session (not the full user object)
+passport.serializeUser((user, done) => done(null, user.id));
+passport.deserializeUser(async (id, done) => {
+  try {
+    const { rows } = await pool.query(
+      "SELECT id, display_name, avatar_url FROM users WHERE id=$1", [id]
+    );
+    done(null, rows[0] ?? false);
+  } catch (e) { done(e); }
+});
 
 const PORT = process.env.PORT || 4000;
 
