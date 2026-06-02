@@ -14,7 +14,7 @@ This milestone evolves Battleship Online from an invite-only game into a competi
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Foundation** - Postgres persistence layer + security hardening prerequisites (completed 2026-06-01)
-- [ ] **Phase 2: Accounts & Identity** - Google OAuth, guest-to-account linking, player profiles
+- [ ] **Phase 2: Accounts & Identity** - Google + Facebook OAuth + email/password sign-in, guest-to-account linking, player profiles
 - [ ] **Phase 3: Match Recording** - Durable match records + explicit forfeit handling
 - [ ] **Phase 4: Ranked Mode & Leaderboard** - Glicko-2 ratings, ranked queue gating, global leaderboard
 - [ ] **Phase 5: Public Matchmaking** - Quick-match and ranked queues, ELO-window pairing
@@ -50,19 +50,21 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 ### Phase 2: Accounts & Identity
 
-**Goal**: Players can optionally create a persistent account via Google OAuth, and their guest history carries over seamlessly. Every player has a viewable profile.
+**Goal**: Players can optionally create a persistent account via Google OAuth, Facebook OAuth, or email/password, and their guest history carries over seamlessly. Every player has a viewable profile.
 **Mode:** mvp
 **Depends on**: Phase 1
-**Requirements**: SEC-05, AUTH-01, AUTH-02, AUTH-03, AUTH-04, PROF-01, PROF-02
+**Requirements**: SEC-05, AUTH-01, AUTH-02, AUTH-03, AUTH-04, AUTH-05, AUTH-06, AUTH-07, AUTH-08, PROF-01, PROF-02
 **Success Criteria** (what must be TRUE):
 
   1. A visitor can open the game and start playing immediately with no sign-in prompt — guest identity (clientId) works exactly as before.
   2. A player can click "Sign in with Google," complete the OAuth flow, and land back in the game with a persistent account active.
-  3. When a guest signs in for the first time, their pre-login game history is linked to the new account atomically — no history is lost and no duplicate account is created.
-  4. A signed-in player stays logged in across browser sessions and can revoke access server-side (sign out from all devices).
-  5. A signed-in player can view their own profile showing win/loss record and lifetime stats; any player can view another player's public profile.
+  3. A player can click "Sign in with Facebook," complete the OAuth flow, and land back signed in — even if Facebook withholds an email (dedup by provider id, not email).
+  4. A player can sign up and sign in with email + password (bcrypt-hashed); signup sends an async verification email that does NOT block play, and a forgotten password can be reset via a single-use, time-limited emailed token.
+  5. When a guest signs in for the first time via ANY method, their pre-login game history is linked to the new account atomically — no history is lost and no duplicate account is created.
+  6. A signed-in player stays logged in across browser sessions and can revoke access server-side (sign out from all devices).
+  7. A signed-in player can view their own profile showing win/loss record and lifetime stats; any player can view another player's public profile.
 
-**Plans**: 4 plans
+**Plans**: 4 plans (Google-only, complete) + new plans for Facebook (AUTH-05) and email/password + verification/reset (AUTH-06..08) — being added via `/gsd-plan-phase 2` add-plans
 **UI hint**: yes
 
 **Wave 1**

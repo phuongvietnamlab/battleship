@@ -26,6 +26,10 @@ The competitive core: durable persistence, accounts, ranked play, and public mat
 - [ ] **AUTH-02**: A user can sign in with Google OAuth to create a persistent account
 - [ ] **AUTH-03**: On first sign-in, a guest's existing game history is atomically linked to the new account
 - [ ] **AUTH-04**: An authenticated session persists across visits and can be revoked server-side
+- [ ] **AUTH-05**: A user can sign in with Facebook OAuth to create a persistent account (provider-generic identity; email optional)
+- [ ] **AUTH-06**: A user can sign up and sign in with email + password (bcrypt-hashed, min 8 chars, rate-limited login)
+- [ ] **AUTH-07**: Email-account signup sends an async verification email that does not block play (`email_verified` flips on link click)
+- [ ] **AUTH-08**: A user can reset a forgotten password via a single-use, time-limited emailed token
 
 ### Profile & Stats (PROF)
 
@@ -86,7 +90,6 @@ Explicitly excluded. Documented to prevent scope creep.
 
 | Feature | Reason |
 |---------|--------|
-| Email + password auth | Google OAuth chosen to avoid owning password storage/reset/security |
 | Real-money payments / pay-to-win | Not core to gameplay value; pay-to-win kills competitive integrity |
 | Real-time (sub-second) global leaderboard | 5-minute refresh is indistinguishable to players, far cheaper |
 | Native mobile apps | Web-first; PWA sufficient |
@@ -111,6 +114,10 @@ Which phases cover which requirements. Populated during roadmap creation.
 | AUTH-02 | Phase 2 — Accounts & Identity | Pending |
 | AUTH-03 | Phase 2 — Accounts & Identity | Pending |
 | AUTH-04 | Phase 2 — Accounts & Identity | Pending |
+| AUTH-05 | Phase 2 — Accounts & Identity | Pending |
+| AUTH-06 | Phase 2 — Accounts & Identity | Pending |
+| AUTH-07 | Phase 2 — Accounts & Identity | Pending |
+| AUTH-08 | Phase 2 — Accounts & Identity | Pending |
 | PROF-01 | Phase 2 — Accounts & Identity | Pending |
 | PROF-02 | Phase 2 — Accounts & Identity | Pending |
 | MATCH-01 | Phase 3 — Match Recording | Pending |
@@ -127,10 +134,10 @@ Which phases cover which requirements. Populated during roadmap creation.
 
 **Coverage:**
 
-- v1 requirements: 24 total
-- Mapped to phases: 24
+- v1 requirements: 28 total
+- Mapped to phases: 28
 - Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-06-01*
-*Last updated: 2026-06-01 after scope refinement (replays cut)*
+*Last updated: 2026-06-02 — Phase 2 auth scope expanded to 3 methods (added AUTH-05 Facebook, AUTH-06 email/password, AUTH-07 verification, AUTH-08 reset; retired the email+password out-of-scope row)*
