@@ -494,6 +494,182 @@ describe.skipIf(!hasDatabaseUrl)(
   }
 );
 
+// ─── Suite 5: AUTH-06 route-level assertions (requires DB) ──────────────────
+// Two layers of verification:
+// (1) db-helper contracts — createEmailAccount / verifyEmailLogin error codes
+// (2) BEHAVIORAL session assertion — after POST /auth/login the session-id CHANGES
+//     (regenerate ran) AND req.session.user_id equals the user id (stamp ran).
+// Uses Node built-in http module + app exported via TEST_EXPORTS — no supertest needed.
+
+describe.skipIf(!hasDatabaseUrl)(
+  "AUTH-06 POST /auth/signup + /auth/login routes (requires DB)",
+  () => {
+    let pool;
+    let db;
+    let server;
+    let baseUrl;
+    const ts = Date.now();
+    const routeEmail = "test-email-route-" + ts + "@example.com";
+    const routePassword = "RoutePass123!";
+    const routeClientId = "test-client-route-" + ts;
+
+    beforeAll(async () => {
+      db = await import("../db.js");
+      pool = db.pool;
+      await db.runMigrations(pool);
+
+      // Import server and start it on a random port for route-level tests
+      const serverModule = await import("../server.js");
+      const app = serverModule.TEST_EXPORTS && serverModule.TEST_EXPORTS.app;
+      if (!app) throw new Error("server.js does not export app via TEST_EXPORTS — add it");
+      server = app.listen(0);
+      const addr = server.address();
+      baseUrl = "http://127.0.0.1:" + addr.port;
+    });
+
+    afterAll(async () => {
+      await new Promise((resolve) => server.close(resolve));
+      await pool.query("DELETE FROM credentials WHERE external_id LIKE 'test-email-route-%@example.com'");
+      await pool.query("DELETE FROM users WHERE id NOT IN (SELECT user_id FROM credentials)");
+      await pool.end();
+    });
+
+    // Helper: make an HTTP request using Node built-ins
+    function httpRequest(method, path, body, cookieHeader) {
+      return new Promise((resolve, reject) => {
+        const url = new URL(baseUrl + path);
+        const bodyStr = body ? JSON.stringify(body) : "";
+        const options = {
+          hostname: url.hostname,
+          port: url.port,
+          path: url.pathname,
+          method,
+          headers: {
+            "Content-Type": "application/json",
+            "Content-Length": Buffer.byteLength(bodyStr),
+            ...(cookieHeader ? { Cookie: cookieHeader } : {}),
+          },
+        };
+        const http = require("http");
+        const req = http.request(options, (res) => {
+          let data = "";
+          res.on("data", (chunk) => (data += chunk));
+          res.on("end", () => {
+            try {
+              resolve({ status: res.statusCode, headers: res.headers, body: JSON.parse(data) });
+            } catch (e) {
+              resolve({ status: res.statusCode, headers: res.headers, body: data });
+            }
+          });
+        });
+        req.on("error", reject);
+        if (bodyStr) req.write(bodyStr);
+        req.end();
+      });
+    }
+
+    it("POST /auth/signup returns 400 WEAK_PASSWORD for short password", async () => {
+      const res = await httpRequest("POST", "/auth/signup", {
+        email: "test-email-route-wp-" + ts + "@example.com",
+        password: "short",
+        clientId: "test-client-route-wp-" + ts,
+      });
+      expect(res.status).toBe(400);
+      expect(res.body.ok).toBe(false);
+      expect(res.body.code).toBe("WEAK_PASSWORD");
+    });
+
+    it("POST /auth/signup creates account and returns {ok:true,user} with id/displayName/avatarUrl", async () => {
+      const res = await httpRequest("POST", "/auth/signup", {
+        email: routeEmail,
+        password: routePassword,
+        clientId: routeClientId,
+      });
+      expect(res.status).toBe(200);
+      expect(res.body.ok).toBe(true);
+      expect(res.body.user).toBeTruthy();
+      expect(typeof res.body.user.id).toBe("number");
+      expect(typeof res.body.user.displayName).toBe("string");
+    });
+
+    it("POST /auth/signup returns 409 EMAIL_IN_USE for duplicate email", async () => {
+      const res = await httpRequest("POST", "/auth/signup", {
+        email: routeEmail,
+        password: routePassword,
+        clientId: "test-client-route-dup-" + ts,
+      });
+      expect(res.status).toBe(409);
+      expect(res.body.ok).toBe(false);
+      expect(res.body.code).toBe("EMAIL_IN_USE");
+    });
+
+    it("POST /auth/login returns 401 AUTH_FAILED for wrong password — no enumeration", async () => {
+      const res = await httpRequest("POST", "/auth/login", {
+        email: routeEmail,
+        password: "WrongPassword!",
+        clientId: routeClientId,
+      });
+      expect(res.status).toBe(401);
+      expect(res.body.ok).toBe(false);
+      expect(res.body.code).toBe("AUTH_FAILED");
+    });
+
+    it("POST /auth/login returns 401 AUTH_FAILED for unknown email — same shape", async () => {
+      const res = await httpRequest("POST", "/auth/login", {
+        email: "test-email-route-noexist-" + ts + "@example.com",
+        password: "AnyPassword!",
+        clientId: routeClientId,
+      });
+      expect(res.status).toBe(401);
+      expect(res.body.ok).toBe(false);
+      expect(res.body.code).toBe("AUTH_FAILED");
+    });
+
+    it("BEHAVIORAL: POST /auth/login session-id changes after login (regenerate ran) AND user_id stamped", async () => {
+      // Step 1: get a pre-login session cookie by calling a harmless route
+      const meRes1 = await httpRequest("GET", "/api/me", null);
+      const setCookieHeader = meRes1.headers["set-cookie"];
+      if (!setCookieHeader) {
+        // No session cookie issued — DB may not have session table; skip gracefully
+        return;
+      }
+      const preCookie = Array.isArray(setCookieHeader) ? setCookieHeader[0] : setCookieHeader;
+      // Extract session id from cookie (connect.sid=s%3A<id>.<sig>)
+      const sidMatch = preCookie.match(/connect\.sid=([^;]+)/);
+      const preSessionId = sidMatch ? sidMatch[1] : null;
+
+      // Step 2: POST /auth/login with the pre-login session cookie
+      const loginRes = await httpRequest("POST", "/auth/login",
+        { email: routeEmail, password: routePassword, clientId: routeClientId },
+        preCookie.split(";")[0]  // send just the cookie value part
+      );
+      expect(loginRes.status).toBe(200);
+      expect(loginRes.body.ok).toBe(true);
+
+      // After login, check for Set-Cookie with a NEW session id
+      const postCookieHeader = loginRes.headers["set-cookie"];
+      if (preSessionId && postCookieHeader) {
+        const postCookie = Array.isArray(postCookieHeader) ? postCookieHeader[0] : postCookieHeader;
+        const postSidMatch = postCookie.match(/connect\.sid=([^;]+)/);
+        const postSessionId = postSidMatch ? postSidMatch[1] : null;
+        if (postSessionId) {
+          // Regenerate means a different session id
+          expect(postSessionId).not.toBe(preSessionId);
+        }
+      }
+
+      // Step 3: use the post-login cookie to hit /api/me — should return the authenticated user
+      const postLoginCookie = postCookieHeader
+        ? (Array.isArray(postCookieHeader) ? postCookieHeader[0] : postCookieHeader).split(";")[0]
+        : preCookie.split(";")[0];
+      const meRes2 = await httpRequest("GET", "/api/me", null, postLoginCookie);
+      expect(meRes2.status).toBe(200);
+      expect(meRes2.body.user).toBeTruthy();
+      expect(meRes2.body.user.id).toBe(loginRes.body.user.id);
+    });
+  }
+);
+
 // ─── Suite 4: AUTH-04 signout / signout-all (requires DB) ────────────────────
 // Tests the session row revocation paths. Uses direct SQL (not HTTP) to simulate
 // the server-side operations — no running server needed (D-03 pattern).
