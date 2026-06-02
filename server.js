@@ -8,7 +8,7 @@ const http = require("http");
 const path = require("path");
 const { Server } = require("socket.io");
 const store = require("./store"); // optional Redis snapshot; no-op without REDIS_URL
-const { pool, runMigrations, upsertGuestCredential, linkOrPromoteAccount } = require("./db"); // Postgres: identity persistence
+const { pool, runMigrations, upsertGuestCredential, linkOrPromoteAccount, createEmailAccount, verifyEmailLogin } = require("./db"); // Postgres: identity persistence
 
 const app = express();
 const server = http.createServer(app);
@@ -202,6 +202,13 @@ function authRateLimit(req, res, next) {
   authLimiter.consume(req.ip).then(next).catch(() => res.status(429).json({ code: "RATE_LIMITED" }));
 }
 
+// ─── JSON body parsing for email auth routes ────────────────────────────────
+// Mounted once, before the auth-route block. Does NOT affect Socket.IO (which
+// does its own framing) or express.static (which never reaches a body parser).
+// The path restriction limits body parsing to /auth/* so static/socket handling
+// is untouched (T-02-37: untrusted POST body only parsed where routes expect it).
+app.use("/auth", express.json());
+
 // ─── Auth routes ─────────────────────────────────────────────────────────────
 
 // Initiate Google OAuth — save guest clientId so callback can link the account.
@@ -313,6 +320,93 @@ app.post("/auth/signout-all", async (req, res) => {
 app.get("/api/me", (req, res) => {
   if (!req.user) return res.json({ user: null });
   res.json({ user: { id: req.user.id, displayName: req.user.display_name, avatarUrl: req.user.avatar_url } });
+});
+
+// ─── Email auth routes ───────────────────────────────────────────────────────
+// POST /auth/signup — create an email/password account and log in.
+// POST /auth/login  — sign in an existing email account.
+//
+// Session fixation defense (SEC-05 / T-02-33 / D-05):
+// Email login has NO Passport OAuth strategy auto-calling req.session.regenerate().
+// We call it manually — BEFORE req.login() — in this EXACT order:
+//   1. req.session.regenerate(cb)   — generate a fresh session id (prevents fixation)
+//   2. req.login(user, cb)          — populate req.user + serialize to session
+//   3. req.session.user_id = id     — stamp indexed column (Plan 03 sign-out-all)
+//   4. req.session.save(cb)         — flush to store before responding
+// Stamping user_id after req.login but before save mirrors onGoogleCallbackSuccess
+// (T-02-36) so DELETE FROM session WHERE user_id=$1 (sign-out-all) revokes email
+// sessions too.
+//
+// Rate limiting (T-02-34 / D-17): authRateLimit (10/60s per IP) on both routes.
+// Enumeration defense (T-02-35): login returns uniform 401 AUTH_FAILED for any
+// bad credential — never reveals which field was wrong.
+// SQL injection (T-02-37): all DB work via Plan 06 parameterized helpers.
+// Log safety (T-02-38): req.body is never logged; response returns only {id,displayName,avatarUrl}.
+
+app.post("/auth/signup", authRateLimit, async (req, res) => {
+  try {
+    const { email, password, clientId: bodyClientId } = req.body || {};
+    const pendingClientId = bodyClientId || req.session.pendingClientId || null;
+    const result = await createEmailAccount(email, password, pendingClientId);
+    if (result && result.error === "WEAK_PASSWORD") {
+      return res.status(400).json({ ok: false, code: "WEAK_PASSWORD" });
+    }
+    if (result && result.error === "EMAIL_IN_USE") {
+      return res.status(409).json({ ok: false, code: "EMAIL_IN_USE" });
+    }
+    // Establish authenticated session: regenerate -> login -> stamp -> save (SEC-05)
+    const user = result;
+    req.session.regenerate((err) => {
+      if (err) return res.status(500).json({ ok: false });
+      req.login(user, (err2) => {
+        if (err2) return res.status(500).json({ ok: false });
+        req.session.user_id = user.id;
+        req.session.save(() => res.json({
+          ok: true,
+          user: { id: user.id, displayName: user.display_name, avatarUrl: user.avatar_url },
+        }));
+      });
+    });
+  } catch (e) {
+    console.error("[auth] signup failed:", e.message);
+    res.status(500).json({ ok: false });
+  }
+});
+
+app.post("/auth/login", authRateLimit, async (req, res) => {
+  try {
+    const { email, password, clientId: bodyClientId } = req.body || {};
+    const result = await verifyEmailLogin(email, password);
+    if (result && result.error) {
+      // Uniform 401 AUTH_FAILED — never reveal which field was wrong (T-02-35)
+      return res.status(401).json({ ok: false, code: "AUTH_FAILED" });
+    }
+    // On success: adopt guest credential if a clientId was supplied (D-07)
+    if (bodyClientId) {
+      try {
+        await pool.query(
+          "UPDATE credentials SET user_id=$1 WHERE type='guest' AND external_id=$2",
+          [result.id, bodyClientId]
+        );
+      } catch (_) { /* non-fatal: guest-link failure must not block login */ }
+    }
+    // Establish authenticated session: regenerate -> login -> stamp -> save (SEC-05)
+    const user = result;
+    req.session.regenerate((err) => {
+      if (err) return res.status(500).json({ ok: false });
+      req.login(user, (err2) => {
+        if (err2) return res.status(500).json({ ok: false });
+        req.session.user_id = user.id;
+        req.session.save(() => res.json({
+          ok: true,
+          user: { id: user.id, displayName: user.display_name, avatarUrl: user.avatar_url },
+        }));
+      });
+    });
+  } catch (e) {
+    console.error("[auth] login failed:", e.message);
+    res.status(500).json({ ok: false });
+  }
 });
 
 // Profile read path — zero-state scaffold (D-08/D-10); Phase 3 adds real stats.
@@ -1346,5 +1440,6 @@ module.exports = {
     sanitizeChat,
     cspMiddleware,
     CSP_HEADER_VALUE,
+    app,  // exported for AUTH-06 route-level behavioral tests (Plan 07)
   },
 };
