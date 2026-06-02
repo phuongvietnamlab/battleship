@@ -87,6 +87,13 @@ const I18N = {
     "auth.errFailed": "Sign-in failed. Please try again.",
     "auth.errExpired": "Your session has expired. Please sign in again.",
     "auth.errRateLimited": "Too many sign-in attempts. Please wait a moment.",
+    "auth.viewProfile": "View profile",
+    "auth.signOut": "Sign out",
+    "auth.signOutAll": "Sign out all devices",
+    "auth.signOutAllConfirmTitle": "Sign out everywhere?",
+    "auth.signOutAllConfirmBody": "You will be signed out on all devices, including this one.",
+    "auth.signOutAllConfirmBtn": "Sign out all devices",
+    "auth.keepSignedIn": "Keep me signed in",
   },
   vi: {
     "common.or": "HOẶC", "common.copied": "Đã chép ✓",
@@ -158,6 +165,13 @@ const I18N = {
     "auth.errFailed": "Đăng nhập thất bại. Vui lòng thử lại.",
     "auth.errExpired": "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.",
     "auth.errRateLimited": "Quá nhiều lần thử. Vui lòng chờ một chút.",
+    "auth.viewProfile": "Xem hồ sơ",
+    "auth.signOut": "Đăng xuất",
+    "auth.signOutAll": "Đăng xuất tất cả thiết bị",
+    "auth.signOutAllConfirmTitle": "Đăng xuất khỏi tất cả thiết bị?",
+    "auth.signOutAllConfirmBody": "Bạn sẽ bị đăng xuất khỏi tất cả thiết bị, kể cả thiết bị này.",
+    "auth.signOutAllConfirmBtn": "Đăng xuất tất cả",
+    "auth.keepSignedIn": "Giữ đăng nhập",
   },
 };
 function t(k, p) {
@@ -851,6 +865,106 @@ function GoogleSignInButton({ clientId, disabled, onDisable }) {
   );
 }
 
+// ---------- ProfileChip ----------
+// Renders the signed-in avatar chip in the topbar. Clickable; opens the dropdown.
+function ProfileChip({ user, onToggle, active }) {
+  const initial = (user.displayName || "?").slice(0, 1).toUpperCase();
+  return (
+    <div
+      className={"profile-chip" + (active ? " active" : "")}
+      title={user.displayName || ""}
+      onClick={onToggle}
+      role="button"
+      aria-haspopup="menu"
+      aria-expanded={active}
+      style={{ cursor: "pointer" }}
+    >
+      {user.avatarUrl
+        ? <img className="avatar" src={user.avatarUrl} alt={user.displayName || ""} referrerPolicy="no-referrer" />
+        : <span className="avatar avatar-fallback" aria-label={user.displayName || ""}>{initial}</span>}
+      <span className="pname">{user.displayName}</span>
+    </div>
+  );
+}
+
+// ---------- AvatarMenu ----------
+// Dropdown menu for the signed-in user. Opens on chip click.
+// Closes on Escape, outside click, or item selection.
+// confirmMode shows an inline sign-out-all confirmation.
+function AvatarMenu({ open, user, onViewProfile, onSignOut, onSignOutAll, confirmMode, onConfirm, onCancel, setViewProfileId }) {
+  const menuRef = useRef(null);
+
+  // Close on outside click
+  useEffect(() => {
+    if (!open) return;
+    function handleOutside(e) {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        onCancel();
+      }
+    }
+    document.addEventListener("mousedown", handleOutside);
+    document.addEventListener("touchstart", handleOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleOutside);
+      document.removeEventListener("touchstart", handleOutside);
+    };
+  }, [open, onCancel]);
+
+  // Close on Escape
+  useEffect(() => {
+    if (!open) return;
+    function handleKey(e) {
+      if (e.key === "Escape") onCancel();
+    }
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [open, onCancel]);
+
+  if (!open) return null;
+
+  if (confirmMode) {
+    return (
+      <div className="avatar-menu" ref={menuRef} role="menu">
+        <div role="alert" style={{ padding: "12px 16px" }}>
+          <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6, color: "#eaf2ff" }}>{t("auth.signOutAllConfirmTitle")}</div>
+          <div style={{ fontSize: 12, color: "#a9ccec", marginBottom: 12 }}>{t("auth.signOutAllConfirmBody")}</div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              className="btn"
+              style={{ flex: 1, padding: "8px 0", fontSize: 12, background: "var(--hit)", color: "#fff", fontFamily: "Be Vietnam Pro", textTransform: "none", letterSpacing: 0, height: "auto", minHeight: 36 }}
+              onClick={onConfirm}
+            >
+              {t("auth.signOutAllConfirmBtn")}
+            </button>
+            <button
+              className="btn ghost"
+              style={{ flex: 1, padding: "8px 0", fontSize: 12, fontFamily: "Be Vietnam Pro", textTransform: "none", letterSpacing: 0, height: "auto", minHeight: 36 }}
+              onClick={onCancel}
+            >
+              {t("auth.keepSignedIn")}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="avatar-menu" ref={menuRef} role="menu">
+      <button className="avatar-menu-item" role="menuitem" onClick={() => { onViewProfile(); onCancel(); }}>
+        👤 {t("auth.viewProfile")}
+      </button>
+      <button className="avatar-menu-item" role="menuitem" onClick={() => { onSignOut(); onCancel(); }}>
+        🚪 {t("auth.signOut")}
+      </button>
+      <div className="avatar-menu-sep" />
+      <button className="avatar-menu-item destructive" role="menuitem" onClick={onSignOutAll}>
+        ⚠️ {t("auth.signOutAll")}
+      </button>
+    </div>
+  );
+}
+
 // ---------- App ----------
 function App() {
   const [screen, setScreen] = useState("lobby"); // lobby | room | placement | battle
@@ -897,6 +1011,9 @@ function App() {
   const [authUser, setAuthUser] = useState(null);
   const [authError, setAuthError] = useState(null);   // 'failed' | 'rateLimited'
   const [signInDisabled, setSignInDisabled] = useState(false); // during OAuth redirect
+  // Avatar dropdown state (Plan 03)
+  const [avatarMenuOpen, setAvatarMenuOpen] = useState(false);
+  const [signOutAllConfirm, setSignOutAllConfirm] = useState(false);
   const [myBubble, setMyBubble] = useState(null);   // {id, text} — speech bubble over my avatar
   const [oppBubble, setOppBubble] = useState(null); // {id, text} — over opponent avatar
   const myBubbleTimer = useRef(null);
@@ -920,6 +1037,31 @@ function App() {
 
   const addLog = useCallback((s) => setLog((l) => [s, ...l].slice(0, 40)), []);
   const showNotice = useCallback((s) => { setNotice(s); setTimeout(() => setNotice((n) => (n === s ? null : n)), 4000); }, []);
+
+  // Sign-out: destroy current session, revert UI to guest (optimistic)
+  function handleSignOut() {
+    fetch("/auth/signout", { method: "POST" })
+      .catch(() => { /* non-fatal — UI already reverted */ });
+    setAuthUser(null);
+    setAvatarMenuOpen(false);
+    setSignOutAllConfirm(false);
+  }
+
+  // Sign-out-all: after inline confirmation, delete all sessions for user_id
+  function handleSignOutAllConfirm() {
+    fetch("/auth/signout-all", { method: "POST" })
+      .catch(() => { /* non-fatal — UI already reverted */ });
+    setAuthUser(null);
+    setAvatarMenuOpen(false);
+    setSignOutAllConfirm(false);
+  }
+
+  function handleViewProfile() {
+    // Profile screen lands in Plan 04; set screen state cleanly for when it arrives
+    setScreen("profile");
+    setAvatarMenuOpen(false);
+    setSignOutAllConfirm(false);
+  }
 
   // Auth hydration: fetch signed-in user on mount; handle ?authError from OAuth callback.
   useEffect(() => {
@@ -1348,14 +1490,34 @@ function App() {
           <div className="badge">⚓</div>
           <div><h1>BATTLESHIP</h1><small>{t("topbar.tagline")}</small></div>
         </div>
-        <div className="topbar-right">
-          {profile.name && (
-            <div className="profile-chip" title={profile.name}>
-              {profile.photo
-                ? <img className="avatar" src={profile.photo} alt="" referrerPolicy="no-referrer" />
-                : <span className="avatar avatar-fallback">{profile.name.slice(0, 1)}</span>}
-              <span className="pname">{profile.name}</span>
-            </div>
+        <div className="topbar-right" style={{ position: "relative" }}>
+          {authUser ? (
+            <>
+              <ProfileChip
+                user={authUser}
+                onToggle={() => { setAvatarMenuOpen((v) => !v); if (avatarMenuOpen) setSignOutAllConfirm(false); }}
+                active={avatarMenuOpen}
+              />
+              <AvatarMenu
+                open={avatarMenuOpen}
+                user={authUser}
+                onViewProfile={handleViewProfile}
+                onSignOut={handleSignOut}
+                onSignOutAll={() => setSignOutAllConfirm(true)}
+                confirmMode={signOutAllConfirm}
+                onConfirm={handleSignOutAllConfirm}
+                onCancel={() => { setSignOutAllConfirm(false); setAvatarMenuOpen(false); }}
+              />
+            </>
+          ) : (
+            profile.name && (
+              <div className="profile-chip" title={profile.name}>
+                {profile.photo
+                  ? <img className="avatar" src={profile.photo} alt="" referrerPolicy="no-referrer" />
+                  : <span className="avatar avatar-fallback">{profile.name.slice(0, 1)}</span>}
+                <span className="pname">{profile.name}</span>
+              </div>
+            )
           )}
           <button className="btn ghost topbar-sound" title={t("topbar.soundToggle")} onClick={toggleSound}>{soundOn ? "🔊" : "🔇"}</button>
         </div>
