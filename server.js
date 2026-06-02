@@ -431,6 +431,31 @@ app.post("/auth/login", authRateLimit, async (req, res) => {
   }
 });
 
+// GET /auth/verify — single-use email verification link (AUTH-07 / Plan 08).
+//
+// The token was created by createAuthToken(userId, 'verify', 86400) after signup
+// and emailed to the user. consumeAuthToken enforces:
+//   - Single-use (conditional UPDATE WHERE consumed_at IS NULL — T-02-39)
+//   - Expiry (24h, WHERE expires_at > now() — T-02-39)
+//   - Purpose binding (WHERE purpose='verify' — T-02-43)
+//
+// On success  : flips users.email_verified=true then redirects to /?verified=1.
+// On any error: logs + redirects to /?verifyError=1 — never exposes token details.
+// play/login: NEVER gated on email_verified (D-19). This is an additive step.
+app.get("/auth/verify", async (req, res) => {
+  const token = req.query.token;
+  if (!token) return res.redirect("/?verifyError=1");
+  try {
+    const r = await consumeAuthToken(token, "verify");
+    if (r.error) return res.redirect("/?verifyError=1");
+    await markEmailVerified(r.userId);
+    return res.redirect("/?verified=1");
+  } catch (e) {
+    console.error("[auth] verify failed:", e.message);
+    return res.redirect("/?verifyError=1");
+  }
+});
+
 // Profile read path — zero-state scaffold (D-08/D-10); Phase 3 adds real stats.
 // T-02-16: parseInt + Number.isInteger guard (400 INVALID_ID) before parameterized $1 query.
 // T-02-17: explicit SELECT of public columns only — never SELECT * (no email/credential/session).

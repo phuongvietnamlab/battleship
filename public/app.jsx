@@ -106,6 +106,9 @@ const I18N = {
     "auth.signOutAllConfirmBody": "You will be signed out on all devices, including this one.",
     "auth.signOutAllConfirmBtn": "Sign out all devices",
     "auth.keepSignedIn": "Keep me signed in",
+    "auth.verifySuccess": "Email verified. Thanks!",
+    "auth.verifyError": "That verification link is invalid or expired.",
+    "auth.unverifiedHint": "Your email isn't verified yet — check your inbox.",
     "profile.memberSince": "Member since {month} {year}",
     "profile.wins": "Wins",
     "profile.losses": "Losses",
@@ -204,6 +207,9 @@ const I18N = {
     "auth.signOutAllConfirmBody": "Bạn sẽ bị đăng xuất khỏi tất cả thiết bị, kể cả thiết bị này.",
     "auth.signOutAllConfirmBtn": "Đăng xuất tất cả",
     "auth.keepSignedIn": "Giữ đăng nhập",
+    "auth.verifySuccess": "Đã xác minh email. Cảm ơn bạn!",
+    "auth.verifyError": "Liên kết xác minh không hợp lệ hoặc đã hết hạn.",
+    "auth.unverifiedHint": "Email của bạn chưa được xác minh — vui lòng kiểm tra hộp thư.",
     "profile.memberSince": "Thành viên từ tháng {month} năm {year}",
     "profile.wins": "Chiến thắng",
     "profile.losses": "Thất bại",
@@ -509,7 +515,7 @@ function EmailAuthForm({ onAuthSuccess, clientId: cid }) {
 }
 
 // ---------- Lobby ----------
-function Lobby({ onCreate, onJoin, onBot, onHelp, error, authUser, authError, clientId, signInDisabled, onSignInDisable, onEmailAuthSuccess }) {
+function Lobby({ onCreate, onJoin, onBot, onHelp, error, authUser, authError, verifyNotice, clientId, signInDisabled, onSignInDisable, onEmailAuthSuccess }) {
   const [code, setCode] = useState("");
   const [mode, setMode] = useState("classic");
   return (
@@ -517,6 +523,8 @@ function Lobby({ onCreate, onJoin, onBot, onHelp, error, authUser, authError, cl
       <h2>{t("lobby.title")}</h2>
       <p className="sub">{t("lobby.sub")}</p>
       {error && <div className="error">{error}</div>}
+      {verifyNotice === "success" && <div className="notice verify-notice">{t("auth.verifySuccess")}</div>}
+      {verifyNotice === "error" && <div className="error verify-notice">{t("auth.verifyError")}</div>}
       <button className="btn primary" onClick={onBot}>{t("lobby.playBot")}</button>
       <div style={{ height: 10 }} />
       <div className="mode-pick">
@@ -1323,6 +1331,7 @@ function App() {
   // Auth state: null = guest; {id, displayName, avatarUrl} = signed-in (D-12)
   const [authUser, setAuthUser] = useState(null);
   const [authError, setAuthError] = useState(null);   // 'failed' | 'rateLimited'
+  const [verifyNotice, setVerifyNotice] = useState(null); // 'success' | 'error' (AUTH-07)
   const [signInDisabled, setSignInDisabled] = useState(false); // during OAuth redirect
   // Avatar dropdown state (Plan 03)
   const [avatarMenuOpen, setAvatarMenuOpen] = useState(false);
@@ -1383,21 +1392,37 @@ function App() {
     setSignOutAllConfirm(false);
   }
 
-  // Auth hydration: fetch signed-in user on mount; handle ?authError from OAuth callback.
+  // Auth hydration: fetch signed-in user on mount; handle ?authError, ?verified, ?verifyError.
   useEffect(() => {
     // Hydrate auth state from server session (D-12)
     fetch("/api/me").then((r) => r.json()).then((d) => {
       setAuthUser(d.user || null);
     }).catch(() => { /* non-fatal — guest play continues */ });
 
-    // Parse ?authError param from OAuth redirect (T-02-05 / T-02-09)
+    // Parse redirect flags from OAuth and email-verification callbacks.
+    // Strip params from URL after reading so they do not persist across refreshes.
     try {
       const params = new URLSearchParams(window.location.search);
+      // ?authError from OAuth redirect (T-02-05 / T-02-09)
       if (params.get("authError")) {
         const code = params.get("authError");
         setAuthError(code === "1" ? "failed" : code);
-        // Strip the param from the URL without triggering a navigation
-        const clean = window.location.pathname + (params.toString().replace(/&?authError=[^&]*/g, "").replace(/^\?$/, "") ? "?" + params.toString().replace(/&?authError=[^&]*/g, "").replace(/^&/, "") : "");
+        params.delete("authError");
+        const clean = window.location.pathname + (params.toString() ? "?" + params.toString() : "");
+        window.history.replaceState(null, "", clean);
+      }
+      // ?verified=1 from GET /auth/verify success (AUTH-07)
+      if (params.get("verified")) {
+        setVerifyNotice("success");
+        params.delete("verified");
+        const clean = window.location.pathname + (params.toString() ? "?" + params.toString() : "");
+        window.history.replaceState(null, "", clean);
+      }
+      // ?verifyError=1 from GET /auth/verify failure (AUTH-07)
+      if (params.get("verifyError")) {
+        setVerifyNotice("error");
+        params.delete("verifyError");
+        const clean = window.location.pathname + (params.toString() ? "?" + params.toString() : "");
         window.history.replaceState(null, "", clean);
       }
     } catch (e) { /* ignore — localStorage-like optional feature */ }
@@ -1857,7 +1882,7 @@ function App() {
 
       {notice && <div className="notice-toast">{notice}</div>}
 
-      {screen === "lobby" && <Lobby onCreate={createRoom} onJoin={joinRoom} onBot={startBot} onHelp={() => setHelpOpen(true)} error={error} authUser={authUser} authError={authError} clientId={clientId} signInDisabled={signInDisabled} onSignInDisable={() => setSignInDisabled(true)} onEmailAuthSuccess={setAuthUser} />}
+      {screen === "lobby" && <Lobby onCreate={createRoom} onJoin={joinRoom} onBot={startBot} onHelp={() => setHelpOpen(true)} error={error} authUser={authUser} authError={authError} verifyNotice={verifyNotice} clientId={clientId} signInDisabled={signInDisabled} onSignInDisable={() => setSignInDisabled(true)} onEmailAuthSuccess={setAuthUser} />}
 
       {screen === "profile" && (
         <ProfileView

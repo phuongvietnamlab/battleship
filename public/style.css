@@ -177,6 +177,8 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 .divider::before, .divider::after { content:""; position:absolute; top:50%; width:38%; height:1px; background: rgba(150,200,255,.16); }
 .divider::before { left:0; } .divider::after { right:0; }
 .error { color: #ffb3bb; background: rgba(255,77,94,.15); border:1px solid rgba(255,77,94,.4); padding:10px 12px; border-radius:8px; font-size:13px; margin-bottom:12px; }
+.notice { color: #b3f0d8; background: rgba(0,200,120,.12); border:1px solid rgba(0,200,120,.35); padding:10px 12px; border-radius:8px; font-size:13px; margin-bottom:12px; }
+/* .verify-notice shares .notice or .error styling — no additional rules needed */
 
 /* Room / banner */
 .room-banner {
