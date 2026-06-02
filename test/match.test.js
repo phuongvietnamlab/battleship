@@ -78,6 +78,58 @@ describe("db.js — recordMatch export contract (Plan 02 spine)", () => {
   });
 });
 
+// ─── Unit tests — always run, no DATABASE_URL required ───────────────────────
+// These exercise recordMatch's graceful no-op and input validation guards.
+
+describe("recordMatch — unit tests (no DB required)", () => {
+  it("resolves without throwing when all DB env vars are absent", async () => {
+    // Save current env state
+    const savedDatabaseUrl = process.env.DATABASE_URL;
+    const savedPgHost = process.env.PGHOST;
+    const savedPgDatabase = process.env.PGDATABASE;
+
+    try {
+      // Temporarily clear all DB env vars to trigger the no-op guard
+      delete process.env.DATABASE_URL;
+      delete process.env.PGHOST;
+      delete process.env.PGDATABASE;
+
+      // Import fresh after env mutation — module is cached, but recordMatch
+      // reads process.env at call time so the guard fires correctly
+      const { recordMatch } = await import("../db.js");
+      // Must resolve without throwing
+      await expect(recordMatch(1, 2, "normal", "classic", new Date())).resolves.toBeUndefined();
+    } finally {
+      // Restore env vars (try/finally so other suites are unaffected)
+      if (savedDatabaseUrl !== undefined) process.env.DATABASE_URL = savedDatabaseUrl;
+      if (savedPgHost !== undefined) process.env.PGHOST = savedPgHost;
+      if (savedPgDatabase !== undefined) process.env.PGDATABASE = savedPgDatabase;
+    }
+  });
+
+  it("resolves without throwing when reason is invalid ('cheated')", async () => {
+    // Save current env state
+    const savedDatabaseUrl = process.env.DATABASE_URL;
+    const savedPgHost = process.env.PGHOST;
+    const savedPgDatabase = process.env.PGDATABASE;
+
+    try {
+      // Clear DB vars so even if reason check passes, no actual pool.connect occurs
+      delete process.env.DATABASE_URL;
+      delete process.env.PGHOST;
+      delete process.env.PGDATABASE;
+
+      const { recordMatch } = await import("../db.js");
+      // Invalid reason must be swallowed — no throw
+      await expect(recordMatch(1, 2, "cheated", "classic", new Date())).resolves.toBeUndefined();
+    } finally {
+      if (savedDatabaseUrl !== undefined) process.env.DATABASE_URL = savedDatabaseUrl;
+      if (savedPgHost !== undefined) process.env.PGHOST = savedPgHost;
+      if (savedPgDatabase !== undefined) process.env.PGDATABASE = savedPgDatabase;
+    }
+  });
+});
+
 // ─── DB-gated integration tests (require DATABASE_URL) ───────────────────────
 
 const hasDatabaseUrl = !!process.env.DATABASE_URL;
@@ -136,12 +188,68 @@ describe.skipIf(!hasDatabaseUrl)("matches table schema (requires DB)", () => {
     expect(typeof loserUserId).toBe("number");
   });
 
-  // ── Placeholder tests for Plan 02/03 behaviors (todo — not yet implementable) ──
+  it("recordMatch inserts exactly one row into matches", async () => {
+    const { recordMatch } = await import("../db.js");
+    const startedAt = new Date("2026-01-01T12:00:00Z");
+    await recordMatch(winnerUserId, loserUserId, "normal", "classic", startedAt);
 
-  it.todo("recordMatch inserts exactly one row into matches");
-  it.todo("recordMatch returns without throwing (best-effort / graceful degrade)");
-  it.todo("recordMatch is idempotent via room.recorded flag (no double-write)");
-  it.todo("recordMatch no-ops when DATABASE_URL is absent (never throws)");
+    const { rows } = await pool.query(
+      "SELECT * FROM matches WHERE winner_id = $1 AND loser_id = $2",
+      [winnerUserId, loserUserId]
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].reason).toBe("normal");
+    expect(rows[0].winner_id).toBe(winnerUserId);
+    expect(rows[0].loser_id).toBe(loserUserId);
+  });
+
+  it("recordMatch is idempotent — duplicate (winner_id, loser_id, started_at) does not create a second row and does not throw", async () => {
+    const { recordMatch } = await import("../db.js");
+    // Use the same startedAt as the prior test to trigger the UNIQUE constraint
+    const startedAt = new Date("2026-01-01T12:00:00Z");
+
+    // Second call with identical keys — should be swallowed, not throw
+    await expect(
+      recordMatch(winnerUserId, loserUserId, "normal", "classic", startedAt)
+    ).resolves.toBeUndefined();
+
+    // Still exactly one row
+    const { rows } = await pool.query(
+      "SELECT * FROM matches WHERE winner_id = $1 AND loser_id = $2",
+      [winnerUserId, loserUserId]
+    );
+    expect(rows).toHaveLength(1);
+  });
+
+  it("recordMatch returns without throwing (best-effort / graceful degrade)", async () => {
+    // Exercise the swallow path by confirming the integration call above did not throw.
+    // This test also verifies that recordMatch does not throw on a DB with data.
+    const { recordMatch } = await import("../db.js");
+    await expect(
+      recordMatch(winnerUserId, loserUserId, "timeout", "classic", new Date())
+    ).resolves.toBeUndefined();
+  });
+
+  it("recordMatch no-ops when DATABASE_URL is absent (never throws)", async () => {
+    // This test is duplicated here for completeness; the unit suite above covers
+    // the same guard without a DB. This version confirms the guard fires even
+    // when the pool was already created (module cache — process.env read at call time).
+    const savedDatabaseUrl = process.env.DATABASE_URL;
+    const savedPgHost = process.env.PGHOST;
+    const savedPgDatabase = process.env.PGDATABASE;
+    try {
+      delete process.env.DATABASE_URL;
+      delete process.env.PGHOST;
+      delete process.env.PGDATABASE;
+
+      const { recordMatch } = await import("../db.js");
+      await expect(recordMatch(1, 2, "normal", "classic", new Date())).resolves.toBeUndefined();
+    } finally {
+      if (savedDatabaseUrl !== undefined) process.env.DATABASE_URL = savedDatabaseUrl;
+      if (savedPgHost !== undefined) process.env.PGHOST = savedPgHost;
+      if (savedPgDatabase !== undefined) process.env.PGDATABASE = savedPgDatabase;
+    }
+  });
 });
 
 describe.skipIf(!hasDatabaseUrl)("disconnect forfeit row (Plan 03 — requires DB)", () => {
@@ -149,5 +257,8 @@ describe.skipIf(!hasDatabaseUrl)("disconnect forfeit row (Plan 03 — requires D
 });
 
 describe.skipIf(!hasDatabaseUrl)("recordMatch export (Plan 02 — requires DB)", () => {
-  it.todo("db.js exports recordMatch as a function");
+  it("db.js exports recordMatch as a function", async () => {
+    const db = await import("../db.js");
+    expect(typeof db.recordMatch).toBe("function");
+  });
 });
