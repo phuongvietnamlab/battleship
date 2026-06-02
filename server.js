@@ -8,7 +8,8 @@ const http = require("http");
 const path = require("path");
 const { Server } = require("socket.io");
 const store = require("./store"); // optional Redis snapshot; no-op without REDIS_URL
-const { pool, runMigrations, upsertGuestCredential, linkOrPromoteAccount, createEmailAccount, verifyEmailLogin } = require("./db"); // Postgres: identity persistence
+const { pool, runMigrations, upsertGuestCredential, linkOrPromoteAccount, createEmailAccount, verifyEmailLogin, createAuthToken, consumeAuthToken, markEmailVerified } = require("./db"); // Postgres: identity persistence
+const mailer = require("./mailer"); // optional email wrapper (graceful-degrade when RESEND_API_KEY unset)
 
 const app = express();
 const server = http.createServer(app);
@@ -356,15 +357,36 @@ app.post("/auth/signup", authRateLimit, async (req, res) => {
     }
     // Establish authenticated session: regenerate -> login -> stamp -> save (SEC-05)
     const user = result;
+    // Capture email for verification send (normalized external_id from createEmailAccount)
+    const signupEmail = (typeof email === "string" ? email : "").trim().toLowerCase();
     req.session.regenerate((err) => {
       if (err) return res.status(500).json({ ok: false });
       req.login(user, (err2) => {
         if (err2) return res.status(500).json({ ok: false });
         req.session.user_id = user.id;
-        req.session.save(() => res.json({
-          ok: true,
-          user: { id: user.id, displayName: user.display_name, avatarUrl: user.avatar_url },
-        }));
+        req.session.save(() => {
+          // Send signup response immediately — verification email is fire-and-forget (D-19).
+          res.json({
+            ok: true,
+            user: { id: user.id, displayName: user.display_name, avatarUrl: user.avatar_url },
+          });
+          // Non-blocking: fire verification email AFTER the response is flushed.
+          // setImmediate defers to the next event loop turn so the response is
+          // never delayed by token creation or send (T-02-41 / D-19).
+          setImmediate(() => {
+            createAuthToken(user.id, "verify", 86400)
+              .then((token) => {
+                const baseUrl = process.env.APP_BASE_URL || "";
+                const verifyUrl = baseUrl + "/auth/verify?token=" + token;
+                return mailer.sendVerificationEmail(signupEmail, verifyUrl);
+              })
+              .catch((e) => {
+                // Non-fatal: token creation or send failure must never surface to the user.
+                // Email is best-effort (D-19 / T-02-41).
+                console.error("[mailer] verification email post-signup failed:", e.message);
+              });
+          });
+        });
       });
     });
   } catch (e) {
