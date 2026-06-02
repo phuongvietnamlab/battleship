@@ -190,8 +190,17 @@ app.get("/auth/google", authRateLimit, (req, res, next) => {
 // (add user_id stamp + session save) without re-parsing an inline arrow chain.
 // Passport 0.6+ calls req.session.regenerate() automatically at req.logIn() —
 // this named handler runs AFTER that regeneration (SEC-05 / T-02-06).
+// Stamp user_id BEFORE session.save; redirect fires ONLY inside the save callback
+// so connect-pg-simple persists the user_id column for sign-out-all (T-02-20).
 function onGoogleCallbackSuccess(req, res) {
-  res.redirect("/");
+  req.session.user_id = req.user.id;
+  req.session.save((err) => {
+    if (err) {
+      console.error("[auth] session save failed after login:", err.message);
+      return res.redirect("/?authError=1");
+    }
+    res.redirect("/");
+  });
 }
 
 app.get("/auth/google/callback",
@@ -199,6 +208,32 @@ app.get("/auth/google/callback",
   passport.authenticate("google", { failureRedirect: "/?authError=1" }),
   onGoogleCallbackSuccess
 );
+
+// POST /auth/signout — destroy current session (this device only).
+// req.logout must take a callback (Passport 0.6+ async; Pitfall 3 / T-02-15).
+app.post("/auth/signout", (req, res) => {
+  req.logout((err) => {
+    if (err) return res.status(500).json({ ok: false, code: "AUTH_FAILED" });
+    req.session.destroy(() => res.json({ ok: true }));
+  });
+});
+
+// POST /auth/signout-all — delete every session row for the user_id (server-side
+// revocation, AUTH-04 / D-03). Uses the indexed user_id column from 002_accounts.sql.
+// T-02-12: userId taken from req.user.id only — never from request body.
+// T-02-14: parameterized $1 — user_id is an integer from req.user.
+// T-02-13: single indexed DELETE is atomic; subsequent requests find no session.
+app.post("/auth/signout-all", async (req, res) => {
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ ok: false, code: "NOT_AUTHENTICATED" });
+  try {
+    await pool.query("DELETE FROM session WHERE user_id = $1", [userId]);
+    req.session.destroy(() => res.json({ ok: true }));
+  } catch (e) {
+    console.error("[auth] signout-all failed:", e.message);
+    res.status(500).json({ ok: false });
+  }
+});
 
 // Current session info — client SPA calls this on mount to hydrate auth state.
 // Returns {user:null} for guests; {user:{id,displayName,avatarUrl}} for signed-in.
