@@ -83,6 +83,10 @@ const I18N = {
     "err.BAD_PLACEMENT": "Invalid ship placement", "err.NOT_YOUR_TURN": "Not your turn yet", "err.BAD_CELL": "Invalid cell", "err.NO_POWERUP": "No power-up",
     "err.NO_REVEAL": "No cells left to reveal", "err.MINE_ON_SHIP": "Can't place a mine on a ship", "err.CELL_SHOT": "This cell was already shot",
     "err.MINE_EXISTS": "There's already a mine here", "err.NO_CELLS": "No cells left to shoot",
+    "auth.signInGoogle": "Sign in with Google",
+    "auth.errFailed": "Sign-in failed. Please try again.",
+    "auth.errExpired": "Your session has expired. Please sign in again.",
+    "auth.errRateLimited": "Too many sign-in attempts. Please wait a moment.",
   },
   vi: {
     "common.or": "HOẶC", "common.copied": "Đã chép ✓",
@@ -150,6 +154,10 @@ const I18N = {
     "err.BAD_PLACEMENT": "Sắp xếp thuyền không hợp lệ", "err.NOT_YOUR_TURN": "Chưa tới lượt bạn", "err.BAD_CELL": "Ô không hợp lệ", "err.NO_POWERUP": "Không có power-up",
     "err.NO_REVEAL": "Không còn ô để lộ", "err.MINE_ON_SHIP": "Không đặt mìn lên thuyền", "err.CELL_SHOT": "Ô này đã bị bắn",
     "err.MINE_EXISTS": "Đã có mìn ở đây", "err.NO_CELLS": "Hết ô để bắn",
+    "auth.signInGoogle": "Đăng nhập bằng Google",
+    "auth.errFailed": "Đăng nhập thất bại. Vui lòng thử lại.",
+    "auth.errExpired": "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.",
+    "auth.errRateLimited": "Quá nhiều lần thử. Vui lòng chờ một chút.",
   },
 };
 function t(k, p) {
@@ -339,7 +347,7 @@ function inBounds(cells) {
 }
 
 // ---------- Lobby ----------
-function Lobby({ onCreate, onJoin, onBot, onHelp, error }) {
+function Lobby({ onCreate, onJoin, onBot, onHelp, error, authUser, authError, clientId, signInDisabled, onSignInDisable }) {
   const [code, setCode] = useState("");
   const [mode, setMode] = useState("classic");
   return (
@@ -366,6 +374,17 @@ function Lobby({ onCreate, onJoin, onBot, onHelp, error }) {
           onKeyDown={(e) => e.key === "Enter" && code && onJoin(code)} />
       </div>
       <button className="btn steel" disabled={code.length < 4} onClick={() => onJoin(code)}>{t("lobby.joinBtn")}</button>
+      {!authUser && (
+        <>
+          <div className="divider">{t("common.or")}</div>
+          {authError && (
+            <div className="error">
+              {authError === "rateLimited" ? t("auth.errRateLimited") : t("auth.errFailed")}
+            </div>
+          )}
+          <GoogleSignInButton clientId={clientId} disabled={signInDisabled} onDisable={onSignInDisable} />
+        </>
+      )}
       <button className="btn ghost help-link" onClick={onHelp}>{t("help.open")}</button>
     </div>
   );
@@ -801,6 +820,37 @@ function ChatComposer({ open, onSend, onToggle }) {
   );
 }
 
+// ---------- GoogleSignInButton ----------
+// Renders the "Sign in with Google" button for guests.
+// onClick sets disabled (in-flight redirect guard) and navigates to /auth/google.
+// clientId is passed as a query param so the server can link the guest identity (AUTH-03).
+function GoogleSignInButton({ clientId, disabled, onDisable }) {
+  function handleSignIn() {
+    if (disabled) return;
+    onDisable();
+    window.location.href = "/auth/google?clientId=" + encodeURIComponent(clientId || "");
+  }
+  return (
+    <button
+      className="btn google-signin"
+      aria-label={t("auth.signInGoogle")}
+      disabled={disabled}
+      onClick={handleSignIn}
+    >
+      {/* Google G logo — inline SVG 18x18, standard Google mark */}
+      <svg className="google-logo" width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <g>
+          <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z" fill="#4285F4"/>
+          <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z" fill="#34A853"/>
+          <path d="M3.964 10.71c-.18-.54-.282-1.117-.282-1.71s.102-1.17.282-1.71V4.958H.957C.347 6.173 0 7.548 0 9s.347 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
+          <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
+        </g>
+      </svg>
+      <span>{t("auth.signInGoogle")}</span>
+    </button>
+  );
+}
+
 // ---------- App ----------
 function App() {
   const [screen, setScreen] = useState("lobby"); // lobby | room | placement | battle
@@ -843,6 +893,10 @@ function App() {
   const [profile, setProfile] = useState({ name: null, photo: null });
   const [helpOpen, setHelpOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  // Auth state: null = guest; {id, displayName, avatarUrl} = signed-in (D-12)
+  const [authUser, setAuthUser] = useState(null);
+  const [authError, setAuthError] = useState(null);   // 'failed' | 'rateLimited'
+  const [signInDisabled, setSignInDisabled] = useState(false); // during OAuth redirect
   const [myBubble, setMyBubble] = useState(null);   // {id, text} — speech bubble over my avatar
   const [oppBubble, setOppBubble] = useState(null); // {id, text} — over opponent avatar
   const myBubbleTimer = useRef(null);
@@ -866,6 +920,26 @@ function App() {
 
   const addLog = useCallback((s) => setLog((l) => [s, ...l].slice(0, 40)), []);
   const showNotice = useCallback((s) => { setNotice(s); setTimeout(() => setNotice((n) => (n === s ? null : n)), 4000); }, []);
+
+  // Auth hydration: fetch signed-in user on mount; handle ?authError from OAuth callback.
+  useEffect(() => {
+    // Hydrate auth state from server session (D-12)
+    fetch("/api/me").then((r) => r.json()).then((d) => {
+      setAuthUser(d.user || null);
+    }).catch(() => { /* non-fatal — guest play continues */ });
+
+    // Parse ?authError param from OAuth redirect (T-02-05 / T-02-09)
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("authError")) {
+        const code = params.get("authError");
+        setAuthError(code === "1" ? "failed" : code);
+        // Strip the param from the URL without triggering a navigation
+        const clean = window.location.pathname + (params.toString().replace(/&?authError=[^&]*/g, "").replace(/^\?$/, "") ? "?" + params.toString().replace(/&?authError=[^&]*/g, "").replace(/^&/, "") : "");
+        window.history.replaceState(null, "", clean);
+      }
+    } catch (e) { /* ignore — localStorage-like optional feature */ }
+  }, []);
 
   useEffect(() => {
     socket.on("opponentJoined", () => {
@@ -1301,7 +1375,7 @@ function App() {
 
       {notice && <div className="notice-toast">{notice}</div>}
 
-      {screen === "lobby" && <Lobby onCreate={createRoom} onJoin={joinRoom} onBot={startBot} onHelp={() => setHelpOpen(true)} error={error} />}
+      {screen === "lobby" && <Lobby onCreate={createRoom} onJoin={joinRoom} onBot={startBot} onHelp={() => setHelpOpen(true)} error={error} authUser={authUser} authError={authError} clientId={clientId} signInDisabled={signInDisabled} onSignInDisable={() => setSignInDisabled(true)} />}
 
       <HelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />
 
