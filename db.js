@@ -444,6 +444,49 @@ async function markEmailVerified(userId) {
   );
 }
 
+// ─── recordMatch ─────────────────────────────────────────────────────────────
+// Fire-and-forget, best-effort, single-transaction match writer (MATCH-01, D-07).
+// Never throws — all errors are caught, logged with [match] prefix, and swallowed
+// so a failing DB write can never block or break the end-game screen.
+
+async function recordMatch(winnerId, loserId, reason, mode, startedAt) {
+  // Graceful no-op guard: derive from poolConfig env vars (lines 22-32)
+  if (!process.env.DATABASE_URL && !process.env.PGHOST && !process.env.PGDATABASE) {
+    console.log("[match] DATABASE_URL not set — skipping match record");
+    return;
+  }
+
+  // Reason taxonomy validation (D-02): reject unknown values before any DB round-trip
+  const VALID_REASONS = ["normal", "timeout", "disconnect", "leave"];
+  if (!VALID_REASONS.includes(reason)) {
+    console.log("[match] invalid reason — skipping");
+    return;
+  }
+
+  // Unresolvable-seat guard (D-04): matches FK is NOT NULL; skip rather than throw
+  if (winnerId == null || loserId == null) {
+    console.log("[match] unresolvable user_id — skipping");
+    return;
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    // All values bound as $N — never string-concatenate (T-03-03 SQL-injection mitigation)
+    await client.query(
+      "INSERT INTO matches (winner_id, loser_id, reason, mode, started_at, ended_at) VALUES ($1, $2, $3, $4, $5, now())",
+      [winnerId, loserId, reason, mode || "classic", startedAt || new Date()]
+    );
+    await client.query("COMMIT");
+  } catch (e) {
+    await client.query("ROLLBACK");
+    console.error("[match] recordMatch failed:", e.message);
+    // Swallow — never rethrow (D-07); unlike linkOrPromoteAccount which rethrows
+  } finally {
+    client.release();
+  }
+}
+
 // ─── setEmailPassword ─────────────────────────────────────────────────────────
 // Updates the password_hash on the email credential for a given user.
 // Called by POST /auth/reset after a valid single-use reset token is consumed.
@@ -498,4 +541,5 @@ module.exports = {
   consumeAuthToken,
   markEmailVerified,
   setEmailPassword,
+  recordMatch,
 };
