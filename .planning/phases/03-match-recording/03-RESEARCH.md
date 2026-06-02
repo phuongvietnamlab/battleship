@@ -498,19 +498,19 @@ p.timer = setTimeout(() => {
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **`leaveRoom` behavioral change**
+1. **`leaveRoom` behavioral change** — RESOLVED: inline `leave` recording in `leaveRoom`, NOT routed through `endGameForfeit` (preserves `opponentLeft` UX; verified app.jsx 1727-1733). See 03-03-PLAN.md locked decision.
    - What we know: `leaveRoom` currently removes the player and emits `opponentLeft`. `endGameForfeit` emits `gameOver({ win: true })` to the surviving player.
    - What's unclear: Is the client prepared to handle `gameOver` arriving from a `leaveRoom` path (vs `opponentLeft`)? The app.jsx handles both events. Does changing `leaveRoom` to route through `endGameForfeit` break the rematch flow?
    - Recommendation: Planner reads `app.jsx` handling of `gameOver` vs `opponentLeft` (short check). If rematch logic depends on `opponentLeft` specifically, use an inline record approach in `leaveRoom` instead of routing through `endGameForfeit`.
 
-2. **`startedAt` in Redis snapshot**
+2. **`startedAt` in Redis snapshot** — RESOLVED: add to `serializeRooms`/`restoreRooms` with `now()` null-fallback. See 03-03-PLAN.md Task 1.
    - What we know: `serializeRooms` (line ~750) must be updated to include `startedAt`.
    - What's unclear: Is the `restoreRooms` path a real concern? Redis is always available per STATE.md ("Redis now always available").
    - Recommendation: Still add `startedAt` to `serializeRooms`/`restoreRooms` for correctness. Fallback to `now()` on null is sufficient.
 
-3. **`userId` on player seat vs DB lookup in `recordMatch`**
+3. **`userId` on player seat vs DB lookup in `recordMatch`** — RESOLVED: Option A (store on seat at assignment). See 03-03-PLAN.md Task 1.
    - What we know: Both approaches work. Option A (store on seat) avoids an extra DB query. Option B (lookup in helper) keeps the seat object unchanged.
    - Recommendation: Option A. The planner should add `room.players[clientId].userId = socket.data.userId ?? null` in `createRoom`, `joinRoom`, `resume`, and `rejoin` handlers — wherever a seat is assigned.
 
