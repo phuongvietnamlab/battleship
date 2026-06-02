@@ -689,3 +689,86 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
   border-radius:8px; padding:12px 16px; color:#ff9aa4; font-size:13px;
   margin-bottom:16px;
 }
+
+/* ─── Email auth form (D-21) ─────────────────────────────────────────────── */
+/* Collapsible "or continue with email" toggle + stacked login/signup form.    */
+/* Rendered below Google + Facebook buttons in the Lobby for guests only.      */
+
+.email-auth-wrap { width: 100%; }
+
+/* Toggle button: text-link look, full width, sky-blue, 13px */
+.email-auth-toggle {
+  display: block;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 6px 0;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--sky);
+  cursor: pointer;
+  text-align: center;
+  opacity: 0.85;
+  transition: opacity 0.15s;
+}
+.email-auth-toggle:hover { opacity: 1; }
+.email-auth-toggle:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; border-radius: 3px; }
+
+/* Expanded form: stacked inputs with 8px gaps, consistent with existing inputs */
+.email-auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+  width: 100%;
+}
+
+.email-auth-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: #c4d8ef;
+}
+
+.email-auth-form input[type="email"],
+.email-auth-form input[type="password"] {
+  background: rgba(255,255,255,.07);
+  border: 1px solid rgba(150,200,255,.2);
+  border-radius: 8px;
+  color: #eaf2ff;
+  font-family: inherit;
+  font-size: 14px;
+  padding: 10px 12px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.email-auth-form input:focus {
+  border-color: var(--sky);
+}
+
+/* Submit button reuses .btn.primary — full width via width:100% on .btn */
+.email-auth-form .btn { width: 100%; }
+
+/* Toggle + forgot-password links row */
+.email-auth-links {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.email-auth-link {
+  background: none;
+  border: none;
+  padding: 2px 0;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--sky);
+  cursor: pointer;
+  opacity: 0.80;
+  transition: opacity 0.15s;
+}
+.email-auth-link:hover { opacity: 1; }
+.email-auth-link:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; border-radius: 3px; }

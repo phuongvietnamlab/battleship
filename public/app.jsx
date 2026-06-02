@@ -88,6 +88,17 @@ const I18N = {
     "auth.errFailed": "Sign-in failed. Please try again.",
     "auth.errExpired": "Your session has expired. Please sign in again.",
     "auth.errRateLimited": "Too many sign-in attempts. Please wait a moment.",
+    "auth.continueEmail": "or continue with email",
+    "auth.emailLabel": "Email",
+    "auth.passwordLabel": "Password",
+    "auth.loginBtn": "Log in",
+    "auth.signupBtn": "Sign up",
+    "auth.toggleToSignup": "Need an account? Sign up",
+    "auth.toggleToLogin": "Have an account? Log in",
+    "auth.forgotPassword": "Forgot password?",
+    "auth.errEmailInUse": "That email is already registered.",
+    "auth.errWeakPassword": "Password must be at least 8 characters.",
+    "auth.errAuthFailed": "Incorrect email or password.",
     "auth.viewProfile": "View profile",
     "auth.signOut": "Sign out",
     "auth.signOutAll": "Sign out all devices",
@@ -175,6 +186,17 @@ const I18N = {
     "auth.errFailed": "Đăng nhập thất bại. Vui lòng thử lại.",
     "auth.errExpired": "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.",
     "auth.errRateLimited": "Quá nhiều lần thử. Vui lòng chờ một chút.",
+    "auth.continueEmail": "hoặc tiếp tục bằng email",
+    "auth.emailLabel": "Email",
+    "auth.passwordLabel": "Mật khẩu",
+    "auth.loginBtn": "Đăng nhập",
+    "auth.signupBtn": "Đăng ký",
+    "auth.toggleToSignup": "Chưa có tài khoản? Đăng ký",
+    "auth.toggleToLogin": "Đã có tài khoản? Đăng nhập",
+    "auth.forgotPassword": "Quên mật khẩu?",
+    "auth.errEmailInUse": "Email này đã được đăng ký.",
+    "auth.errWeakPassword": "Mật khẩu phải có ít nhất 8 ký tự.",
+    "auth.errAuthFailed": "Email hoặc mật khẩu không đúng.",
     "auth.viewProfile": "Xem hồ sơ",
     "auth.signOut": "Đăng xuất",
     "auth.signOutAll": "Đăng xuất tất cả thiết bị",
@@ -378,8 +400,116 @@ function inBounds(cells) {
   return cells.every((x) => x.r >= 0 && x.r < BOARD && x.c >= 0 && x.c < BOARD);
 }
 
+// ---------- EmailAuthForm (D-21) ----------
+// Collapsible login/signup form below the Google + Facebook buttons.
+// Only rendered when !authUser (guests only). Collapsed by default.
+// On success calls onAuthSuccess(user) so App sets authUser.
+function EmailAuthForm({ onAuthSuccess, clientId: cid }) {
+  const [collapsed, setCollapsed] = useState(true);
+  const [mode, setMode] = useState("login"); // "login" | "signup"
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  function mapCode(code) {
+    if (code === "EMAIL_IN_USE") return t("auth.errEmailInUse");
+    if (code === "WEAK_PASSWORD") return t("auth.errWeakPassword");
+    if (code === "AUTH_FAILED") return t("auth.errAuthFailed");
+    if (code === "RATE_LIMITED") return t("auth.errRateLimited");
+    return t("auth.errFailed");
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+    const endpoint = mode === "login" ? "/auth/login" : "/auth/signup";
+    try {
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ email, password, clientId: cid }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setEmail("");
+        setPassword("");
+        setCollapsed(true);
+        onAuthSuccess(data.user);
+      } else {
+        setError(mapCode(data.code));
+      }
+    } catch (_) {
+      setError(t("auth.errFailed"));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // "Forgot password?" link: wires to Plan 09 reset UI; no-ops cleanly if absent
+  function handleForgotPassword(e) {
+    e.preventDefault();
+    // Plan 09 will wire this to POST /auth/forgot-password; for now it is a no-op
+  }
+
+  return (
+    <div className="email-auth-wrap">
+      <button
+        type="button"
+        className="email-auth-toggle"
+        onClick={() => setCollapsed((v) => !v)}
+        aria-expanded={!collapsed}
+      >
+        {t("auth.continueEmail")}
+      </button>
+      {!collapsed && (
+        <form className="email-auth-form" onSubmit={handleSubmit} noValidate>
+          {error && <div className="error">{error}</div>}
+          <label>{t("auth.emailLabel")}
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
+              required
+            />
+          </label>
+          <label>{t("auth.passwordLabel")}
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete={mode === "login" ? "current-password" : "new-password"}
+              required
+            />
+          </label>
+          <button type="submit" className="btn primary" disabled={loading}>
+            {mode === "login" ? t("auth.loginBtn") : t("auth.signupBtn")}
+          </button>
+          <div className="email-auth-links">
+            <button
+              type="button"
+              className="email-auth-link"
+              onClick={() => { setMode(mode === "login" ? "signup" : "login"); setError(""); }}
+            >
+              {mode === "login" ? t("auth.toggleToSignup") : t("auth.toggleToLogin")}
+            </button>
+            {mode === "login" && (
+              <button type="button" className="email-auth-link" onClick={handleForgotPassword}>
+                {t("auth.forgotPassword")}
+              </button>
+            )}
+          </div>
+        </form>
+      )}
+    </div>
+  );
+}
+
 // ---------- Lobby ----------
-function Lobby({ onCreate, onJoin, onBot, onHelp, error, authUser, authError, clientId, signInDisabled, onSignInDisable }) {
+function Lobby({ onCreate, onJoin, onBot, onHelp, error, authUser, authError, clientId, signInDisabled, onSignInDisable, onEmailAuthSuccess }) {
   const [code, setCode] = useState("");
   const [mode, setMode] = useState("classic");
   return (
@@ -417,6 +547,8 @@ function Lobby({ onCreate, onJoin, onBot, onHelp, error, authUser, authError, cl
           <GoogleSignInButton clientId={clientId} disabled={signInDisabled} onDisable={onSignInDisable} />
           <div style={{ height: 8 }} />
           <FacebookSignInButton clientId={clientId} disabled={signInDisabled} onDisable={onSignInDisable} />
+          <div style={{ height: 8 }} />
+          <EmailAuthForm onAuthSuccess={onEmailAuthSuccess} clientId={clientId} />
         </>
       )}
       <button className="btn ghost help-link" onClick={onHelp}>{t("help.open")}</button>
@@ -1725,7 +1857,7 @@ function App() {
 
       {notice && <div className="notice-toast">{notice}</div>}
 
-      {screen === "lobby" && <Lobby onCreate={createRoom} onJoin={joinRoom} onBot={startBot} onHelp={() => setHelpOpen(true)} error={error} authUser={authUser} authError={authError} clientId={clientId} signInDisabled={signInDisabled} onSignInDisable={() => setSignInDisabled(true)} />}
+      {screen === "lobby" && <Lobby onCreate={createRoom} onJoin={joinRoom} onBot={startBot} onHelp={() => setHelpOpen(true)} error={error} authUser={authUser} authError={authError} clientId={clientId} signInDisabled={signInDisabled} onSignInDisable={() => setSignInDisabled(true)} onEmailAuthSuccess={setAuthUser} />}
 
       {screen === "profile" && (
         <ProfileView
