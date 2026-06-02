@@ -3,140 +3,90 @@
 > **Audit trail only.** Do not use as input to planning, research, or execution agents.
 > Decisions are captured in CONTEXT.md — this log preserves the alternatives considered.
 
-**Date:** 2026-06-02
-**Phase:** 2-Accounts & Identity
-**Areas discussed:** OAuth + session mechanism, Guest→account link & conflicts, Profile identity & stats, Sign-in UX + socket auth
+**Date:** 2026-06-02 (scope-expansion revision)
+**Phase:** 2-accounts-identity
+**Areas discussed:** Email infra, Email verification policy, Cross-provider identity, Sign-in UI
+
+**Context:** Re-discussion triggered by mid-execute scope expansion — Phase 2 grew from
+Google-only to Google + Facebook + email/password. Existing Google-only CONTEXT.md and
+4 plans superseded. User chose "Update context, replan after."
 
 ---
 
-## OAuth + session mechanism
+## Email infrastructure
 
-### OAuth library
 | Option | Description | Selected |
 |--------|-------------|----------|
-| Passport + google-oauth20 | Battle-tested Express standard; handles redirect/callback, integrates with express-session | ✓ |
-| Hand-rolled OAuth | Manual auth-code flow, zero deps, own all correctness | |
-| Lightweight lib (arctic) | Modern minimal OAuth helper, lighter than Passport | |
+| Resend | HTTP API, free tier ~3k/mo, simple Node SDK, good Render fit | ✓ |
+| SendGrid | Mature, larger free tier, heavier setup | |
+| SMTP (Gmail/Mailgun) | Generic nodemailer + SMTP, most portable, more moving parts | |
+| Defer email entirely | Ship email/password without verification or reset | |
 
-**User's choice:** Deferred to Claude — "hãy chọn cái gì mà bạn cảm thấy phù hợp nhất" (choose whatever is most suitable). Claude selected Passport + passport-google-oauth20.
-**Notes:** Logged as Claude's discretion; planner may swap to a lighter lib if it preserves state-param + session regeneration and session-shared socket auth.
-
-### Session store
-| Option | Description | Selected |
-|--------|-------------|----------|
-| Postgres session store | express-session + connect-pg-simple; revoke = delete rows; reuses pg.Pool | ✓ |
-| Redis session store | connect-redis; fast, TTL expiry; revoke-all needs key scanning | |
-| Stateless JWT | No server store; server-side revocation hard — conflicts with AUTH-04 | |
-
-**User's choice:** Postgres session store.
-
-### Session lifetime
-| Option | Description | Selected |
-|--------|-------------|----------|
-| 30-day rolling | maxAge 30d, refreshed each visit | ✓ |
-| Long fixed (90d) | Absolute expiry, no renewal | |
-| Short + silent re-auth | ~7d leaning on Google re-auth | |
-
-**User's choice:** 30-day rolling.
+**User's choice:** Resend
+**Notes:** No email infra in stack today; needed for verification + password reset. Wrapped behind a swappable, gracefully-degrading `mailer` module (D-18).
 
 ---
 
-## Guest→account link & conflicts
+## Email verification policy
 
-### Conflict: returning Google user with a guest clientId that has history
 | Option | Description | Selected |
 |--------|-------------|----------|
-| Adopt guest creds into account | Re-point clientId credential to the existing Google user; no dup, nothing deleted | ✓ |
-| Account wins, guest discarded | Existing account active, guest history abandoned | |
-| Merge histories | Transfer all guest history onto account; complex/ambiguous | |
+| Login immediately, verify async | Account active on signup; verification email sent but play NOT blocked | ✓ |
+| Must verify before login | Cannot sign in until email confirmed; strongest anti-spam, most friction | |
+| No verification at all | Any email valid on signup | |
 
-**User's choice:** Adopt guest creds into account.
-
-### First-time sign-in (new Google sub)
-| Option | Description | Selected |
-|--------|-------------|----------|
-| Promote guest's user | Attach Google cred to guest's existing user_id, stamp guest_migrated_at, one txn | ✓ |
-| New user + relink | Create fresh users row, move guest cred, delete old row | |
-
-**User's choice:** Promote guest's user.
+**User's choice:** Login immediately, verify async (D-19)
+**Notes:** Preserves guest-first low-friction ethos. `email_verified` flag, profile hint for unverified.
 
 ---
 
-## Profile identity & stats
+## Cross-provider identity
 
-### Public profile addressing
 | Option | Description | Selected |
 |--------|-------------|----------|
-| Opaque user id | Address by users.id / short token; no uniqueness surface | ✓ |
-| Unique username | /u/handle; adds username table + validation + squatting concerns | |
-| Display name (non-unique) | Names collide; can't reliably resolve | |
+| Keep separate accounts | Each (provider, provider_user_id) is its own account; same email across providers = distinct | ✓ |
+| Auto-merge by verified email | Link providers sharing a verified email; needs trust rules + merge txn | |
+| Prompt user to link | Detect collision, ask; best UX, most edge-cases | |
 
-**User's choice:** Opaque user id.
-
-### Display name source
-| Option | Description | Selected |
-|--------|-------------|----------|
-| Google name, non-editable | Use Google display name; no edit UI | ✓ |
-| Google name, editable | Prefill + override; adds edit form + validation | |
-| Reuse existing nickname | Keep guest nickname, ignore Google name | |
-
-**User's choice:** Google name, non-editable.
-
-### Stats before Phase 3
-| Option | Description | Selected |
-|--------|-------------|----------|
-| Zero-state scaffold | Profile UI + stats read path returning zeros; Phase 3 fills it | ✓ |
-| Hide stats until Phase 3 | Identity only now | |
-| Track minimal stats now | Ad-hoc counters; duplicates Phase 3 logic | |
-
-**User's choice:** Zero-state scaffold.
+**User's choice:** Keep separate accounts (D-20)
+**Notes:** Avoids email-spoofing trust issues and merge complexity. Merge-by-verified-email deferred.
 
 ---
 
-## Sign-in UX + socket auth
+## Sign-in UI
 
-### Socket.IO authentication
 | Option | Description | Selected |
 |--------|-------------|----------|
-| Share express-session | io.engine.use(sessionMiddleware); handshake reads session cookie; one revocation path | ✓ |
-| Token in handshake auth | Issue token, verify on connect; second revocation path | |
-| Keep clientId only | Socket stays guest-style; blocks Phase 4 ranked gating | |
+| OAuth buttons primary + email collapsible | Google + FB buttons on top; "or continue with email" expands form | ✓ |
+| All three equal, stacked | All shown equal weight; busier | |
+| Tabbed | Social vs Email tabs; hides one method | |
 
-**User's choice:** Share express-session.
-
-### Sign-in UI placement
-| Option | Description | Selected |
-|--------|-------------|----------|
-| Home/menu + header avatar | Button on home menu; avatar+name header menu once signed in | ✓ |
-| Modal from anywhere | Persistent account button opening a modal | |
-| Dedicated account screen | Separate routed screen | |
-
-**User's choice:** Home/menu + header avatar.
-
-### Sign-out options
-| Option | Description | Selected |
-|--------|-------------|----------|
-| Both options | "Sign out" (this device) + "Sign out all devices" | ✓ |
-| All-devices only | Single sign-out kills all sessions | |
-| This-device only | Doesn't satisfy AUTH-04 | |
-
-**User's choice:** Both options.
+**User's choice:** OAuth-primary + collapsible email form (D-21)
+**Notes:** Keeps OAuth fast-path prominent, email available without clutter.
 
 ---
 
 ## Claude's Discretion
 
-- OAuth library choice (user explicitly deferred — Passport selected).
-- Where `display_name` / `avatar_url` are persisted (new `users` columns vs `profiles` table).
-- Session table DDL (connect-pg-simple auto-create vs a `002_*.sql` migration).
-- Exact cookie flags (httpOnly/secure/sameSite) per deployment.
-- Auth-route rate limiting (extend Phase-1 limiter).
+- OAuth/email lib choices (Passport google/facebook + bcrypt; substitution allowed if D-05/D-11/D-14 preserved)
+- Token storage shape (auth_tokens table vs columns)
+- display_name/avatar_url persistence location
+- Session table DDL (self-create vs migration)
+- Cookie flags, reset/verification token expiry
+- Auth-route rate limiting (extend Phase-1 limiter)
+- Email-account display-name source
 
 ## Deferred Ideas
 
-- Usernames / custom handles (v2).
-- Editable display name + avatar upload.
-- Real win/loss stats numbers (Phase 3).
-- Orphaned guest-user-row cleanup.
-- Additional OAuth providers (Facebook/Instagram).
-- Account deletion / GDPR export.
+- Cross-provider account merging by verified email
+- Usernames / custom handles
+- Editable display name + avatar upload
+- Real win/loss stats numbers (Phase 3)
+- Orphaned guest-user-row cleanup
+- More OAuth providers (schema already supports)
+- Account deletion / GDPR export
+
+## Flagged for follow-up (not a gray area)
+
+- **Contract mismatch:** ROADMAP.md + REQUIREMENTS.md still Google-only. Must add AUTH-05/06/07/08 + success criteria via `/gsd-phase` before replan passes plan-checker/verifier.
+- **UI-SPEC stale:** 02-UI-SPEC.md covers Google sign-in only; extend for FB button + email form + verify/reset screens.
