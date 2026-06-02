@@ -771,6 +771,7 @@ function serializeRooms() {
       code: r.code || code,
       order: r.order || [],
       started: !!r.started,
+      startedAt: r.startedAt || null,
       turn: r.turn || null,
       scores: r.scores || {},
       lastStarter: r.lastStarter || null,
@@ -816,6 +817,7 @@ function restoreRooms(snap) {
       players,
       order: s.order || [],
       started: !!s.started,
+      startedAt: s.startedAt ? new Date(s.startedAt) : null,
       turn: s.turn || null,
       scores: s.scores || {},
       lastStarter: s.lastStarter || null,
@@ -1178,10 +1180,12 @@ io.on("connection", (socket) => {
     const clientId = (arg && arg.clientId) || socket.id;
     const code = newCode();
     const mode = (arg && arg.mode) === "advance" ? "advance" : "classic";
+    // room.recorded is the D-06 dedup flag set synchronously at end paths (Task 2 — endGameForfeit/doShot/scheduleSeatRelease/leaveRoom)
     rooms[code] = { code, players: {}, order: [], started: false, turn: null, scores: {}, lastStarter: null, mode, powerups: {}, turnTimer: null, turnDeadline: null, resolving: false, lastActivityAt: Date.now() };
     rooms[code].players[clientId] = {
       sid: socket.id, ready: false, occ: null, hits: new Set(), online: true, timer: null, inv: newInv(), bonus: 0,
       profile: sanitizeProfile(arg && arg.profile),
+      userId: socket.data.userId ?? null,
     };
     rooms[code].order.push(clientId);
     socket.join(code);
@@ -1233,6 +1237,7 @@ io.on("connection", (socket) => {
     room.players[clientId] = {
       sid: socket.id, ready: false, occ: null, hits: new Set(), online: true, timer: null, inv: newInv(), bonus: 0,
       profile: sanitizeProfile(arg && arg.profile),
+      userId: socket.data.userId ?? null,
     };
     room.order.push(clientId);
     socket.join(code);
@@ -1263,6 +1268,10 @@ io.on("connection", (socket) => {
           touchRoom(rooms[code]); // SEC-03: stamp activity on resume so sweep doesn't evict
           reclaimSeat(rooms[code], code, clientId, clientId, socket);
           upsertGuestCredential(clientId); // fire-and-forget: ensure durable credential on resume (DATA-01)
+          // Stamp userId onto seat if the player signed in between sessions; never overwrite existing id with null
+          if (socket.data.userId && rooms[code] && rooms[code].players[clientId]) {
+            rooms[code].players[clientId].userId = socket.data.userId;
+          }
           return cb && cb({ ok: true, code });
         }
       }
@@ -1282,6 +1291,8 @@ io.on("connection", (socket) => {
     const p = room.players[clientId];
     if (p.timer) { clearTimeout(p.timer); p.timer = null; }
     p.sid = socket.id; p.online = true;
+    // Stamp userId onto seat if the player signed in between sessions; never overwrite existing id with null
+    if (socket.data.userId) p.userId = socket.data.userId;
     socket.join(code);
     socket.data.code = code;
     socket.data.clientId = clientId;
@@ -1313,6 +1324,7 @@ io.on("connection", (socket) => {
 
     if (allReady) {
       room.started = true;
+      room.startedAt = new Date(); // capture battle start time for match recording (MATCH-01)
       // ván đầu chọn ngẫu nhiên; các ván sau đổi lượt người đi trước (so le)
       if (room.lastStarter && ids.includes(room.lastStarter)) {
         room.turn = ids.find((id) => id !== room.lastStarter);
