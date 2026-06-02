@@ -109,6 +109,13 @@ const I18N = {
     "auth.verifySuccess": "Email verified. Thanks!",
     "auth.verifyError": "That verification link is invalid or expired.",
     "auth.unverifiedHint": "Your email isn't verified yet — check your inbox.",
+    "auth.resetRequest": "Reset your password",
+    "auth.resetRequestBtn": "Send reset link",
+    "auth.resetSent": "If that email is registered, a reset link is on its way.",
+    "auth.resetNewPassword": "Choose a new password",
+    "auth.resetSetBtn": "Set new password",
+    "auth.resetSuccess": "Password updated. You can now log in.",
+    "auth.resetBadToken": "That reset link is invalid or expired.",
     "profile.memberSince": "Member since {month} {year}",
     "profile.wins": "Wins",
     "profile.losses": "Losses",
@@ -210,6 +217,13 @@ const I18N = {
     "auth.verifySuccess": "Đã xác minh email. Cảm ơn bạn!",
     "auth.verifyError": "Liên kết xác minh không hợp lệ hoặc đã hết hạn.",
     "auth.unverifiedHint": "Email của bạn chưa được xác minh — vui lòng kiểm tra hộp thư.",
+    "auth.resetRequest": "Đặt lại mật khẩu",
+    "auth.resetRequestBtn": "Gửi liên kết đặt lại",
+    "auth.resetSent": "Nếu email đã đăng ký, liên kết đặt lại sẽ được gửi tới.",
+    "auth.resetNewPassword": "Chọn mật khẩu mới",
+    "auth.resetSetBtn": "Đặt mật khẩu mới",
+    "auth.resetSuccess": "Đã cập nhật mật khẩu. Bạn có thể đăng nhập.",
+    "auth.resetBadToken": "Liên kết đặt lại không hợp lệ hoặc đã hết hạn.",
     "profile.memberSince": "Thành viên từ tháng {month} năm {year}",
     "profile.wins": "Chiến thắng",
     "profile.losses": "Thất bại",
@@ -406,11 +420,160 @@ function inBounds(cells) {
   return cells.every((x) => x.r >= 0 && x.r < BOARD && x.c >= 0 && x.c < BOARD);
 }
 
+// ---------- PasswordResetForm (AUTH-08 / D-19) ----------
+// Two modes controlled by the `resetToken` prop:
+//   - request mode (resetToken===null): email input + "Send reset link" button.
+//     On submit: POST /auth/reset-request; ALWAYS shows the same enumeration-safe
+//     confirmation regardless of response (mirrors server's T-02-44 behavior).
+//   - set-new mode (resetToken is a string): password input + "Set new password" button.
+//     On submit: POST /auth/reset {token,password}; on {ok:true} calls onSuccess();
+//     on BAD_TOKEN/WEAK_PASSWORD/RATE_LIMITED maps to localized error strings.
+//
+// Opened from the Plan 07 "Forgot password?" link (request mode) or the
+// App mount effect's ?reset= URL param parse (set-new mode).
+function PasswordResetForm({ resetToken, onSuccess, onBack }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [sent, setSent] = useState(false);   // request mode: confirmation shown
+  const [success, setSuccess] = useState(false); // set-new mode: success shown
+  const [loading, setLoading] = useState(false);
+
+  const isSetNew = resetToken != null;
+
+  function mapResetCode(code) {
+    if (code === "BAD_TOKEN") return t("auth.resetBadToken");
+    if (code === "WEAK_PASSWORD") return t("auth.errWeakPassword");
+    if (code === "RATE_LIMITED") return t("auth.errRateLimited");
+    return t("auth.errFailed");
+  }
+
+  async function handleRequest(e) {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+    try {
+      await fetch("/auth/reset-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ email }),
+      });
+      // ALWAYS show the same confirmation — never reveal whether the email exists (T-02-44)
+      setSent(true);
+    } catch (_) {
+      // Even on network error, show the same confirmation (enumeration-safe UI)
+      setSent(true);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleSetNew(e) {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+    try {
+      const res = await fetch("/auth/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ token: resetToken, password }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setSuccess(true);
+        if (onSuccess) onSuccess();
+      } else {
+        setError(mapResetCode(data.code));
+      }
+    } catch (_) {
+      setError(t("auth.errFailed"));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (!isSetNew) {
+    // Request mode
+    if (sent) {
+      return (
+        <div className="email-auth-form">
+          <div className="notice">{t("auth.resetSent")}</div>
+          {onBack && (
+            <button type="button" className="email-auth-link" onClick={onBack}>
+              {t("auth.toggleToLogin")}
+            </button>
+          )}
+        </div>
+      );
+    }
+    return (
+      <form className="email-auth-form" onSubmit={handleRequest} noValidate>
+        <h3 style={{ margin: "0 0 8px", fontSize: "14px" }}>{t("auth.resetRequest")}</h3>
+        {error && <div className="error">{error}</div>}
+        <label>{t("auth.emailLabel")}
+          <input
+            type="email"
+            value={email}
+            onChange={(ev) => setEmail(ev.target.value)}
+            autoComplete="email"
+            required
+          />
+        </label>
+        <button type="submit" className="btn primary" disabled={loading}>
+          {t("auth.resetRequestBtn")}
+        </button>
+        {onBack && (
+          <div className="email-auth-links">
+            <button type="button" className="email-auth-link" onClick={onBack}>
+              {t("auth.toggleToLogin")}
+            </button>
+          </div>
+        )}
+      </form>
+    );
+  }
+
+  // Set-new mode
+  if (success) {
+    return (
+      <div className="email-auth-form">
+        <div className="notice">{t("auth.resetSuccess")}</div>
+        {onBack && (
+          <button type="button" className="email-auth-link" onClick={onBack}>
+            {t("auth.toggleToLogin")}
+          </button>
+        )}
+      </div>
+    );
+  }
+  return (
+    <form className="email-auth-form" onSubmit={handleSetNew} noValidate>
+      <h3 style={{ margin: "0 0 8px", fontSize: "14px" }}>{t("auth.resetNewPassword")}</h3>
+      {error && <div className="error">{error}</div>}
+      <label>{t("auth.passwordLabel")}
+        <input
+          type="password"
+          value={password}
+          onChange={(ev) => setPassword(ev.target.value)}
+          autoComplete="new-password"
+          required
+        />
+      </label>
+      <button type="submit" className="btn primary" disabled={loading}>
+        {t("auth.resetSetBtn")}
+      </button>
+    </form>
+  );
+}
+
 // ---------- EmailAuthForm (D-21) ----------
 // Collapsible login/signup form below the Google + Facebook buttons.
 // Only rendered when !authUser (guests only). Collapsed by default.
 // On success calls onAuthSuccess(user) so App sets authUser.
-function EmailAuthForm({ onAuthSuccess, clientId: cid }) {
+// onForgotPassword: callback from App/Lobby to open PasswordResetForm (Plan 09).
+function EmailAuthForm({ onAuthSuccess, clientId: cid, onForgotPassword }) {
   const [collapsed, setCollapsed] = useState(true);
   const [mode, setMode] = useState("login"); // "login" | "signup"
   const [email, setEmail] = useState("");
@@ -454,10 +617,10 @@ function EmailAuthForm({ onAuthSuccess, clientId: cid }) {
     }
   }
 
-  // "Forgot password?" link: wires to Plan 09 reset UI; no-ops cleanly if absent
+  // "Forgot password?" link wires to PasswordResetForm (Plan 09)
   function handleForgotPassword(e) {
     e.preventDefault();
-    // Plan 09 will wire this to POST /auth/forgot-password; for now it is a no-op
+    if (onForgotPassword) onForgotPassword();
   }
 
   return (
@@ -515,7 +678,11 @@ function EmailAuthForm({ onAuthSuccess, clientId: cid }) {
 }
 
 // ---------- Lobby ----------
-function Lobby({ onCreate, onJoin, onBot, onHelp, error, authUser, authError, verifyNotice, clientId, signInDisabled, onSignInDisable, onEmailAuthSuccess }) {
+// resetToken: string (set-new mode) | null (normal or request mode from "Forgot password?")
+// resetMode: boolean — true when PasswordResetForm should be shown in request mode
+// onForgotPassword: opens PasswordResetForm in request mode
+// onResetBack: closes PasswordResetForm and returns to normal login view
+function Lobby({ onCreate, onJoin, onBot, onHelp, error, authUser, authError, verifyNotice, clientId, signInDisabled, onSignInDisable, onEmailAuthSuccess, resetToken, resetMode, onForgotPassword, onResetBack }) {
   const [code, setCode] = useState("");
   const [mode, setMode] = useState("classic");
   return (
@@ -552,11 +719,25 @@ function Lobby({ onCreate, onJoin, onBot, onHelp, error, authUser, authError, ve
               {authError === "rateLimited" ? t("auth.errRateLimited") : t("auth.errFailed")}
             </div>
           )}
-          <GoogleSignInButton clientId={clientId} disabled={signInDisabled} onDisable={onSignInDisable} />
-          <div style={{ height: 8 }} />
-          <FacebookSignInButton clientId={clientId} disabled={signInDisabled} onDisable={onSignInDisable} />
-          <div style={{ height: 8 }} />
-          <EmailAuthForm onAuthSuccess={onEmailAuthSuccess} clientId={clientId} />
+          {/* PasswordResetForm shown when: (a) ?reset= token in URL (set-new mode)
+              or (b) user clicked "Forgot password?" (request mode) */}
+          {(resetToken != null || resetMode) ? (
+            <div className="email-auth-wrap">
+              <PasswordResetForm
+                resetToken={resetToken || null}
+                onSuccess={onResetBack}
+                onBack={onResetBack}
+              />
+            </div>
+          ) : (
+            <>
+              <GoogleSignInButton clientId={clientId} disabled={signInDisabled} onDisable={onSignInDisable} />
+              <div style={{ height: 8 }} />
+              <FacebookSignInButton clientId={clientId} disabled={signInDisabled} onDisable={onSignInDisable} />
+              <div style={{ height: 8 }} />
+              <EmailAuthForm onAuthSuccess={onEmailAuthSuccess} clientId={clientId} onForgotPassword={onForgotPassword} />
+            </>
+          )}
         </>
       )}
       <button className="btn ghost help-link" onClick={onHelp}>{t("help.open")}</button>
@@ -1333,6 +1514,9 @@ function App() {
   const [authError, setAuthError] = useState(null);   // 'failed' | 'rateLimited'
   const [verifyNotice, setVerifyNotice] = useState(null); // 'success' | 'error' (AUTH-07)
   const [signInDisabled, setSignInDisabled] = useState(false); // during OAuth redirect
+  // Password-reset state (AUTH-08 / Plan 09)
+  const [resetToken, setResetToken] = useState(null);   // string when ?reset=<token> in URL (set-new mode)
+  const [resetMode, setResetMode] = useState(false);    // true when "Forgot password?" clicked (request mode)
   // Avatar dropdown state (Plan 03)
   const [avatarMenuOpen, setAvatarMenuOpen] = useState(false);
   const [signOutAllConfirm, setSignOutAllConfirm] = useState(false);
@@ -1392,14 +1576,14 @@ function App() {
     setSignOutAllConfirm(false);
   }
 
-  // Auth hydration: fetch signed-in user on mount; handle ?authError, ?verified, ?verifyError.
+  // Auth hydration: fetch signed-in user on mount; handle ?authError, ?verified, ?verifyError, ?reset.
   useEffect(() => {
     // Hydrate auth state from server session (D-12)
     fetch("/api/me").then((r) => r.json()).then((d) => {
       setAuthUser(d.user || null);
     }).catch(() => { /* non-fatal — guest play continues */ });
 
-    // Parse redirect flags from OAuth and email-verification callbacks.
+    // Parse redirect flags from OAuth, email-verification, and password-reset callbacks.
     // Strip params from URL after reading so they do not persist across refreshes.
     try {
       const params = new URLSearchParams(window.location.search);
@@ -1422,6 +1606,15 @@ function App() {
       if (params.get("verifyError")) {
         setVerifyNotice("error");
         params.delete("verifyError");
+        const clean = window.location.pathname + (params.toString() ? "?" + params.toString() : "");
+        window.history.replaceState(null, "", clean);
+      }
+      // ?reset=<token> from emailed password-reset link (AUTH-08 / D-19)
+      // Opens PasswordResetForm in set-new mode with the token pre-filled.
+      const tok = params.get("reset");
+      if (tok) {
+        setResetToken(tok);
+        params.delete("reset");
         const clean = window.location.pathname + (params.toString() ? "?" + params.toString() : "");
         window.history.replaceState(null, "", clean);
       }
@@ -1882,7 +2075,7 @@ function App() {
 
       {notice && <div className="notice-toast">{notice}</div>}
 
-      {screen === "lobby" && <Lobby onCreate={createRoom} onJoin={joinRoom} onBot={startBot} onHelp={() => setHelpOpen(true)} error={error} authUser={authUser} authError={authError} verifyNotice={verifyNotice} clientId={clientId} signInDisabled={signInDisabled} onSignInDisable={() => setSignInDisabled(true)} onEmailAuthSuccess={setAuthUser} />}
+      {screen === "lobby" && <Lobby onCreate={createRoom} onJoin={joinRoom} onBot={startBot} onHelp={() => setHelpOpen(true)} error={error} authUser={authUser} authError={authError} verifyNotice={verifyNotice} clientId={clientId} signInDisabled={signInDisabled} onSignInDisable={() => setSignInDisabled(true)} onEmailAuthSuccess={setAuthUser} resetToken={resetToken} resetMode={resetMode} onForgotPassword={() => setResetMode(true)} onResetBack={() => { setResetToken(null); setResetMode(false); }} />}
 
       {screen === "profile" && (
         <ProfileView
