@@ -444,6 +444,48 @@ async function markEmailVerified(userId) {
   );
 }
 
+// ─── setEmailPassword ─────────────────────────────────────────────────────────
+// Updates the password_hash on the email credential for a given user.
+// Called by POST /auth/reset after a valid single-use reset token is consumed.
+//
+// Security:
+//   T-02-46: minimum 8 chars enforced (WEAK_PASSWORD) — mirrors createEmailAccount
+//   T-02-46: bcrypt cost 10 (async) — never hashSync
+//   T-02-49: parameterized UPDATE — external_id never concatenated
+//   D-20: only updates credentials WHERE type='email' — never touches google/facebook rows
+//
+// Returns {ok:true} on success.
+// Returns {error:'WEAK_PASSWORD'} if newPassword < 8 chars (named code, not thrown).
+// Returns {error:'AUTH_FAILED'} if no email credential exists for userId (no row updated).
+// On DB error: console.error + rethrow (caller wraps in try/catch).
+
+async function setEmailPassword(userId, newPassword) {
+  // Guard: minimum password length (T-02-46 / D-17)
+  if (typeof newPassword !== "string" || newPassword.length < 8) {
+    return { error: "WEAK_PASSWORD" };
+  }
+
+  // Hash at same cost as createEmailAccount (cost 10, async — T-02-46 / T-02-27)
+  const hash = await bcrypt.hash(newPassword, 10);
+
+  try {
+    const { rows } = await pool.query(
+      "UPDATE credentials SET password_hash=$1 WHERE user_id=$2 AND type='email' RETURNING id",
+      [hash, userId]
+    );
+
+    if (rows.length === 0) {
+      // No email credential found for this user (guest-only, google-only, etc.)
+      return { error: "AUTH_FAILED" };
+    }
+
+    return { ok: true };
+  } catch (e) {
+    console.error("[db] setEmailPassword failed:", e.message);
+    throw e;
+  }
+}
+
 module.exports = {
   pool,
   runMigrations,
@@ -455,4 +497,5 @@ module.exports = {
   createAuthToken,
   consumeAuthToken,
   markEmailVerified,
+  setEmailPassword,
 };

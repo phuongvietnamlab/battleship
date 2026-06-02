@@ -8,7 +8,7 @@ const http = require("http");
 const path = require("path");
 const { Server } = require("socket.io");
 const store = require("./store"); // optional Redis snapshot; no-op without REDIS_URL
-const { pool, runMigrations, upsertGuestCredential, linkOrPromoteAccount, createEmailAccount, verifyEmailLogin, createAuthToken, consumeAuthToken, markEmailVerified } = require("./db"); // Postgres: identity persistence
+const { pool, runMigrations, upsertGuestCredential, linkOrPromoteAccount, createEmailAccount, verifyEmailLogin, createAuthToken, consumeAuthToken, markEmailVerified, setEmailPassword } = require("./db"); // Postgres: identity persistence
 const mailer = require("./mailer"); // optional email wrapper (graceful-degrade when RESEND_API_KEY unset)
 
 const app = express();
@@ -453,6 +453,127 @@ app.get("/auth/verify", async (req, res) => {
   } catch (e) {
     console.error("[auth] verify failed:", e.message);
     return res.redirect("/?verifyError=1");
+  }
+});
+
+// POST /auth/reset-request — enumeration-safe password-reset link request (AUTH-08 / D-19).
+//
+// Security posture (T-02-44 enumeration safety):
+//   ALWAYS returns the SAME generic {ok:true} response regardless of whether the
+//   email exists. The email is emailed only when the credential is found, and the
+//   send is non-blocking + best-effort so timing/shape never leaks account existence.
+//
+// T-02-48: authRateLimit (10/min per IP) on this route.
+// T-02-49: no SQL is built by this route — all DB access via parameterized helpers.
+// D-19: reset token created with createAuthToken(userId,'reset',3600) — 1h TTL.
+// Non-blocking: token creation + sendMail fired after try/catch resolves ok:true.
+app.post("/auth/reset-request", authRateLimit, async (req, res) => {
+  // Return generic response FIRST so the server can never reveal account existence
+  // via an early-return timing difference. We start the work in a setImmediate so
+  // the response is always flush-and-forget from the handler's perspective.
+  // Wrap everything in try/catch; even errors return the same ok:true shape.
+  try {
+    const { email } = req.body || {};
+    const normalizedEmail = (typeof email === "string" ? email : "").trim().toLowerCase();
+
+    // Fire the reset email asynchronously (best-effort) AFTER flushing the response.
+    // This ensures identical response timing whether or not the credential exists (T-02-44).
+    res.json({ ok: true });
+
+    setImmediate(async () => {
+      try {
+        // Look up the email credential to find user_id (D-20: email cred only)
+        const { rows } = await pool.query(
+          "SELECT user_id FROM credentials WHERE type='email' AND external_id=$1",
+          [normalizedEmail]
+        );
+        if (rows.length === 0) {
+          // Email not registered — do nothing (T-02-44 enumeration-safe; no log of absence)
+          return;
+        }
+        const userId = rows[0].user_id;
+        // Create a single-use 1h reset token (Plan 06 primitive — T-02-45)
+        const token = await createAuthToken(userId, "reset", 3600);
+        const baseUrl = process.env.APP_BASE_URL || "";
+        const resetUrl = baseUrl + "/?reset=" + token;
+        // Send the reset email (Plan 08 mailer — gracefully degrades when unconfigured)
+        await mailer.sendMail({
+          to: normalizedEmail,
+          subject: "Reset your Battleship Online password",
+          html: `
+            <p>We received a request to reset your password.</p>
+            <p>Click the link below to choose a new password. The link is valid for 1 hour.</p>
+            <p><a href="${resetUrl}">Reset my password</a></p>
+            <p style="color:#888;font-size:12px;">If you did not request a password reset, you can safely ignore this email.</p>
+          `.trim(),
+          text: [
+            "We received a request to reset your password.",
+            "",
+            "Click the link below to choose a new password. The link is valid for 1 hour.",
+            "",
+            resetUrl,
+            "",
+            "If you did not request a password reset, you can safely ignore this email.",
+          ].join("\n"),
+        });
+      } catch (e) {
+        // Non-fatal: token creation or send failure must never surface to the user.
+        // Email is best-effort (D-19 / T-02-41).
+        console.error("[auth] reset email post-request failed:", e.message);
+      }
+    });
+  } catch (e) {
+    // Even internal errors return the same enumeration-safe response (T-02-44)
+    console.error("[auth] reset-request failed:", e.message);
+    // Response already sent above; do not send again
+  }
+});
+
+// POST /auth/reset — consume a single-use reset token and set a new bcrypt password.
+//
+// Ordering note: consumeAuthToken is called BEFORE setEmailPassword. This means
+// the token is single-use even if the new password is weak (WEAK_PASSWORD). The
+// user must request a fresh reset link in that case. This ordering prevents
+// token replay attacks where an attacker tries many passwords on the same token.
+//
+// T-02-45: token is single-use + 1h expiry via consumeAuthToken('reset') (Plan 06).
+// T-02-46: WEAK_PASSWORD enforced by setEmailPassword (min 8 chars).
+// T-02-47: on success, DELETE FROM session WHERE user_id invalidates leaked old sessions.
+// T-02-48: authRateLimit (10/min per IP) on this route.
+// T-02-49: all DB access via parameterized helpers — no SQL built by this route.
+app.post("/auth/reset", authRateLimit, async (req, res) => {
+  try {
+    const { token, password } = req.body || {};
+
+    // Consume the reset token (single-use + expiry + purpose binding — T-02-45)
+    const r = await consumeAuthToken(token, "reset");
+    if (r.error) {
+      return res.status(400).json({ ok: false, code: "BAD_TOKEN" });
+    }
+
+    // Set the new password (min-8 enforced, bcrypt cost 10 — T-02-46)
+    // Consume happens BEFORE setEmailPassword so the token is single-use even on WEAK_PASSWORD.
+    const set = await setEmailPassword(r.userId, password);
+    if (set.error === "WEAK_PASSWORD") {
+      return res.status(400).json({ ok: false, code: "WEAK_PASSWORD" });
+    }
+    if (set.error) {
+      return res.status(400).json({ ok: false, code: "AUTH_FAILED" });
+    }
+
+    // Invalidate all existing sessions for this user (T-02-47 / Plan 03 pattern).
+    // A leaked old session cannot persist after a successful password reset.
+    try {
+      await pool.query("DELETE FROM session WHERE user_id = $1", [r.userId]);
+    } catch (e) {
+      // Non-fatal: session invalidation failure logs but does not block the response.
+      console.error("[auth] session invalidation after reset failed:", e.message);
+    }
+
+    return res.json({ ok: true });
+  } catch (e) {
+    console.error("[auth] reset failed:", e.message);
+    return res.status(500).json({ ok: false });
   }
 });
 
