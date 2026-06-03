@@ -1546,6 +1546,8 @@ io.on("connection", (socket) => {
     }
     room.powerups = {}; room.mines = {};
     room.started = false;
+    room.recorded = false; // CR-01: clear dedup flag so the rematch game records its own match (MATCH-01)
+    room.startedAt = null; // re-captured at battle start in placeShips allReady
     room.turn = null;
     clearTurnTimer(room);
     io.to(code).emit("rematchStart");

@@ -78,6 +78,20 @@ describe("db.js — recordMatch export contract (Plan 02 spine)", () => {
   });
 });
 
+// ─── Rematch dedup-reset regression (CR-01) ──────────────────────────────────
+// The rematch handler must clear room.recorded, otherwise every game after the
+// first silently skips its match write (the !room.recorded guard stays true).
+
+describe("server.js — rematch resets dedup flag (CR-01)", () => {
+  it("rematch handler clears room.recorded so the next game records", () => {
+    const src = fs.readFileSync(path.join(rootDir, "server.js"), "utf8");
+    const rematchStart = src.indexOf('socket.on("rematch"');
+    expect(rematchStart).toBeGreaterThan(-1);
+    const rematchBody = src.slice(rematchStart, rematchStart + 800);
+    expect(rematchBody).toMatch(/room\.recorded\s*=\s*false/);
+  });
+});
+
 // ─── Unit tests — always run, no DATABASE_URL required ───────────────────────
 // These exercise recordMatch's graceful no-op and input validation guards.
 
