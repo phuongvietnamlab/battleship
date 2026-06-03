@@ -56,18 +56,9 @@ app.get("/healthz", (req, res) => res.json({ ok: true, uptimeSec: Math.floor(pro
 // Lightweight ops snapshot: room/game/player counts + memory. JSON, no auth
 // (no secrets exposed). Useful to eyeball load and spot leaked rooms.
 app.get("/metrics", (req, res) => res.json(computeStats()));
-// Top-100 leaderboard: Redis-cached (≤5 min TTL), Postgres fallback. Public,
-// no auth required. Returns only non-sensitive fields (T-04-12: no email/hashes).
-// DDoS mitigation: cache-first means Postgres is touched at most once per TTL window (T-04-13).
-app.get("/api/leaderboard", async (req, res) => {
-  try {
-    const rows = await getLeaderboard();
-    res.json(rows);
-  } catch (e) {
-    console.error("[leaderboard] endpoint error:", e.message);
-    res.status(500).json({ error: "LEADERBOARD_UNAVAILABLE" });
-  }
-});
+// NOTE: GET /api/leaderboard is defined after leaderboardRateLimit (below), so
+// that the in-process rate limiter and cache constants are available at route
+// registration time (no TDZ issue — const is not hoisted).
 
 // Built game bundle (run `npm run build:game`) served first, so the no-CDN
 // index.html + bundled app.js are used for local/web preview. Falls back to
@@ -206,6 +197,46 @@ const abilityLimiter = new RateLimiterMemory({ points: 1,  duration: 1  }); // 1
 const chatLimiter    = new RateLimiterMemory({ points: 5,  duration: 10 }); // 5 messages/10s
 // Consecutive violation threshold before forcibly disconnecting the abusing socket (D-08).
 const RL_ABUSE_THRESHOLD = 10;
+
+// ─── Leaderboard rate limiter ────────────────────────────────────────────────
+// In-process DoS guard for the public, unauthenticated GET /api/leaderboard
+// route (T-04-19, CR-02). 30 reads/min/IP — accommodates normal browser polling
+// while blocking request floods. Mirrors authRateLimit shape; no new dependency
+// (RateLimiterMemory is already required above). Works in RAM-only mode where
+// Redis cache amortization is absent, so this is the last line of defence.
+const leaderboardLimiter = new RateLimiterMemory({ points: 30, duration: 60 });
+function leaderboardRateLimit(req, res, next) {
+  leaderboardLimiter.consume(req.ip).then(next).catch(() => res.status(429).json({ code: "RATE_LIMITED" }));
+}
+
+// ─── In-process short-TTL leaderboard cache (RAM-only amortization, T-04-20) ──
+// When REDIS_URL is absent store.getLeaderboardCache() always returns null, so
+// every request would hit Postgres. This in-process cell amortizes reads within
+// a short TTL window without touching the Redis path (which remains unchanged).
+// TTL is well under the RANK-04 5-minute freshness budget (T-04-21).
+const LB_INPROC_TTL_MS = 10000; // 10 s — amortizes bursts, still fresh per RANK-04
+let lbCache = { at: 0, payload: null };
+
+// Top-100 leaderboard: Redis-cached (≤5 min TTL), Postgres fallback. Public,
+// no auth required. Returns only non-sensitive fields (T-04-12: no email/hashes).
+// DDoS mitigation: leaderboardRateLimit (T-04-19) + in-process cache (T-04-20)
+// protect Postgres from unauthenticated request floods in RAM-only mode.
+app.get("/api/leaderboard", leaderboardRateLimit, async (req, res) => {
+  // In-process cache hit — serve without calling getLeaderboard() (T-04-20).
+  // Guard-clause style: early return on fresh cache so the try/catch below is
+  // only reached when the cache is cold (first request or after TTL expiry).
+  if (lbCache.payload !== null && Date.now() - lbCache.at < LB_INPROC_TTL_MS) {
+    return res.json(lbCache.payload);
+  }
+  try {
+    const rows = await getLeaderboard();
+    lbCache = { at: Date.now(), payload: rows };
+    res.json(rows);
+  } catch (e) {
+    console.error("[leaderboard] endpoint error:", e.message);
+    res.status(500).json({ error: "LEADERBOARD_UNAVAILABLE" });
+  }
+});
 
 // ─── Auth rate limiter ───────────────────────────────────────────────────────
 // Extends existing RateLimiterMemory pattern (lines above) to OAuth endpoints.
@@ -1699,5 +1730,9 @@ module.exports = {
     app,  // exported for AUTH-06 route-level behavioral tests (Plan 07)
     serializeRooms,
     restoreRooms,
+    // CR-02 test helpers: allow tests to inspect/reset in-process leaderboard state
+    leaderboardLimiter,
+    getLbCache: () => lbCache,
+    resetLbCache: () => { lbCache = { at: 0, payload: null }; },
   },
 };
