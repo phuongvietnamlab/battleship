@@ -187,7 +187,19 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. In the ranked queue, two players within a starting ELO window are paired; if no close match is found, the window widens automatically the longer they wait.
   3. When a queued player disconnects or navigates away, their queue entry is removed immediately — they do not block a pairing slot or appear as a phantom opponent.
 
-**Plans**: TBD
+**Plans**: 3 plans
+
+**Wave 1**
+
+- [ ] 05-01-PLAN.md — Casual Quick Match slice: queues map, tryPair/createMatchedRoom pairing engine + double-pairing race guard, joinQueue/leaveQueue/matchFound, sweep timer, Wave-0 test scaffold + TEST_EXPORTS seam, lobby Quick Match button + queue wait screen (EN/VI) (QUEUE-01)
+
+**Wave 2** *(blocked on Wave 1 — extends server.js + app.jsx queue engine)*
+
+- [ ] 05-02-PLAN.md — Ranked matchmaking slice: getPlayerRating (db.js), rankedWindow stepped-widening + provisional + unbounded cap, ranked joinQueue gate (RANKED_REQUIRES_ACCOUNT, server-authoritative rating read), ranked findPair, queueStatus, Ranked button (guest-disabled) + ELO window display (EN/VI) (QUEUE-02)
+
+**Wave 3** *(blocked on Waves 1-2 — extends disconnect handler + queue screen)*
+
+- [ ] 05-03-PLAN.md — Queue cleanup integrity slice: disconnect-handler queue removal (both queues), D-11 partner-vanish re-queue-at-front, client navigate-away leaveQueue cleanup, delayed unranked bot offer (D-09), QUEUE-03 engine tests (QUEUE-03)
 
 ### Phase 6: Bot Difficulty Tiers
 
