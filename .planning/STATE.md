@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-06-01)
 ## Current Position
 
 Phase: 04 (ranked-mode-leaderboard) — EXECUTING
-Plan: 2 of 5
+Plan: 3 of 5
 Status: Ready to execute
-Last activity: 2026-06-03 -- Phase 04 execution started
+Last activity: 2026-06-03 -- Plan 04-02 complete (ranked gating + toggle UI)
 
 Progress: [█░░░░░░░░░] 11%
 
@@ -81,6 +81,9 @@ Recent decisions affecting current work:
 - [Phase ?]: doShot cells guard precedes opp/me resolution (01-03)
 - [Phase ?]: sweepRooms exported via TEST_EXPORTS for synchronous unit testing (01-03)
 - [Phase ?]: style-src unsafe-inline allowed; script-src self-only enforced for CSP (01-03)
+- [Phase 04 P02 D-01]: ranked flag set by host at create time; stored as room.ranked boolean alongside mode
+- [Phase 04 P02 D-02]: server reads socket.data.userId (session-set), never arg.userId — ranked eligibility guard is server-authoritative (T-04-04, RANK-02)
+- [Phase 04 P02 D-05]: ranked+advance rejected with RANKED_REQUIRES_CLASSIC; client forces classic when ranked enabled
 
 ### Pending Todos
 
@@ -104,6 +107,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-06-03T04:44:51.846Z
-Stopped at: Phase 4 context gathered
-Resume file: .planning/phases/04-ranked-mode-leaderboard/04-CONTEXT.md
+Last session: 2026-06-03T04:56:33Z
+Stopped at: Completed 04-02-PLAN.md (ranked gating + lobby toggle)
+Resume file: .planning/phases/04-ranked-mode-leaderboard/04-03-PLAN.md
