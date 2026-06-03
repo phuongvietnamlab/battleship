@@ -742,6 +742,7 @@ function scheduleSeatRelease(room, code, clientId, ms) {
           lId: r2.players[clientId]?.userId ?? null,
           mode: r2.mode,
           startedAt: r2.startedAt,
+          ranked: r2.ranked,
         };
         r2.recorded = true; // synchronous dedup guard (D-06) — set BEFORE delete
       }
@@ -758,7 +759,7 @@ function scheduleSeatRelease(room, code, clientId, ms) {
     }
     // Fire-and-forget match record after opponentLeft emit (D-07)
     if (disconnectRecord) {
-      recordMatch(disconnectRecord.wId, disconnectRecord.lId, "disconnect", disconnectRecord.mode, disconnectRecord.startedAt).catch(() => {});
+      recordMatch(disconnectRecord.wId, disconnectRecord.lId, "disconnect", disconnectRecord.mode, disconnectRecord.startedAt, disconnectRecord.ranked).catch(() => {});
     }
   }, ms != null ? ms : GRACE_MS);
 }
@@ -1083,7 +1084,7 @@ function endGameForfeit(room, loserId, reason) {
     room.recorded = true; // synchronous dedup guard (D-06) — set BEFORE the promise
     const wId = room.players[winnerId]?.userId ?? null;
     const lId = room.players[loserId]?.userId ?? null;
-    recordMatch(wId, lId, reason, room.mode, room.startedAt).catch(() => {});
+    recordMatch(wId, lId, reason, room.mode, room.startedAt, room.ranked).catch(() => {});
   }
 }
 
@@ -1157,7 +1158,7 @@ function doShot(room, clientId, cells) {
       room.recorded = true; // synchronous dedup guard (D-06) — set BEFORE the promise
       const wId = room.players[clientId]?.userId ?? null;
       const lId = room.players[opp]?.userId ?? null;
-      recordMatch(wId, lId, "normal", room.mode, room.startedAt).catch(() => {});
+      recordMatch(wId, lId, "normal", room.mode, room.startedAt, room.ranked).catch(() => {});
     }
     return { ok: true, cells: results, collected, sunkCells, sunkCount, newSunk, win, anyHit, mineHit };
   }
@@ -1574,7 +1575,7 @@ io.on("connection", (socket) => {
           room.recorded = true; // synchronous dedup guard (D-06) — set BEFORE promise
           const wId = room.players[winnerId]?.userId ?? null;
           const lId = room.players[clientId]?.userId ?? null;
-          recordMatch(wId, lId, "leave", room.mode, room.startedAt).catch(() => {});
+          recordMatch(wId, lId, "leave", room.mode, room.startedAt, room.ranked).catch(() => {});
         }
       }
       const p = room.players[clientId];
