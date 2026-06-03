@@ -542,6 +542,14 @@ async function recordMatch(winnerId, loserId, reason, mode, startedAt, ranked = 
     }
 
     await client.query("COMMIT");
+
+    // ─── Post-commit leaderboard refresh (RANK-04, D-09/Pitfall 4) ───────────
+    // Fire-and-forget AFTER COMMIT only; never awaited so it never blocks the
+    // end-game screen. Only fires in the ranked branch so unranked matches do
+    // not trigger unnecessary Postgres scans.
+    if (ranked && winnerId != null && loserId != null) {
+      refreshLeaderboardCache().catch(() => {});
+    }
   } catch (e) {
     await client.query("ROLLBACK");
     console.error("[match] recordMatch failed:", e.message);
@@ -549,6 +557,83 @@ async function recordMatch(winnerId, loserId, reason, mode, startedAt, ranked = 
     // Rating-write failure rolls back the matches INSERT too (RANK-01 atomicity)
   } finally {
     client.release();
+  }
+}
+
+// ─── Leaderboard helpers (RANK-03, RANK-04, D-08/D-09/D-10) ─────────────────
+//
+// Provisional filter: rd < 110 = established = shown; rd >= 110 = provisional = hidden (Pitfall 3).
+// Always filter in this direction — a reversed filter would leak new accounts (T-04-14).
+//
+// buildLeaderboard(client): private Postgres query — top 100 established players.
+// getLeaderboard(): Redis-then-Postgres fallback (RANK-04 ≤5 min TTL cache).
+// refreshLeaderboardCache(): unconditional Postgres read + cache write; fire-and-forget safe.
+
+async function buildLeaderboard(client) {
+  // All values $N-parameterized — none here (constants only), but use the pool client
+  // to share a connection slot. SELECT only non-sensitive public fields (T-04-12).
+  const { rows } = await client.query(`
+    SELECT r.user_id AS id,
+           u.display_name,
+           u.avatar_url,
+           r.rating,
+           r.rd,
+           r.games_played
+      FROM ratings r
+      JOIN users u ON u.id = r.user_id
+     WHERE r.rd < 110
+     ORDER BY r.rating DESC
+     LIMIT 100
+  `);
+  return rows;
+}
+
+async function getLeaderboard() {
+  // Lazy-require store.js to keep the dependency optional (mirrors test isolation).
+  const store = require("./store");
+
+  // Cache-first: try Redis before hitting Postgres (RANK-04).
+  // If Redis is unavailable or errors, fall through to the direct Postgres query.
+  try {
+    const cached = await store.getLeaderboardCache();
+    if (cached) {
+      return JSON.parse(cached);
+    }
+  } catch (e) {
+    // Redis error falls through to Postgres fallback — log but do not rethrow
+    console.error("[leaderboard] cache read error, falling back to Postgres:", e.message);
+  }
+
+  // Cache miss (or Redis down): query Postgres directly
+  const client = await pool.connect();
+  try {
+    const rows = await buildLeaderboard(client);
+    // Populate cache for next request (best-effort; store errors are swallowed inside)
+    store.setLeaderboardCache(JSON.stringify(rows)).catch(() => {});
+    return rows;
+  } finally {
+    client.release();
+  }
+}
+
+async function refreshLeaderboardCache() {
+  // Unconditional Postgres query + cache write.
+  // Called fire-and-forget from recordMatch post-COMMIT; errors are swallowed.
+  try {
+    const client = await pool.connect();
+    let rows;
+    try {
+      rows = await buildLeaderboard(client);
+    } finally {
+      client.release();
+    }
+    const store = require("./store");
+    await store.setLeaderboardCache(JSON.stringify(rows));
+    console.log("[leaderboard] cache refreshed — " + rows.length + " established players");
+    return rows;
+  } catch (e) {
+    console.error("[leaderboard] refreshLeaderboardCache failed:", e.message);
+    // Swallow — this is always fire-and-forget; never rethrow
   }
 }
 
@@ -607,4 +692,6 @@ module.exports = {
   markEmailVerified,
   setEmailPassword,
   recordMatch,
+  getLeaderboard,
+  refreshLeaderboardCache,
 };
