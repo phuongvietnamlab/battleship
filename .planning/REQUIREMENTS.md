@@ -123,7 +123,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | MATCH-01 | Phase 3 — Match Recording | Complete |
 | MATCH-03 | Phase 3 — Match Recording | Complete |
 | RANK-01 | Phase 4 — Ranked Mode & Leaderboard | Complete |
-| RANK-02 | Phase 4 — Ranked Mode & Leaderboard | Pending |
+| RANK-02 | Phase 4 — Ranked Mode & Leaderboard | Complete |
 | RANK-03 | Phase 4 — Ranked Mode & Leaderboard | Complete |
 | RANK-04 | Phase 4 — Ranked Mode & Leaderboard | Complete |
 | RANK-05 | Phase 4 — Ranked Mode & Leaderboard | Complete |
