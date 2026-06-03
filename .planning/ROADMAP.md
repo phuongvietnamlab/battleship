@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Foundation** - Postgres persistence layer + security hardening prerequisites (completed 2026-06-01)
 - [x] **Phase 2: Accounts & Identity** - Google + Facebook OAuth + email/password sign-in, guest-to-account linking, player profiles (completed 2026-06-02)
-- [ ] **Phase 3: Match Recording** - Durable match records + explicit forfeit handling
+- [x] **Phase 3: Match Recording** - Durable match records + explicit forfeit handling (completed 2026-06-03)
 - [ ] **Phase 4: Ranked Mode & Leaderboard** - Glicko-2 ratings, ranked queue gating, global leaderboard
 - [ ] **Phase 5: Public Matchmaking** - Quick-match and ranked queues, ELO-window pairing
 - [ ] **Phase 6: Bot Difficulty Tiers** - Easy / medium / hard / insane bot algorithms
@@ -128,7 +128,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 **Wave 3** *(blocked on Wave 2)*
 
-- [ ] 03-03-PLAN.md — Wire recordMatch into the four game-end paths (doShot win, endGameForfeit, scheduleSeatRelease grace expiry, leaveRoom inline) + room.startedAt + seat userId + room.recorded dedup; disconnect forfeit (MATCH-01, MATCH-03)
+- [x] 03-03-PLAN.md — Wire recordMatch into the four game-end paths (doShot win, endGameForfeit, scheduleSeatRelease grace expiry, leaveRoom inline) + room.startedAt + seat userId + room.recorded dedup; disconnect forfeit (MATCH-01, MATCH-03)
 
 ### Phase 4: Ranked Mode & Leaderboard
 
@@ -185,7 +185,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 |-------|----------------|--------|-----------|
 | 1. Foundation | 3/3 | Complete    | 2026-06-01 |
 | 2. Accounts & Identity | 9/9 | Complete   | 2026-06-02 |
-| 3. Match Recording | 2/3 | In Progress|  |
+| 3. Match Recording | 3/3 | Complete   | 2026-06-03 |
 | 4. Ranked Mode & Leaderboard | 0/TBD | Not started | - |
 | 5. Public Matchmaking | 0/TBD | Not started | - |
 | 6. Bot Difficulty Tiers | 0/TBD | Not started | - |
