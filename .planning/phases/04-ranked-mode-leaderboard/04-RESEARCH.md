@@ -693,7 +693,9 @@ ALTER TABLE matches
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+> All three resolved during planning: Q1 → RD<110 adopted (D-08, Plan 04 named constant); Q2 → `store.js` cache exports adopted (Plan 04); Q3 → 6th positional `ranked` param adopted (Plan 03).
 
 1. **Exact RD threshold for leaderboard visibility**
    - What we know: Lichess uses RD > 110 for "provisional" label on ratings, but uses RD < 75 (standard) / RD < 65 (variants) for leaderboard inclusion. These are two different thresholds.
