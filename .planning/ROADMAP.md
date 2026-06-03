@@ -157,11 +157,11 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 **Wave 3** *(blocked on Waves 1-2)*
 
-- [ ] 04-03-PLAN.md — Same-transaction rating write: recordMatch 6th `ranked` param + in-transaction Glicko-2 update + matches snapshot, wired at all four call sites (RANK-01)
+- [x] 04-03-PLAN.md — Same-transaction rating write: recordMatch 6th `ranked` param + in-transaction Glicko-2 update + matches snapshot, wired at all four call sites (RANK-01)
 
 **Wave 4** *(blocked on Waves 1, 3)*
 
-- [ ] 04-04-PLAN.md — Leaderboard slice: store.js cache helpers + db.js getLeaderboard/refreshLeaderboardCache (rd<110 top-100) + GET /api/leaderboard + leaderboard UI (EN/VI) (RANK-03, RANK-04)
+- [x] 04-04-PLAN.md — Leaderboard slice: store.js cache helpers + db.js getLeaderboard/refreshLeaderboardCache (rd<110 top-100) + GET /api/leaderboard + leaderboard UI (EN/VI) (RANK-03, RANK-04)
 
 **Wave 5** *(blocked on Waves 1, 4)*
 
@@ -206,6 +206,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 1. Foundation | 3/3 | Complete    | 2026-06-01 |
 | 2. Accounts & Identity | 9/9 | Complete   | 2026-06-02 |
 | 3. Match Recording | 3/3 | Complete    | 2026-06-03 |
-| 4. Ranked Mode & Leaderboard | 2/5 | In Progress|  |
+| 4. Ranked Mode & Leaderboard | 4/5 | In Progress|  |
 | 5. Public Matchmaking | 0/TBD | Not started | - |
 | 6. Bot Difficulty Tiers | 0/TBD | Not started | - |
