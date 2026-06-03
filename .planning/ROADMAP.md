@@ -144,8 +144,28 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. The global leaderboard endpoint returns the top 100 players within 5 minutes of any rating change — the cache refreshes automatically at least every 5 minutes.
   5. An admin can trigger a seasonal rated reset: prior ratings are archived to history, and active ratings are soft-reset toward the default — without deleting historical records.
 
-**Plans**: TBD
+**Plans**: 5 plans
 **Research flag**: Validate Glicko-2 formula against Lichess reference implementation. Unit-test `elo.js` with known inputs (starting rating 1500, RD 350, volatility 0.06) before connecting to the ranked queue.
+
+**Wave 1**
+
+- [ ] 04-01-PLAN.md — Math + schema foundation: pure `elo.js` Glicko-2 (validated vs Glickman vector) + migrations/005_rankings.sql (ratings/seasons/rating_history + matches ALTER) + Wave-0 test scaffold (RANK-01, RANK-03, RANK-05)
+
+**Wave 2** *(blocked on Wave 1)*
+
+- [ ] 04-02-PLAN.md — Ranked-flag slice: `room.ranked` + server-authoritative guest block (RANKED_REQUIRES_ACCOUNT) + ranked+advance reject (RANKED_REQUIRES_CLASSIC) + lobby ranked toggle (EN/VI) (RANK-02)
+
+**Wave 3** *(blocked on Waves 1-2)*
+
+- [ ] 04-03-PLAN.md — Same-transaction rating write: recordMatch 6th `ranked` param + in-transaction Glicko-2 update + matches snapshot, wired at all four call sites (RANK-01)
+
+**Wave 4** *(blocked on Waves 1, 3)*
+
+- [ ] 04-04-PLAN.md — Leaderboard slice: store.js cache helpers + db.js getLeaderboard/refreshLeaderboardCache (rd<110 top-100) + GET /api/leaderboard + leaderboard UI (EN/VI) (RANK-03, RANK-04)
+
+**Wave 5** *(blocked on Waves 1, 4)*
+
+- [ ] 04-05-PLAN.md — Season-reset CLI: scripts/season-reset.js archive-then-soft-reset (single txn, UNIQUE-label idempotency, CLI-only) + npm script (RANK-05)
 
 ### Phase 5: Public Matchmaking
 
@@ -186,6 +206,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 1. Foundation | 3/3 | Complete    | 2026-06-01 |
 | 2. Accounts & Identity | 9/9 | Complete   | 2026-06-02 |
 | 3. Match Recording | 3/3 | Complete    | 2026-06-03 |
-| 4. Ranked Mode & Leaderboard | 0/TBD | Not started | - |
+| 4. Ranked Mode & Leaderboard | 0/5 | Not started | - |
 | 5. Public Matchmaking | 0/TBD | Not started | - |
 | 6. Bot Difficulty Tiers | 0/TBD | Not started | - |
