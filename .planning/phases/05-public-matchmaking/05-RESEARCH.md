@@ -768,22 +768,25 @@ async function createMatchedRoom(entryA, entryB, type) {
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **`io.sockets.sockets.get(socketId)` availability in Socket.IO v4.7.5**
    - What we know: Socket.IO v4 has a `io.sockets.sockets` Map. `get(id)` returns the socket or undefined.
    - What's unclear: Whether the namespace default (`io.sockets`) is the right access path vs `io.of("/").sockets`.
    - Recommendation: Use `io.of("/").sockets.get(socketId)` as the canonical form for v4. Alternative: pass socket objects into the queue entry (simpler but risks stale references on reconnect — use socket.id lookup instead).
+   - **RESOLVED:** Plans adopt the canonical `io.of("/").sockets.get(entry.socketId)` socket-id lookup in `createMatchedRoom` (05-01 Task 2 — seats both players by looking up the live socket from its id, never by holding a socket reference in the queue entry, so reconnect-stale references cannot occur). Assumption A5 is thereby retired.
 
 2. **Re-queue on D-11: when exactly is "before game starts"?**
    - What we know: `room.started` is set to `true` in `placeShips` when `allReady` (line 1419). Before that, the room exists but `started === false`.
    - What's unclear: Should re-queue trigger on disconnect during placement (after `matchFound`, before `placeShips`) only? Or also during the lobby waiting phase?
    - Recommendation: Re-queue if `!room.started` at disconnect time. This covers both the placement window and any unexpected lobby state. The surviving player's `socket.data.queueType` must be preserved through the match-handoff phase and not cleared until `placeShips allReady`.
+   - **RESOLVED:** Plans use the `room.started === false` boundary for the D-11 re-queue (05-03 Task 1 — front re-insertion fires only when the disconnecting socket's room has not started). The surviving player's original `queueType` is preserved through the match handoff: `createMatchedRoom` keeps the original queueType on the room/seat and does NOT clear it until `placeShips` reaches `allReady` (05-03 Task 1), so the survivor is re-queued into the correct queue.
 
 3. **Rate limiting for `joinQueue`**
    - What we know: `fire`/`useAbility` are rate-limited (SEC-01). `createRoom`/`joinRoom` are not individually rate-limited (just socket connection rate).
    - What's unclear: Should `joinQueue` be rate-limited? A malicious client could spam join/leave to pollute the queue.
    - Recommendation: Apply a simple `RateLimiterMemory` (existing dep) at 5 joinQueue/min per socket. This prevents queue spam without adding a new dependency.
+   - **RESOLVED:** Plans add `joinQueueLimiter = new RateLimiterMemory({ points: 5, duration: 60 })` consumed per clientId in the `joinQueue` handler (05-01 Task 2), rejecting with `RATE_LIMITED` — captured as threat-model mitigation T-5-03 (no new dependency). The matching `leaveQueue` cleanup plus the `ALREADY_IN_QUEUE`/`ALREADY_IN_ROOM` guards (T-5-04) close the join/leave-cycling spam vector.
 
 ---
 
