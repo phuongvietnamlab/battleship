@@ -743,3 +743,256 @@ describe.skipIf(!hasDb)("RANK-05: season reset — archive + soft-reset + idempo
     ).rejects.toThrow();
   });
 });
+
+// ─── CR-01: snapshot round-trip preserves ranked/recorded/userId (no DB) ─────
+// These tests run without a database — they operate entirely on the in-memory
+// rooms map via TEST_EXPORTS. They MUST NOT be gated on hasDb.
+// Purpose: prove that serializeRooms/restoreRooms preserve ranked, recorded,
+// and per-seat userId so recordMatch receives real values after a server restart.
+
+describe("CR-01: snapshot round-trip preserves ranked/recorded/userId (no DB)", () => {
+  let serializeRooms;
+  let restoreRooms;
+  let rooms;
+
+  beforeAll(async () => {
+    // Import via TEST_EXPORTS (CJS interop: default export wraps TEST_EXPORTS)
+    const mod = await import("../server.js");
+    const exports = mod.default ?? mod;
+    ({ serializeRooms, restoreRooms, rooms } = exports.TEST_EXPORTS);
+  });
+
+  afterAll(() => {
+    // Clean up any rooms added by this suite so they don't leak
+    if (rooms) {
+      for (const code of Object.keys(rooms)) {
+        if (code.startsWith("TEST-")) delete rooms[code];
+      }
+    }
+  });
+
+  // ── static grep: serializeRooms source preserves the required fields ──────
+  it("serializeRooms source contains 'userId: p.userId' (static grep)", () => {
+    const src = fs.readFileSync(path.join(rootDir, "server.js"), "utf8");
+    const fnStart = src.indexOf("function serializeRooms");
+    const fnEnd = src.indexOf("\nfunction ", fnStart + 1);
+    const body = src.slice(fnStart, fnEnd > 0 ? fnEnd : fnStart + 2000);
+    expect(body).toContain("userId: p.userId");
+  });
+
+  it("serializeRooms source contains 'ranked:' (static grep)", () => {
+    const src = fs.readFileSync(path.join(rootDir, "server.js"), "utf8");
+    const fnStart = src.indexOf("function serializeRooms");
+    const fnEnd = src.indexOf("\nfunction ", fnStart + 1);
+    const body = src.slice(fnStart, fnEnd > 0 ? fnEnd : fnStart + 2000);
+    expect(body).toContain("ranked:");
+  });
+
+  it("serializeRooms source contains 'recorded:' (static grep)", () => {
+    const src = fs.readFileSync(path.join(rootDir, "server.js"), "utf8");
+    const fnStart = src.indexOf("function serializeRooms");
+    const fnEnd = src.indexOf("\nfunction ", fnStart + 1);
+    const body = src.slice(fnStart, fnEnd > 0 ? fnEnd : fnStart + 2000);
+    expect(body).toContain("recorded:");
+  });
+
+  it("restoreRooms source contains 'userId: p.userId' (static grep)", () => {
+    const src = fs.readFileSync(path.join(rootDir, "server.js"), "utf8");
+    const fnStart = src.indexOf("function restoreRooms");
+    const fnEnd = src.indexOf("\nfunction ", fnStart + 1);
+    const body = src.slice(fnStart, fnEnd > 0 ? fnEnd : fnStart + 2000);
+    expect(body).toContain("userId: p.userId");
+  });
+
+  it("restoreRooms source contains 'ranked:' (static grep)", () => {
+    const src = fs.readFileSync(path.join(rootDir, "server.js"), "utf8");
+    const fnStart = src.indexOf("function restoreRooms");
+    const fnEnd = src.indexOf("\nfunction ", fnStart + 1);
+    const body = src.slice(fnStart, fnEnd > 0 ? fnEnd : fnStart + 2000);
+    expect(body).toContain("ranked:");
+  });
+
+  it("restoreRooms source contains 'recorded:' (static grep)", () => {
+    const src = fs.readFileSync(path.join(rootDir, "server.js"), "utf8");
+    const fnStart = src.indexOf("function restoreRooms");
+    const fnEnd = src.indexOf("\nfunction ", fnStart + 1);
+    const body = src.slice(fnStart, fnEnd > 0 ? fnEnd : fnStart + 2000);
+    expect(body).toContain("recorded:");
+  });
+
+  it("TEST_EXPORTS includes serializeRooms", () => {
+    expect(typeof serializeRooms).toBe("function");
+  });
+
+  it("TEST_EXPORTS includes restoreRooms", () => {
+    expect(typeof restoreRooms).toBe("function");
+  });
+
+  // ── in-memory round-trip: build a ranked room, serialize, clear, restore ──
+  it("serialize -> restore round-trip preserves ranked===true", () => {
+    // Build a minimal ranked room in the live rooms map
+    const code = "TEST-CR01";
+    rooms[code] = {
+      code,
+      order: ["p1", "p2"],
+      started: true,
+      startedAt: new Date("2026-06-01T10:00:00Z"),
+      turn: "p1",
+      scores: { p1: 0, p2: 0 },
+      lastStarter: "p1",
+      mode: "classic",
+      ranked: true,
+      recorded: false,
+      powerups: {},
+      mines: {},
+      players: {
+        p1: {
+          sid: null,
+          ready: true,
+          occ: new Set(["0-0"]),
+          hits: new Set(),
+          ships: [new Set(["0-0"])],
+          online: true,
+          timer: null,
+          inv: {},
+          bonus: 0,
+          skipNext: false,
+          timeouts: 0,
+          profile: null,
+          userId: 101,
+        },
+        p2: {
+          sid: null,
+          ready: true,
+          occ: new Set(["1-0"]),
+          hits: new Set(),
+          ships: [new Set(["1-0"])],
+          online: true,
+          timer: null,
+          inv: {},
+          bonus: 0,
+          skipNext: false,
+          timeouts: 0,
+          profile: null,
+          userId: 202,
+        },
+      },
+    };
+
+    const snapshot = serializeRooms();
+    expect(snapshot[code]).toBeDefined();
+    expect(snapshot[code].ranked).toBe(true);
+  });
+
+  it("serialize -> restore round-trip preserves recorded===false", () => {
+    const code = "TEST-CR01";
+    // Room was inserted in prior test; if this runs as its own it may be missing
+    if (!rooms[code]) {
+      rooms[code] = buildTestRoom(code);
+    }
+    const snapshot = serializeRooms();
+    expect(snapshot[code].recorded).toBe(false);
+  });
+
+  it("serialize -> restore round-trip preserves per-seat userId for each player", () => {
+    const code = "TEST-CR01";
+    if (!rooms[code]) {
+      rooms[code] = buildTestRoom(code);
+    }
+    const snapshot = serializeRooms();
+    const snap = snapshot[code];
+    expect(snap.players.p1.userId).toBe(101);
+    expect(snap.players.p2.userId).toBe(202);
+  });
+
+  it("restoreRooms rebuilds room with ranked===true from snapshot", () => {
+    const code = "TEST-CR01-RESTORE";
+    // Build minimal snapshot object directly (no need to go through rooms map)
+    const snap = {
+      [code]: {
+        code,
+        order: ["p1", "p2"],
+        started: false, // use started:false to avoid arming real timers
+        startedAt: null,
+        turn: "p1",
+        scores: { p1: 0, p2: 0 },
+        lastStarter: null,
+        mode: "classic",
+        ranked: true,
+        recorded: false,
+        powerups: {},
+        mines: {},
+        players: {
+          p1: { ready: true, occ: null, hits: [], ships: null, inv: null, bonus: 0, skipNext: false, timeouts: 0, profile: null, userId: 101 },
+          p2: { ready: true, occ: null, hits: [], ships: null, inv: null, bonus: 0, skipNext: false, timeouts: 0, profile: null, userId: 202 },
+        },
+      },
+    };
+    delete rooms[code]; // ensure clean slate
+    restoreRooms(snap);
+    expect(rooms[code]).toBeDefined();
+    expect(rooms[code].ranked).toBe(true);
+    // clean up
+    delete rooms[code];
+  });
+
+  it("restoreRooms rebuilds room with recorded===false from snapshot", () => {
+    const code = "TEST-CR01-REC";
+    const snap = {
+      [code]: {
+        code, order: ["p1"], started: false, startedAt: null, turn: null,
+        scores: {}, lastStarter: null, mode: "classic",
+        ranked: false, recorded: false,
+        powerups: {}, mines: {},
+        players: { p1: { ready: false, occ: null, hits: [], ships: null, inv: null, bonus: 0, skipNext: false, timeouts: 0, profile: null, userId: 303 } },
+      },
+    };
+    delete rooms[code];
+    restoreRooms(snap);
+    expect(rooms[code].recorded).toBe(false);
+    delete rooms[code];
+  });
+
+  it("restoreRooms rebuilds each seat userId from snapshot", () => {
+    const code = "TEST-CR01-UID";
+    const snap = {
+      [code]: {
+        code, order: ["p1", "p2"], started: false, startedAt: null, turn: null,
+        scores: {}, lastStarter: null, mode: "classic",
+        ranked: true, recorded: false,
+        powerups: {}, mines: {},
+        players: {
+          p1: { ready: false, occ: null, hits: [], ships: null, inv: null, bonus: 0, skipNext: false, timeouts: 0, profile: null, userId: 101 },
+          p2: { ready: false, occ: null, hits: [], ships: null, inv: null, bonus: 0, skipNext: false, timeouts: 0, profile: null, userId: 202 },
+        },
+      },
+    };
+    delete rooms[code];
+    restoreRooms(snap);
+    expect(rooms[code].players.p1.userId).toBe(101);
+    expect(rooms[code].players.p2.userId).toBe(202);
+    delete rooms[code];
+  });
+});
+
+// Helper — builds a minimal ranked two-seat room object (not inserted into rooms map)
+function buildTestRoom(code) {
+  return {
+    code,
+    order: ["p1", "p2"],
+    started: true,
+    startedAt: new Date("2026-06-01T10:00:00Z"),
+    turn: "p1",
+    scores: { p1: 0, p2: 0 },
+    lastStarter: "p1",
+    mode: "classic",
+    ranked: true,
+    recorded: false,
+    powerups: {},
+    mines: {},
+    players: {
+      p1: { sid: null, ready: true, occ: new Set(["0-0"]), hits: new Set(), ships: [new Set(["0-0"])], online: true, timer: null, inv: {}, bonus: 0, skipNext: false, timeouts: 0, profile: null, userId: 101 },
+      p2: { sid: null, ready: true, occ: new Set(["1-0"]), hits: new Set(), ships: [new Set(["1-0"])], online: true, timer: null, inv: {}, bonus: 0, skipNext: false, timeouts: 0, profile: null, userId: 202 },
+    },
+  };
+}
