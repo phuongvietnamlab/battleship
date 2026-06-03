@@ -38,8 +38,8 @@ The competitive core: durable persistence, accounts, ranked play, and public mat
 
 ### Match Recording (MATCH)
 
-- [ ] **MATCH-01**: Every completed game writes a match record (players, winner, reason) in a single transaction
-- [ ] **MATCH-03**: A disconnect that exceeds the grace window is recorded as an explicit forfeit loss
+- [x] **MATCH-01**: Every completed game writes a match record (players, winner, reason) in a single transaction
+- [x] **MATCH-03**: A disconnect that exceeds the grace window is recorded as an explicit forfeit loss
 
 ### Ranked & Leaderboard (RANK)
 
@@ -120,8 +120,8 @@ Which phases cover which requirements. Populated during roadmap creation.
 | AUTH-08 | Phase 2 — Accounts & Identity | Pending |
 | PROF-01 | Phase 2 — Accounts & Identity | Pending |
 | PROF-02 | Phase 2 — Accounts & Identity | Pending |
-| MATCH-01 | Phase 3 — Match Recording | Pending |
-| MATCH-03 | Phase 3 — Match Recording | Pending |
+| MATCH-01 | Phase 3 — Match Recording | Complete |
+| MATCH-03 | Phase 3 — Match Recording | Complete |
 | RANK-01 | Phase 4 — Ranked Mode & Leaderboard | Pending |
 | RANK-02 | Phase 4 — Ranked Mode & Leaderboard | Pending |
 | RANK-03 | Phase 4 — Ranked Mode & Leaderboard | Pending |
