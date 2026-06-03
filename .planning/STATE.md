@@ -25,9 +25,9 @@ See: .planning/PROJECT.md (updated 2026-06-01)
 
 ## Current Position
 
-Phase: 04 (ranked-mode-leaderboard) — COMPLETE
-Plan: 5 of 5 (all complete)
-Status: Phase 04 complete — ready for Phase 05
+Phase: 04 (ranked-mode-leaderboard) — VERIFICATION GAPS
+Plan: 5 of 5 (all built; verification gaps_found)
+Status: Phase 04 awaiting gap closure — CR-01 blocker (ranked state not persisted in serializeRooms/restoreRooms), CR-02 leaderboard rate-limit, RANK-02 doc. Run /gsd-plan-phase 4 --gaps
 Last activity: 2026-06-03 -- Plan 04-05 complete (season-reset CLI archive-then-soft-reset, RANK-05)
 
 Progress: [█░░░░░░░░░] 11%

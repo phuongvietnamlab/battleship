@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Foundation** - Postgres persistence layer + security hardening prerequisites (completed 2026-06-01)
 - [x] **Phase 2: Accounts & Identity** - Google + Facebook OAuth + email/password sign-in, guest-to-account linking, player profiles (completed 2026-06-02)
 - [x] **Phase 3: Match Recording** - Durable match records + explicit forfeit handling (completed 2026-06-03)
-- [x] **Phase 4: Ranked Mode & Leaderboard** - Glicko-2 ratings, ranked queue gating, global leaderboard (completed 2026-06-03)
+- [ ] **Phase 4: Ranked Mode & Leaderboard** - Glicko-2 ratings, ranked queue gating, global leaderboard (5/5 plans built; verification gaps_found — CR-01 blocker pending gap closure)
 - [ ] **Phase 5: Public Matchmaking** - Quick-match and ranked queues, ELO-window pairing
 - [ ] **Phase 6: Bot Difficulty Tiers** - Easy / medium / hard / insane bot algorithms
 
