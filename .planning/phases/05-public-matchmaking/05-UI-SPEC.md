@@ -1,10 +1,11 @@
 ---
 phase: 5
 slug: public-matchmaking
-status: draft
+status: approved
 shadcn_initialized: false
 preset: none
 created: 2026-06-03
+reviewed_at: 2026-06-03
 ---
 
 # Phase 5 — UI Design Contract: Public Matchmaking
@@ -94,29 +95,28 @@ Derived from existing codebase patterns (multiples of 4px; style.css measurement
 | xs | 4px | Icon-to-label gap in buttons |
 | sm | 8px | Gap between matched-section dividers, inline spacers |
 | md | 16px | Default element vertical spacing, button stack gaps |
-| lg | 24px | Section separation within the wait panel |
+| lg | 24px | Section separation within the wait panel; queue-timer top margin |
 | xl | 32px | Panel internal top/bottom padding (lobby uses `34px` — match it) |
 | 2xl | 48px | Between the queue buttons and existing lobby content |
 
 Exceptions:
-- Touch targets for Cancel button: minimum 44px tall (accessibility; existing `.btn` padding of 15px + 16px font = ~46px, already compliant)
+- Touch targets for Leave Queue button: minimum 44px tall (accessibility; existing `.btn` padding of 15px + 16px font = ~46px, already compliant)
 - Lobby glass panel padding: `34px 30px` (match existing `.lobby` rule exactly — not a token deviation)
 
 ---
 
 ## Typography
 
-Derived from style.css body/label/heading measurements:
+Derived from style.css body/label/heading measurements. Exactly 4 declared sizes; every CSS snippet uses only these 4 values.
 
 | Role | Size | Weight | Line Height | Font | Usage |
 |------|------|--------|-------------|------|-------|
-| Body | 14px | 400 (regular) | 1.5 | "Be Vietnam Pro" | Sub-labels, hints, status copy (`p.sub` is `14px`) |
-| Label | 12px | 400 (regular) | 1.4 | "Be Vietnam Pro", uppercase, 1px letter-spacing | All caps labels (existing `label` rule) |
-| UI / Button | 16px | 600 (semibold) | 1.2 | "Oswald", letter-spacing 1px, uppercase | All `.btn` text (existing `.btn` rule) |
+| Body / Label | 14px | 400 (regular) | 1.5 | "Be Vietnam Pro" | Sub-labels, hints, status copy, queue window label, all-caps labels |
+| UI / Button | 16px | 700 (bold) | 1.2 | "Oswald", letter-spacing 1px, uppercase | All `.btn` text (existing `.btn` rule) |
+| Display (timer / ELO value) | 20px | 700 (bold) | 1.0 | "Oswald", tabular-nums | Elapsed time counter; ELO window value — both are numeric data emphasis |
 | Heading | 26px | 700 (bold) | 1.2 | "Oswald", letter-spacing 1px | Panel h2 titles (existing `.lobby h2` rule: `26px`) |
-| Display (timer) | 20px | 700 (bold) | 1.0 | "Oswald", tabular-nums | Elapsed time counter in wait panel |
 
-Note: Two weights only — 400 (regular, body/labels) and 700 (bold, headings/display). The `.btn` rule uses font-weight 600 within the Oswald family which renders at the bold weight visually — treat as bold. Maximum 2 functional weight steps.
+Note: Two functional weight steps — 400 (regular, body/labels) and 700 (bold, headings/display/buttons). The existing `.btn` rule specifies `font-weight: 600` within the Oswald family; it renders visually at bold weight and is treated as the bold step. No 12px, 13px, or 15px values appear anywhere in this phase.
 
 ---
 
@@ -132,10 +132,10 @@ Note: Two weights only — 400 (regular, body/labels) and 700 (bold, headings/di
 **Accent (`--gold`) is reserved ONLY for:**
 - The Quick Match primary CTA button (`.btn.primary` gold gradient)
 - The elapsed timer display value in the wait panel
-- The ELO search window label value (ranked queue only)
+- The ELO search window value (ranked queue only)
 - Focus rings on all interactive elements (`:focus-visible`)
 - The "paired!" confirmation pill when match found (`.status-pill.pill-ready` uses `--sky`; paired state uses gold to signal success — see Interaction States)
-- Active border on the wait panel's Cancel button when focused
+- Active border on the wait panel's Leave Queue button when focused
 
 **Sky blue (`--sky`) is reserved for:**
 - The Ranked button (`.btn.steel` blue gradient — same as existing Create Room button)
@@ -187,7 +187,7 @@ Two new queue-entry buttons inserted **above** the existing "Create new room" co
 - Class: `.btn.ghost` + `disabled` attribute (50% opacity)
 - Icon: `🏆` inline left
 - Full width
-- Below the button, a hint line: `<span style="font-size:12px; color: var(--sky);">` containing the `ranked.guestHint` string
+- Below the button, a hint line: `<span style="font-size:14px; color: var(--sky);">` containing the `ranked.guestHint` string
 - Cursor: `not-allowed` (inherited from `.btn:disabled`)
 - No tooltip — hint text is always visible inline
 
@@ -229,7 +229,7 @@ A new screen replacing the lobby content when the player is searching for an opp
     </div>
   )}
 
-  // Cancel button
+  // Leave Queue button
   <button className="btn ghost" style={{marginTop:16}} onClick={onCancel}>
     {t("queue.cancel")}
   </button>
@@ -244,7 +244,7 @@ A new screen replacing the lobby content when the player is searching for an opp
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin: 20px 0 8px;
+  margin: 24px 0 8px;
   gap: 4px;
 }
 .queue-elapsed {
@@ -256,7 +256,7 @@ A new screen replacing the lobby content when the player is searching for an opp
   letter-spacing: 2px;
 }
 .queue-label {
-  font-size: 12px;
+  font-size: 14px;
   color: #a9ccec;
   text-transform: uppercase;
   letter-spacing: 1px;
@@ -269,12 +269,12 @@ A new screen replacing the lobby content when the player is searching for an opp
   justify-content: center;
   gap: 8px;
   margin: 8px 0;
-  font-size: 13px;
+  font-size: 14px;
   color: #a9ccec;
 }
 .queue-window-value {
   font-family: "Oswald", sans-serif;
-  font-size: 15px;
+  font-size: 20px;
   font-weight: 700;
   color: var(--gold);
   font-variant-numeric: tabular-nums;
@@ -283,7 +283,7 @@ A new screen replacing the lobby content when the player is searching for an opp
 /* Bot offer prompt (delayed, D-09) */
 .queue-bot-offer {
   margin: 16px 0 0;
-  padding: 14px 16px;
+  padding: 16px;
   background: rgba(255,255,255,.04);
   border: 1px solid var(--panel-brd);
   border-radius: 12px;
@@ -291,11 +291,11 @@ A new screen replacing the lobby content when the player is searching for an opp
   animation: rise .35s cubic-bezier(.34,1.4,.4,1) both;
 }
 .queue-bot-offer .sub {
-  margin: 0 0 10px;
+  margin: 0 0 8px;
 }
 .queue-bot-offer .btn {
   width: auto;
-  padding: 10px 24px;
+  padding: 12px 24px;
 }
 ```
 
@@ -318,11 +318,11 @@ Implementation note: The existing `opponentJoined` event already logs `t("log.op
 
 | State | What User Sees |
 |-------|---------------|
-| `queueStatus: "searching"` (0-29s) | Timer counting up, "Searching…" pill, Cancel button |
+| `queueStatus: "searching"` (0-29s) | Timer counting up, "Searching…" pill, Leave Queue button |
 | `queueStatus: "searching"` (30s+) | Same + bot offer card animates in |
 | `queueStatus: "searching"` (ranked, any time) | Same + ELO window `±{N}` displayed |
 | `queueStatus: "matched"` | "Searching…" pill switches to a success state (green pill), immediate transition |
-| On Cancel click | `leaveQueue` emitted, screen returns to `"lobby"` |
+| On Leave Queue click | `leaveQueue` emitted, screen returns to `"lobby"` |
 | On bot offer click | `leaveQueue` emitted, `startBot()` called, screen goes to `"placement"` (bot path) |
 
 ### Lobby Ranked Button States
@@ -348,7 +348,7 @@ Implementation note: The existing `opponentJoined` event already logs `t("log.op
 
 - Computed as `Math.floor((Date.now() - queueSince) / 1000)` inside a `useEffect` with `setInterval(1000)`
 - Format: `MM:SS` (e.g., `00:45`, `01:30`) using padded string formatting
-- `useRef` interval — cleared on Cancel, matched, or component unmount
+- `useRef` interval — cleared on Leave Queue, matched, or component unmount
 
 ### Bot Offer Delay
 
@@ -357,11 +357,11 @@ Implementation note: The existing `opponentJoined` event already logs `t("log.op
 - Cleared on: cancel, matchFound, component unmount
 - Applies to BOTH casual and ranked queues (a waiting ranked player is equally lonely)
 
-### Cancel
+### Leave Queue
 
-- Tapping Cancel emits `leaveQueue()` then resets queue state
+- Tapping Leave Queue emits `leaveQueue()` then resets queue state
 - State reset: `setQueueType(null)`, `setQueueSince(null)`, `setQueueWindow(null)`, `setBotOfferVisible(false)`, `setScreen("lobby")`
-- Cancel has NO confirmation prompt — immediate, non-destructive action
+- Leave Queue has NO confirmation prompt — immediate, non-destructive action
 
 ### Navigate Away / Tab Close
 
@@ -404,8 +404,6 @@ All strings must appear in BOTH `I18N.en` and `I18N.vi` blocks in `public/app.js
 |-----|---------|---------|-------|
 | `queue.quickMatch` | `⚡ Quick Match` | `⚡ Ghép trận nhanh` | Lobby button label |
 | `queue.ranked` | `🏆 Ranked Match` | `🏆 Trận xếp hạng` | Lobby button label |
-| `queue.quickMatchSub` | `Find an opponent instantly` | `Tìm đối thủ ngay lập tức` | Lobby sub-label below Quick Match (optional, 12px, muted) |
-| `queue.rankedSub` | `Matched by rating` | `Ghép theo điểm xếp hạng` | Lobby sub-label below Ranked (optional, 12px, muted) |
 | `queue.titleCasual` | `Quick Match` | `Ghép trận nhanh` | Wait panel h2 |
 | `queue.titleRanked` | `Ranked Match` | `Trận xếp hạng` | Wait panel h2 |
 | `queue.sub` | `Searching for an opponent…` | `Đang tìm đối thủ…` | Wait panel subtitle |
@@ -414,7 +412,7 @@ All strings must appear in BOTH `I18N.en` and `I18N.vi` blocks in `public/app.js
 | `queue.searchWindow` | `Search window` | `Khoảng điểm tìm kiếm` | ELO range label (ranked only) |
 | `queue.windowAny` | `Any rating` | `Mọi điểm số` | Shown when window is unbounded |
 | `queue.matched` | `Opponent found!` | `Đã tìm được đối thủ!` | Success state (brief) |
-| `queue.cancel` | `Cancel` | `Hủy` | Cancel button |
+| `queue.cancel` | `Leave Queue` | `Rời hàng chờ` | Leave Queue button (verb + noun, imperative) |
 | `queue.botOfferBody` | `No opponent yet. Play against the bot instead?` | `Chưa tìm được đối thủ. Chơi với máy thay vào?` | Bot offer card body text |
 | `queue.botOfferBtn` | `🤖 Play vs Bot` | `🤖 Chơi với máy` | Bot offer action button (reuses existing bot icon pattern) |
 | `err.ALREADY_IN_QUEUE` | `You're already in a queue` | `Bạn đang trong hàng chờ rồi` | Error from server |
@@ -422,7 +420,7 @@ All strings must appear in BOTH `I18N.en` and `I18N.vi` blocks in `public/app.js
 
 ### Copywriting Principles (from existing app patterns)
 
-- Action labels use verb-first imperative: "Quick Match", "Cancel", not "Start Quick Match" or "Exit Queue"
+- Action labels use verb-first imperative: "Quick Match", "Leave Queue", not "Start Quick Match" or "Exit Queue"
 - Status text is present-progressive (what's happening now): "Searching…" not "Search"
 - Error text states the problem without blaming the user: "You're already in a queue" not "Invalid request"
 - Bot offer is a gentle offer, not a failure message — no "No opponents found" framing
@@ -453,7 +451,7 @@ All strings must appear in BOTH `I18N.en` and `I18N.vi` blocks in `public/app.js
 
 ### Destructive Actions
 
-None in this phase. Cancel is non-destructive (no data loss, no confirmation required). Bot offer dismiss is implicit (user simply stays queued or cancels).
+None in this phase. Leave Queue is non-destructive (no data loss, no confirmation required). Bot offer dismiss is implicit (user simply stays queued or leaves queue).
 
 ---
 
@@ -500,7 +498,7 @@ Note on ranked-toggle redundancy: The existing ranked-toggle checkbox (item 9) r
 - All new buttons use existing `.btn` class which already has `:focus-visible` with `outline: 2px solid var(--gold)` (style.css line 81)
 - Disabled Ranked button for guests: `disabled` attribute set + `aria-disabled="true"` + hint text is a sibling element (screen-reader accessible)
 - Timer is live region: wrap `<span className="queue-elapsed">` with `aria-live="polite"` and `aria-atomic="true"` so screen readers announce updates at 1s cadence
-- Cancel button: no confirmation dialog — immediate action, labeled plainly as "Cancel" / "Hủy"
+- Leave Queue button: no confirmation dialog — immediate action, labeled plainly as "Leave Queue" / "Rời hàng chờ"
 - Touch targets: all buttons inherit `.btn` minimum height ~46px (15px padding × 2 + 16px font) — above 44px minimum
 
 ---
@@ -543,7 +541,7 @@ const [screen, setScreen] = useState("lobby");
 | Direction | Event | When | Payload |
 |-----------|-------|------|---------|
 | emit | `joinQueue` | User clicks Quick Match or Ranked | `{type: "casual"|"ranked", clientId, profile}` |
-| emit | `leaveQueue` | Cancel button, cleanup, nav away | `{}` |
+| emit | `leaveQueue` | Leave Queue button, cleanup, nav away | `{}` |
 | on | `matchFound` | Server found a match | `{code, ranked: bool}` → transition to "placement" |
 | on | `queueStatus` | Periodic server update (D-08) | `{waitSec, windowWidth, queueSize}` → update `queueWindow` |
 
