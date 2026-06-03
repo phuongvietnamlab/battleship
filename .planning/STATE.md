@@ -4,8 +4,8 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Phase 4 context gathered
-last_updated: "2026-06-03T04:44:51.853Z"
-last_activity: 2026-06-03 -- Phase 04 execution started
+last_updated: "2026-06-03T05:03:30Z"
+last_activity: 2026-06-03 -- Plan 04-03 complete (recordMatch ranked rating write)
 progress:
   total_phases: 6
   completed_phases: 3
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-06-01)
 ## Current Position
 
 Phase: 04 (ranked-mode-leaderboard) — EXECUTING
-Plan: 3 of 5
+Plan: 4 of 5
 Status: Ready to execute
-Last activity: 2026-06-03 -- Plan 04-02 complete (ranked gating + toggle UI)
+Last activity: 2026-06-03 -- Plan 04-03 complete (recordMatch ranked rating write + server wiring)
 
 Progress: [█░░░░░░░░░] 11%
 
@@ -59,6 +59,7 @@ Progress: [█░░░░░░░░░] 11%
 | Phase 01-foundation | P02 | ~25 min | 2 tasks | 4 files |
 | Phase 01-foundation PP03 | 30 min | 3 tasks | 2 files |
 | Phase 04 P01 | 25 min | 3 tasks | 4 files |
+| Phase 04 P03 | ~4 min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -84,6 +85,8 @@ Recent decisions affecting current work:
 - [Phase 04 P02 D-01]: ranked flag set by host at create time; stored as room.ranked boolean alongside mode
 - [Phase 04 P02 D-02]: server reads socket.data.userId (session-set), never arg.userId — ranked eligibility guard is server-authoritative (T-04-04, RANK-02)
 - [Phase 04 P02 D-05]: ranked+advance rejected with RANKED_REQUIRES_CLASSIC; client forces classic when ranked enabled
+- [Phase 04 P03]: ranked=false is 6th positional default; existing 5-arg call sites remain backwards-compatible
+- [Phase 04 P03]: matchTs captured before INSERT and reused in UPDATE snapshot WHERE clause — avoids race if clock changes between queries
 
 ### Pending Todos
 
@@ -107,6 +110,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-06-03T04:56:33Z
-Stopped at: Completed 04-02-PLAN.md (ranked gating + lobby toggle)
-Resume file: .planning/phases/04-ranked-mode-leaderboard/04-03-PLAN.md
+Last session: 2026-06-03T05:03:30Z
+Stopped at: Completed 04-03-PLAN.md (recordMatch ranked rating write + server wiring)
+Resume file: .planning/phases/04-ranked-mode-leaderboard/04-04-PLAN.md
