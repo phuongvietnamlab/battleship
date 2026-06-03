@@ -84,6 +84,9 @@ async function main() {
   }
 }
 
-main();
+// Only run when invoked directly (not when required/imported by tests).
+if (require.main === module) {
+  main();
+}
 
 module.exports = { runSeasonReset };

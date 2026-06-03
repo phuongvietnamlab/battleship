@@ -567,12 +567,179 @@ describe.skipIf(!hasDb)("RANK-04: leaderboard cache served from Redis (integrati
 });
 
 describe.skipIf(!hasDb)("RANK-05: season reset — archive + soft-reset + idempotency (DB integration — Plan 05)", () => {
-  // TODO (Plan 05): require ../scripts/season-reset.js main() or use db.js helpers directly
-  // Test: running season reset archives ratings to rating_history, soft-blends toward 1500,
-  //       resets RD to 350. Running twice with same label fails at UNIQUE(label) → rolls back.
-  it.todo("season reset archives all current ratings to rating_history");
-  it.todo("season reset soft-blends rating: new = 1500 + (old - 1500) * BLEND");
-  it.todo("season reset resets rd to 350 and volatility to 0.06");
-  it.todo("season reset is idempotent: second run with same label rolls back (UNIQUE label)");
-  it.todo("rating_history UNIQUE(user_id, season_id) prevents double-archive");
+  let pool;
+  let runMigrations;
+  let runSeasonReset;
+  let userId1;
+  let userId2;
+  const BLEND = 0.5;
+  const RESET_RD = 350;
+  // Unique label per test run to avoid collisions with other test runs
+  const labelA = `test-season-${Date.now()}-A`;
+  const labelB = `test-season-${Date.now()}-B`;
+
+  beforeAll(async () => {
+    const db = await import("../db.js");
+    pool = db.pool;
+    _sharedPool = pool;
+    runMigrations = db.runMigrations;
+    await runMigrations(pool);
+
+    // Import the exported runSeasonReset from the CLI script
+    const resetMod = await import("../scripts/season-reset.js");
+    runSeasonReset = resetMod.runSeasonReset;
+
+    // Seed two users with known ratings (both established: rd < 110)
+    const { rows: u1 } = await pool.query("INSERT INTO users DEFAULT VALUES RETURNING id");
+    userId1 = u1[0].id;
+    const { rows: u2 } = await pool.query("INSERT INTO users DEFAULT VALUES RETURNING id");
+    userId2 = u2[0].id;
+
+    // Insert known ratings: 1700 and 1300 with low rd
+    await pool.query(
+      `INSERT INTO ratings (user_id, rating, rd, volatility, games_played, updated_at)
+       VALUES ($1, 1700, 80, 0.06, 20, now())
+       ON CONFLICT (user_id) DO UPDATE SET rating=1700, rd=80, volatility=0.06, games_played=20, updated_at=now()`,
+      [userId1]
+    );
+    await pool.query(
+      `INSERT INTO ratings (user_id, rating, rd, volatility, games_played, updated_at)
+       VALUES ($1, 1300, 80, 0.06, 20, now())
+       ON CONFLICT (user_id) DO UPDATE SET rating=1300, rd=80, volatility=0.06, games_played=20, updated_at=now()`,
+      [userId2]
+    );
+  });
+
+  afterAll(async () => {
+    if (userId1 != null && userId2 != null) {
+      // Clean up rating_history first (FK to seasons + users)
+      await pool.query(
+        "DELETE FROM rating_history WHERE user_id = $1 OR user_id = $2",
+        [userId1, userId2]
+      );
+      // Clean up seasons created during tests
+      await pool.query(
+        "DELETE FROM seasons WHERE label = $1 OR label = $2",
+        [labelA, labelB]
+      );
+      // Clean up ratings
+      await pool.query(
+        "DELETE FROM ratings WHERE user_id = $1 OR user_id = $2",
+        [userId1, userId2]
+      );
+      // Clean up users
+      await pool.query(
+        "DELETE FROM users WHERE id = $1 OR id = $2",
+        [userId1, userId2]
+      );
+    }
+    // pool.end() handled by top-level afterAll
+  });
+
+  it("season reset archives all current ratings to rating_history with pre-reset values", async () => {
+    // Capture pre-reset values
+    const { rows: before } = await pool.query(
+      "SELECT user_id, rating, rd, volatility, games_played FROM ratings WHERE user_id = $1 OR user_id = $2 ORDER BY user_id",
+      [userId1, userId2]
+    );
+    expect(before).toHaveLength(2);
+
+    await runSeasonReset(labelA);
+
+    // Both users should have rating_history rows under the new season
+    const { rows: history } = await pool.query(
+      `SELECT rh.user_id, rh.rating, rh.rd, rh.volatility, rh.games_played
+       FROM rating_history rh
+       JOIN seasons s ON s.id = rh.season_id
+       WHERE s.label = $1 AND (rh.user_id = $2 OR rh.user_id = $3)
+       ORDER BY rh.user_id`,
+      [labelA, userId1, userId2]
+    );
+    expect(history).toHaveLength(2);
+
+    // Archived values must match what was in ratings BEFORE the reset
+    for (const beforeRow of before) {
+      const archRow = history.find((h) => h.user_id === beforeRow.user_id);
+      expect(archRow).toBeDefined();
+      expect(Number(archRow.rating)).toBeCloseTo(Number(beforeRow.rating), 4);
+      expect(Number(archRow.rd)).toBeCloseTo(Number(beforeRow.rd), 4);
+      expect(Number(archRow.volatility)).toBeCloseTo(Number(beforeRow.volatility), 6);
+      expect(Number(archRow.games_played)).toBe(Number(beforeRow.games_played));
+    }
+  });
+
+  it("season reset soft-blends rating: new = 1500 + (old - 1500) * BLEND", async () => {
+    // After the reset run in the previous test, verify blended values
+    const { rows: after } = await pool.query(
+      "SELECT user_id, rating FROM ratings WHERE user_id = $1 OR user_id = $2 ORDER BY user_id",
+      [userId1, userId2]
+    );
+    expect(after).toHaveLength(2);
+
+    // userId1: 1700 → 1500 + (1700 - 1500) * 0.5 = 1600
+    const r1 = after.find((r) => r.user_id === userId1);
+    expect(Number(r1.rating)).toBeCloseTo(1600, 1);
+
+    // userId2: 1300 → 1500 + (1300 - 1500) * 0.5 = 1400
+    const r2 = after.find((r) => r.user_id === userId2);
+    expect(Number(r2.rating)).toBeCloseTo(1400, 1);
+  });
+
+  it("season reset resets rd to 350 and volatility to 0.06, games_played to 0", async () => {
+    const { rows: after } = await pool.query(
+      "SELECT user_id, rd, volatility, games_played FROM ratings WHERE user_id = $1 OR user_id = $2",
+      [userId1, userId2]
+    );
+    for (const row of after) {
+      expect(Number(row.rd)).toBeCloseTo(RESET_RD, 1);
+      expect(Number(row.volatility)).toBeCloseTo(0.06, 6);
+      expect(Number(row.games_played)).toBe(0);
+    }
+  });
+
+  it("history rows from the first reset are never deleted by subsequent operations", async () => {
+    // After the first reset, rating_history rows for labelA must still exist
+    const { rows: history } = await pool.query(
+      `SELECT rh.user_id FROM rating_history rh
+       JOIN seasons s ON s.id = rh.season_id
+       WHERE s.label = $1`,
+      [labelA]
+    );
+    expect(history.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("season reset is idempotent: second run with same label rejects and rolls back (UNIQUE label)", async () => {
+    // Running with the same label must throw (UNIQUE constraint on seasons.label)
+    await expect(runSeasonReset(labelA)).rejects.toThrow();
+
+    // rating_history must NOT have duplicate rows for labelA + the same users
+    const { rows: history } = await pool.query(
+      `SELECT rh.user_id, COUNT(*) as cnt
+       FROM rating_history rh
+       JOIN seasons s ON s.id = rh.season_id
+       WHERE s.label = $1 AND (rh.user_id = $2 OR rh.user_id = $3)
+       GROUP BY rh.user_id`,
+      [labelA, userId1, userId2]
+    );
+    // Each user must appear exactly once (no double-archive)
+    for (const row of history) {
+      expect(Number(row.cnt)).toBe(1);
+    }
+  });
+
+  it("rating_history UNIQUE(user_id, season_id) prevents double-archive on conflict", async () => {
+    // Verify the constraint exists at the DB level by attempting a direct duplicate INSERT
+    const { rows: [season] } = await pool.query(
+      "SELECT id FROM seasons WHERE label = $1",
+      [labelA]
+    );
+    expect(season).toBeDefined();
+
+    await expect(
+      pool.query(
+        "INSERT INTO rating_history (user_id, season_id, rating, rd, volatility, games_played, archived_at) VALUES ($1, $2, 1500, 200, 0.06, 0, now())",
+        [userId1, season.id]
+      )
+    ).rejects.toThrow();
+  });
 });
