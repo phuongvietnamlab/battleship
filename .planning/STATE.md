@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 04-04-PLAN.md (leaderboard cache + public endpoint + UI)
-last_updated: "2026-06-03T06:40:54.212Z"
-last_activity: 2026-06-03 -- Plan 04-03 complete (recordMatch ranked rating write + server wiring)
+stopped_at: Completed 04-05-PLAN.md (season-reset CLI + RANK-05 integration tests)
+last_updated: "2026-06-03T07:00:00.000Z"
+last_activity: 2026-06-03 -- Plan 04-05 complete (season-reset CLI archive-then-soft-reset, RANK-05)
 progress:
   total_phases: 6
   completed_phases: 3
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-06-01)
 
 ## Current Position
 
-Phase: 04 (ranked-mode-leaderboard) — EXECUTING
-Plan: 5 of 5
-Status: Ready to execute
-Last activity: 2026-06-03 -- Plan 04-03 complete (recordMatch ranked rating write + server wiring)
+Phase: 04 (ranked-mode-leaderboard) — COMPLETE
+Plan: 5 of 5 (all complete)
+Status: Phase 04 complete — ready for Phase 05
+Last activity: 2026-06-03 -- Plan 04-05 complete (season-reset CLI archive-then-soft-reset, RANK-05)
 
 Progress: [█░░░░░░░░░] 11%
 
@@ -91,6 +91,9 @@ Recent decisions affecting current work:
 - [Phase ?]: D-08: Provisional players (rd >= 110) excluded from leaderboard WHERE rd < 110; still rated normally (RANK-03)
 - [Phase ?]: D-09: Leaderboard Redis cache TTL 300s; refreshed fire-and-forget post-COMMIT in recordMatch ranked branch; Postgres fallback on Redis unavailability (RANK-04)
 - [Phase ?]: D-10: Leaderboard SELECT top 100 ORDER BY rating DESC; JOIN users for display_name/avatar_url; no email/credential columns (T-04-12)
+- [Phase 04 P05 D-11]: Season soft-reset formula: new_rating = 1500 + (old_rating - 1500) * 0.5; rd reset to 350; volatility = 0.06; games_played = 0; all bound as $N (RANK-05)
+- [Phase 04 P05 D-12]: Archive runs BEFORE blend — INSERT INTO rating_history SELECT FROM ratings precedes UPDATE ratings; history rows are INSERT-only and never deleted
+- [Phase 04 P05 D-13]: Season reset is CLI-only (no express/socket/HTTP surface); runs on server box via npm run season-reset; grep-verified absence of HTTP in script
 
 ### Pending Todos
 
@@ -114,6 +117,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-06-03T06:40:54.207Z
-Stopped at: Completed 04-04-PLAN.md (leaderboard cache + public endpoint + UI)
+Last session: 2026-06-03T07:00:00.000Z
+Stopped at: Completed 04-05-PLAN.md (season-reset CLI + RANK-05 integration tests) — Phase 04 complete
 Resume file: None

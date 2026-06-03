@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Foundation** - Postgres persistence layer + security hardening prerequisites (completed 2026-06-01)
 - [x] **Phase 2: Accounts & Identity** - Google + Facebook OAuth + email/password sign-in, guest-to-account linking, player profiles (completed 2026-06-02)
 - [x] **Phase 3: Match Recording** - Durable match records + explicit forfeit handling (completed 2026-06-03)
-- [ ] **Phase 4: Ranked Mode & Leaderboard** - Glicko-2 ratings, ranked queue gating, global leaderboard
+- [x] **Phase 4: Ranked Mode & Leaderboard** - Glicko-2 ratings, ranked queue gating, global leaderboard (completed 2026-06-03)
 - [ ] **Phase 5: Public Matchmaking** - Quick-match and ranked queues, ELO-window pairing
 - [ ] **Phase 6: Bot Difficulty Tiers** - Easy / medium / hard / insane bot algorithms
 
@@ -165,7 +165,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 **Wave 5** *(blocked on Waves 1, 4)*
 
-- [ ] 04-05-PLAN.md — Season-reset CLI: scripts/season-reset.js archive-then-soft-reset (single txn, UNIQUE-label idempotency, CLI-only) + npm script (RANK-05)
+- [x] 04-05-PLAN.md — Season-reset CLI: scripts/season-reset.js archive-then-soft-reset (single txn, UNIQUE-label idempotency, CLI-only) + npm script (RANK-05)
 
 ### Phase 5: Public Matchmaking
 
@@ -206,6 +206,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 1. Foundation | 3/3 | Complete    | 2026-06-01 |
 | 2. Accounts & Identity | 9/9 | Complete   | 2026-06-02 |
 | 3. Match Recording | 3/3 | Complete    | 2026-06-03 |
-| 4. Ranked Mode & Leaderboard | 4/5 | In Progress|  |
+| 4. Ranked Mode & Leaderboard | 5/5 | Complete    | 2026-06-03 |
 | 5. Public Matchmaking | 0/TBD | Not started | - |
 | 6. Bot Difficulty Tiers | 0/TBD | Not started | - |
