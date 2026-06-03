@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Foundation** - Postgres persistence layer + security hardening prerequisites (completed 2026-06-01)
 - [x] **Phase 2: Accounts & Identity** - Google + Facebook OAuth + email/password sign-in, guest-to-account linking, player profiles (completed 2026-06-02)
 - [x] **Phase 3: Match Recording** - Durable match records + explicit forfeit handling (completed 2026-06-03)
-- [ ] **Phase 4: Ranked Mode & Leaderboard** - Glicko-2 ratings, ranked queue gating, global leaderboard (5/5 plans built; verification gaps_found — CR-01 blocker pending gap closure)
+- [ ] **Phase 4: Ranked Mode & Leaderboard** - Glicko-2 ratings, ranked queue gating, global leaderboard (5/5 plans built; verification gaps_found — 2 gap-closure plans (04-06, 04-07) planned to close CR-01 blocker + CR-02 hardening)
 - [ ] **Phase 5: Public Matchmaking** - Quick-match and ranked queues, ELO-window pairing
 - [ ] **Phase 6: Bot Difficulty Tiers** - Easy / medium / hard / insane bot algorithms
 
@@ -144,7 +144,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. The global leaderboard endpoint returns the top 100 players within 5 minutes of any rating change — the cache refreshes automatically at least every 5 minutes.
   5. An admin can trigger a seasonal rated reset: prior ratings are archived to history, and active ratings are soft-reset toward the default — without deleting historical records.
 
-**Plans**: 5 plans
+**Plans**: 7 plans (5 built + 2 gap-closure)
 **Research flag**: Validate Glicko-2 formula against Lichess reference implementation. Unit-test `elo.js` with known inputs (starting rating 1500, RD 350, volatility 0.06) before connecting to the ranked queue.
 
 **Wave 1**
@@ -166,6 +166,14 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Wave 5** *(blocked on Waves 1, 4)*
 
 - [x] 04-05-PLAN.md — Season-reset CLI: scripts/season-reset.js archive-then-soft-reset (single txn, UNIQUE-label idempotency, CLI-only) + npm script (RANK-05)
+
+**Wave 6** *(gap closure — verification gaps_found)*
+
+- [ ] 04-06-PLAN.md — CR-01 blocker fix: persist+restore room.ranked/recorded + seat userId through the Redis snapshot path (serializeRooms/restoreRooms) with a no-DB round-trip test, + flip RANK-02 traceability to Complete (RANK-01, RANK-02)
+
+**Wave 7** *(gap closure — blocked on Wave 6, shared server.js)*
+
+- [ ] 04-07-PLAN.md — CR-02 hardening: per-IP rate limit (429 RATE_LIMITED) + short-TTL in-process cache on GET /api/leaderboard so RAM-only mode amortizes reads (RANK-04)
 
 ### Phase 5: Public Matchmaking
 
