@@ -116,4 +116,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-02 — Phase 1 (Foundation) complete: Postgres persistence layer + identity schema + security hardening validated.*
+*Last updated: 2026-06-03 — Phase 4 (Ranked Mode & Leaderboard) complete: Glicko-2 ratings update atomically with match records, ranked play is account-gated, top-100 leaderboard with provisional-player gating + cache, and season soft-reset CLI. RANK-01..05 validated.*
