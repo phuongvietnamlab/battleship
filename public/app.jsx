@@ -25,6 +25,8 @@ const I18N = {
     "lobby.title": "Sea Battle", "lobby.sub": "Play vs the bot, or create a room and send the code to a friend.",
     "lobby.playBot": "🤖 Play vs Bot", "lobby.createRoom": "⚓ Create new room", "lobby.enterCodeLabel": "Enter room code", "lobby.joinBtn": "Join room",
     "mode.classicDesc": "Classic, no power-ups", "mode.advanceDesc": "Collect & use power-ups",
+    "ranked.label": "Ranked", "ranked.desc": "Affects your rating", "ranked.guestHint": "Sign in to play ranked",
+    "err.RANKED_REQUIRES_ACCOUNT": "Ranked requires a signed-in account", "err.RANKED_REQUIRES_CLASSIC": "Ranked is classic-mode only",
     "ship.carrier": "Carrier", "ship.battleship": "Battleship", "ship.cruiser": "Cruiser", "ship.submarine": "Submarine", "ship.destroyer": "Destroyer",
     "pw.scatter": "Scatter Blast", "pw.cross": "Cross Missile", "pw.double": "Extra Turn", "pw.reveal": "Reveal Cell", "pw.mine": "Sea Mine",
     "board.yourFleet": "Your fleet",
@@ -133,6 +135,8 @@ const I18N = {
     "lobby.title": "Trận hải chiến", "lobby.sub": "Chơi với máy, hoặc tạo phòng rồi gửi mã cho bạn bè.",
     "lobby.playBot": "🤖 Chơi với máy", "lobby.createRoom": "⚓ Tạo phòng mới", "lobby.enterCodeLabel": "Nhập mã phòng", "lobby.joinBtn": "Vào phòng",
     "mode.classicDesc": "Cổ điển, không power-up", "mode.advanceDesc": "Nhặt & dùng power-up",
+    "ranked.label": "Xếp hạng", "ranked.desc": "Ảnh hưởng xếp hạng của bạn", "ranked.guestHint": "Đăng nhập để chơi xếp hạng",
+    "err.RANKED_REQUIRES_ACCOUNT": "Xếp hạng yêu cầu tài khoản đã đăng nhập", "err.RANKED_REQUIRES_CLASSIC": "Xếp hạng chỉ dành cho chế độ classic",
     "ship.carrier": "Tàu sân bay", "ship.battleship": "Thiết giáp hạm", "ship.cruiser": "Tàu tuần dương", "ship.submarine": "Tàu ngầm", "ship.destroyer": "Khu trục hạm",
     "pw.scatter": "Nổ ngẫu nhiên", "pw.cross": "Tên lửa chữ thập", "pw.double": "Thêm lượt", "pw.reveal": "Lộ ô thuyền", "pw.mine": "Mìn nước",
     "board.yourFleet": "Hạm đội của bạn",
@@ -685,6 +689,12 @@ function EmailAuthForm({ onAuthSuccess, clientId: cid, onForgotPassword }) {
 function Lobby({ onCreate, onJoin, onBot, onHelp, error, authUser, authError, verifyNotice, clientId, signInDisabled, onSignInDisable, onEmailAuthSuccess, resetToken, resetMode, onForgotPassword, onResetBack }) {
   const [code, setCode] = useState("");
   const [mode, setMode] = useState("classic");
+  const [ranked, setRanked] = useState(false);
+  // D-05: ranked is classic-only — if ranked is enabled, force classic and disable advance
+  function handleModeChange(m) {
+    if (ranked && m === "advance") return; // advance blocked while ranked
+    setMode(m);
+  }
   return (
     <div className="lobby">
       <h2>{t("lobby.title")}</h2>
@@ -695,14 +705,31 @@ function Lobby({ onCreate, onJoin, onBot, onHelp, error, authUser, authError, ve
       <button className="btn primary" onClick={onBot}>{t("lobby.playBot")}</button>
       <div style={{ height: 10 }} />
       <div className="mode-pick">
-        <button className={"mode-opt" + (mode === "classic" ? " on" : "")} onClick={() => setMode("classic")}>
+        <button className={"mode-opt" + (mode === "classic" ? " on" : "")} onClick={() => handleModeChange("classic")}>
           <b>Classic</b><span>{t("mode.classicDesc")}</span>
         </button>
-        <button className={"mode-opt" + (mode === "advance" ? " on" : "")} onClick={() => setMode("advance")}>
+        <button className={"mode-opt" + (mode === "advance" ? " on" : "") + (ranked ? " disabled" : "")} onClick={() => handleModeChange("advance")} disabled={ranked}>
           <b>Advance ⚡</b><span>{t("mode.advanceDesc")}</span>
         </button>
       </div>
-      <button className="btn steel" onClick={() => onCreate(mode)}>{t("lobby.createRoom")}</button>
+      <div className="ranked-toggle" style={{ display: "flex", alignItems: "center", gap: 8, margin: "8px 0" }}>
+        <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: authUser ? "pointer" : "default", opacity: authUser ? 1 : 0.5 }}>
+          <input
+            type="checkbox"
+            checked={ranked}
+            disabled={!authUser}
+            onChange={(e) => {
+              const val = e.target.checked;
+              setRanked(val);
+              if (val) setMode("classic"); // D-05: ranked forces classic
+            }}
+          />
+          <b>{t("ranked.label")}</b>
+          <span style={{ fontSize: "0.85em", color: "#888" }}>{t("ranked.desc")}</span>
+        </label>
+        {!authUser && <span style={{ fontSize: "0.8em", color: "#888" }}>{t("ranked.guestHint")}</span>}
+      </div>
+      <button className="btn steel" onClick={() => onCreate(mode, ranked)}>{t("lobby.createRoom")}</button>
       <div className="divider">{t("common.or")}</div>
       <div className="field">
         <label>{t("lobby.enterCodeLabel")}</label>
@@ -1752,12 +1779,13 @@ function App() {
     return () => socket.off();
   }, [addLog]);
 
-  function createRoom(mode) {
+  function createRoom(mode, ranked) {
     setError(null);
     setMyScore(0); setOppScore(0); setOppProfile(null); // phòng mới: tỉ số về 0-0
     setVsBot(false); setMode(mode === "advance" ? "advance" : "classic");
-    socket.emit("createRoom", { clientId, mode }, (res) => {
+    socket.emit("createRoom", { clientId, mode, ranked: ranked === true }, (res) => {
       if (res.ok) { setCode(res.code); persistRoom(res.code); setScreen("room"); }
+      else if (res.code) { setError(errText(res)); }
     });
   }
   function joinRoom(c) {
