@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Foundation** - Postgres persistence layer + security hardening prerequisites (completed 2026-06-01)
 - [x] **Phase 2: Accounts & Identity** - Google + Facebook OAuth + email/password sign-in, guest-to-account linking, player profiles (completed 2026-06-02)
 - [x] **Phase 3: Match Recording** - Durable match records + explicit forfeit handling (completed 2026-06-03)
-- [ ] **Phase 4: Ranked Mode & Leaderboard** - Glicko-2 ratings, ranked queue gating, global leaderboard (5/5 plans built; verification gaps_found — 2 gap-closure plans (04-06, 04-07) planned to close CR-01 blocker + CR-02 hardening)
+- [x] **Phase 4: Ranked Mode & Leaderboard** - Glicko-2 ratings, ranked queue gating, global leaderboard (5/5 plans built; verification gaps_found — 2 gap-closure plans (04-06, 04-07) planned to close CR-01 blocker + CR-02 hardening) (completed 2026-06-03)
 - [ ] **Phase 5: Public Matchmaking** - Quick-match and ranked queues, ELO-window pairing
 - [ ] **Phase 6: Bot Difficulty Tiers** - Easy / medium / hard / insane bot algorithms
 
@@ -173,7 +173,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 **Wave 7** *(gap closure — blocked on Wave 6, shared server.js)*
 
-- [ ] 04-07-PLAN.md — CR-02 hardening: per-IP rate limit (429 RATE_LIMITED) + short-TTL in-process cache on GET /api/leaderboard so RAM-only mode amortizes reads (RANK-04)
+- [x] 04-07-PLAN.md — CR-02 hardening: per-IP rate limit (429 RATE_LIMITED) + short-TTL in-process cache on GET /api/leaderboard so RAM-only mode amortizes reads (RANK-04)
 
 ### Phase 5: Public Matchmaking
 
@@ -214,6 +214,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 1. Foundation | 3/3 | Complete    | 2026-06-01 |
 | 2. Accounts & Identity | 9/9 | Complete   | 2026-06-02 |
 | 3. Match Recording | 3/3 | Complete    | 2026-06-03 |
-| 4. Ranked Mode & Leaderboard | 6/7 | In Progress|  |
+| 4. Ranked Mode & Leaderboard | 7/7 | Complete   | 2026-06-03 |
 | 5. Public Matchmaking | 0/TBD | Not started | - |
 | 6. Bot Difficulty Tiers | 0/TBD | Not started | - |
