@@ -149,7 +149,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 **Wave 1**
 
-- [ ] 04-01-PLAN.md — Math + schema foundation: pure `elo.js` Glicko-2 (validated vs Glickman vector) + migrations/005_rankings.sql (ratings/seasons/rating_history + matches ALTER) + Wave-0 test scaffold (RANK-01, RANK-03, RANK-05)
+- [x] 04-01-PLAN.md — Math + schema foundation: pure `elo.js` Glicko-2 (validated vs Glickman vector) + migrations/005_rankings.sql (ratings/seasons/rating_history + matches ALTER) + Wave-0 test scaffold (RANK-01, RANK-03, RANK-05)
 
 **Wave 2** *(blocked on Wave 1)*
 
@@ -206,6 +206,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 1. Foundation | 3/3 | Complete    | 2026-06-01 |
 | 2. Accounts & Identity | 9/9 | Complete   | 2026-06-02 |
 | 3. Match Recording | 3/3 | Complete    | 2026-06-03 |
-| 4. Ranked Mode & Leaderboard | 0/5 | Not started | - |
+| 4. Ranked Mode & Leaderboard | 1/5 | In Progress|  |
 | 5. Public Matchmaking | 0/TBD | Not started | - |
 | 6. Bot Difficulty Tiers | 0/TBD | Not started | - |

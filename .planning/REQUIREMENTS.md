@@ -43,11 +43,11 @@ The competitive core: durable persistence, accounts, ranked play, and public mat
 
 ### Ranked & Leaderboard (RANK)
 
-- [ ] **RANK-01**: A player's Glicko-2 rating (rating, deviation, volatility) updates in the same transaction as the match record
+- [x] **RANK-01**: A player's Glicko-2 rating (rating, deviation, volatility) updates in the same transaction as the match record
 - [ ] **RANK-02**: Ranked mode requires a signed-in account (no guest ranked play)
-- [ ] **RANK-03**: A new ranked player completes placement matches before appearing on the leaderboard
+- [x] **RANK-03**: A new ranked player completes placement matches before appearing on the leaderboard
 - [ ] **RANK-04**: A global leaderboard shows the top 100 players from a cache refreshed at least every 5 minutes
-- [ ] **RANK-05**: Ranked ratings can be soft-reset for a new season after archiving prior history
+- [x] **RANK-05**: Ranked ratings can be soft-reset for a new season after archiving prior history
 
 ### Matchmaking (QUEUE)
 
@@ -122,11 +122,11 @@ Which phases cover which requirements. Populated during roadmap creation.
 | PROF-02 | Phase 2 — Accounts & Identity | Pending |
 | MATCH-01 | Phase 3 — Match Recording | Complete |
 | MATCH-03 | Phase 3 — Match Recording | Complete |
-| RANK-01 | Phase 4 — Ranked Mode & Leaderboard | Pending |
+| RANK-01 | Phase 4 — Ranked Mode & Leaderboard | Complete |
 | RANK-02 | Phase 4 — Ranked Mode & Leaderboard | Pending |
-| RANK-03 | Phase 4 — Ranked Mode & Leaderboard | Pending |
+| RANK-03 | Phase 4 — Ranked Mode & Leaderboard | Complete |
 | RANK-04 | Phase 4 — Ranked Mode & Leaderboard | Pending |
-| RANK-05 | Phase 4 — Ranked Mode & Leaderboard | Pending |
+| RANK-05 | Phase 4 — Ranked Mode & Leaderboard | Complete |
 | QUEUE-01 | Phase 5 — Public Matchmaking | Pending |
 | QUEUE-02 | Phase 5 — Public Matchmaking | Pending |
 | QUEUE-03 | Phase 5 — Public Matchmaking | Pending |
