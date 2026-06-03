@@ -169,7 +169,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 **Wave 6** *(gap closure — verification gaps_found)*
 
-- [ ] 04-06-PLAN.md — CR-01 blocker fix: persist+restore room.ranked/recorded + seat userId through the Redis snapshot path (serializeRooms/restoreRooms) with a no-DB round-trip test, + flip RANK-02 traceability to Complete (RANK-01, RANK-02)
+- [x] 04-06-PLAN.md — CR-01 blocker fix: persist+restore room.ranked/recorded + seat userId through the Redis snapshot path (serializeRooms/restoreRooms) with a no-DB round-trip test, + flip RANK-02 traceability to Complete (RANK-01, RANK-02)
 
 **Wave 7** *(gap closure — blocked on Wave 6, shared server.js)*
 
@@ -214,6 +214,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 1. Foundation | 3/3 | Complete    | 2026-06-01 |
 | 2. Accounts & Identity | 9/9 | Complete   | 2026-06-02 |
 | 3. Match Recording | 3/3 | Complete    | 2026-06-03 |
-| 4. Ranked Mode & Leaderboard | 5/5 | Complete    | 2026-06-03 |
+| 4. Ranked Mode & Leaderboard | 6/7 | In Progress|  |
 | 5. Public Matchmaking | 0/TBD | Not started | - |
 | 6. Bot Difficulty Tiers | 0/TBD | Not started | - |
