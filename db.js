@@ -15,6 +15,7 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
+const { updateRatings } = require("./elo");
 
 const sslConfig =
   process.env.PG_SSL === "true" ? { rejectUnauthorized: false } : false;
@@ -449,7 +450,7 @@ async function markEmailVerified(userId) {
 // Never throws — all errors are caught, logged with [match] prefix, and swallowed
 // so a failing DB write can never block or break the end-game screen.
 
-async function recordMatch(winnerId, loserId, reason, mode, startedAt) {
+async function recordMatch(winnerId, loserId, reason, mode, startedAt, ranked = false) {
   // Graceful no-op guard: derive from poolConfig env vars (lines 22-32)
   if (!process.env.DATABASE_URL && !process.env.PGHOST && !process.env.PGDATABASE) {
     console.log("[match] DATABASE_URL not set — skipping match record");
@@ -473,15 +474,79 @@ async function recordMatch(winnerId, loserId, reason, mode, startedAt) {
   try {
     await client.query("BEGIN");
     // All values bound as $N — never string-concatenate (T-03-03 SQL-injection mitigation)
+    const matchTs = startedAt || new Date();
     await client.query(
       "INSERT INTO matches (winner_id, loser_id, reason, mode, started_at, ended_at) VALUES ($1, $2, $3, $4, $5, now())",
-      [winnerId, loserId, reason, mode || "classic", startedAt || new Date()]
+      [winnerId, loserId, reason, mode || "classic", matchTs]
     );
+
+    // ─── Ranked rating write (RANK-01, D-03, D-06) ────────────────────────────
+    // Only runs when ranked===true AND both ids are non-null integers (D-03).
+    // All queries use the same `client` — never pool — so they share the transaction
+    // and a failure rolls back the matches INSERT above too (Pitfall 1, T-04-08).
+    if (ranked && winnerId != null && loserId != null) {
+      // Read current ratings; default to provisional values (1500/350/0.06/0) if no row
+      const DEFAULT_RATING = { rating: 1500, rd: 350, volatility: 0.06, games_played: 0 };
+
+      const { rows: wRows } = await client.query(
+        "SELECT rating, rd, volatility, games_played FROM ratings WHERE user_id = $1",
+        [winnerId]
+      );
+      const wBefore = wRows.length > 0 ? wRows[0] : { ...DEFAULT_RATING };
+
+      const { rows: lRows } = await client.query(
+        "SELECT rating, rd, volatility, games_played FROM ratings WHERE user_id = $1",
+        [loserId]
+      );
+      const lBefore = lRows.length > 0 ? lRows[0] : { ...DEFAULT_RATING };
+
+      // Compute new Glicko-2 ratings (pure function — elo.js, no I/O)
+      const updated = updateRatings(wBefore, lBefore);
+      const wAfter = updated.winner;
+      const lAfter = updated.loser;
+
+      console.log(
+        `[rating] ranked match: winner ${winnerId} ${Math.round(wBefore.rating)}→${Math.round(wAfter.rating)} loser ${loserId} ${Math.round(lBefore.rating)}→${Math.round(lAfter.rating)}`
+      );
+
+      // UPSERT both ratings rows (games_played incremented by 1)
+      await client.query(
+        `INSERT INTO ratings (user_id, rating, rd, volatility, games_played, updated_at)
+           VALUES ($1, $2, $3, $4, $5, now())
+           ON CONFLICT (user_id) DO UPDATE
+             SET rating = $2, rd = $3, volatility = $4, games_played = $5, updated_at = now()`,
+        [winnerId, wAfter.rating, wAfter.rd, wAfter.volatility, (wBefore.games_played || 0) + 1]
+      );
+      await client.query(
+        `INSERT INTO ratings (user_id, rating, rd, volatility, games_played, updated_at)
+           VALUES ($1, $2, $3, $4, $5, now())
+           ON CONFLICT (user_id) DO UPDATE
+             SET rating = $2, rd = $3, volatility = $4, games_played = $5, updated_at = now()`,
+        [loserId, lAfter.rating, lAfter.rd, lAfter.volatility, (lBefore.games_played || 0) + 1]
+      );
+
+      // Stamp the four rating snapshot columns on the matches row (D-06)
+      await client.query(
+        `UPDATE matches
+            SET winner_rating_before = $4,
+                winner_rating_after  = $5,
+                loser_rating_before  = $6,
+                loser_rating_after   = $7
+          WHERE winner_id = $1 AND loser_id = $2 AND started_at = $3`,
+        [
+          winnerId, loserId, matchTs,
+          wBefore.rating, wAfter.rating,
+          lBefore.rating, lAfter.rating,
+        ]
+      );
+    }
+
     await client.query("COMMIT");
   } catch (e) {
     await client.query("ROLLBACK");
     console.error("[match] recordMatch failed:", e.message);
     // Swallow — never rethrow (D-07); unlike linkOrPromoteAccount which rethrows
+    // Rating-write failure rolls back the matches INSERT too (RANK-01 atomicity)
   } finally {
     client.release();
   }
