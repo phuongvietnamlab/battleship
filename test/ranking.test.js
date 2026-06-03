@@ -124,10 +124,16 @@ describe("db.js — recordMatch ranked param (static grep, Plan 03)", () => {
 
   it("db.js recordMatch uses same client for rating queries (no second pool.connect)", () => {
     const src = fs.readFileSync(dbPath, "utf8");
-    // The rating branch must use `client.query` not `pool.query` inside recordMatch
-    const recordMatchFn = src.slice(src.indexOf("async function recordMatch"));
-    // Count pool.connect calls within the function — should be exactly 1
-    const connectMatches = recordMatchFn.match(/pool\.connect\(\)/g) || [];
+    // The rating branch must use `client.query` not `pool.query` inside recordMatch.
+    // Slice ONLY the recordMatch function body (from its declaration to the closing brace
+    // of the try/catch/finally block) to avoid counting pool.connect() in other functions
+    // that appear later in the file (e.g. refreshLeaderboardCache added in Plan 04).
+    const fnStart = src.indexOf("async function recordMatch");
+    // Find the closing brace of the function by looking for the pattern after client.release()
+    // We look for `}\n}` to find end of finally block -> end of recordMatch
+    const fnSlice = src.slice(fnStart, fnStart + 3000); // recordMatch is well under 3000 chars
+    // Count pool.connect calls within the function body slice — should be exactly 1
+    const connectMatches = fnSlice.match(/pool\.connect\(\)/g) || [];
     expect(connectMatches.length).toBe(1);
   });
 });
