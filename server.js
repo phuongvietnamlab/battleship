@@ -1216,8 +1216,13 @@ io.on("connection", (socket) => {
     const clientId = (arg && arg.clientId) || socket.id;
     const code = newCode();
     const mode = (arg && arg.mode) === "advance" ? "advance" : "classic";
+    const ranked = !!(arg && arg.ranked === true);
+    // D-05: ranked requires classic mode — advance mode and ranked are incompatible
+    if (ranked && mode === "advance") return cb && cb({ ok: false, code: "RANKED_REQUIRES_CLASSIC" });
+    // D-02/D-03: ranked requires an authenticated account — read userId from session, never from arg (T-04-04)
+    if (ranked && socket.data.userId == null) return cb && cb({ ok: false, code: "RANKED_REQUIRES_ACCOUNT" });
     // room.recorded is the D-06 dedup flag set synchronously at end paths (Task 2 — endGameForfeit/doShot/scheduleSeatRelease/leaveRoom)
-    rooms[code] = { code, players: {}, order: [], started: false, turn: null, scores: {}, lastStarter: null, mode, powerups: {}, turnTimer: null, turnDeadline: null, resolving: false, lastActivityAt: Date.now() };
+    rooms[code] = { code, players: {}, order: [], started: false, turn: null, scores: {}, lastStarter: null, mode, ranked, powerups: {}, turnTimer: null, turnDeadline: null, resolving: false, lastActivityAt: Date.now() };
     rooms[code].players[clientId] = {
       sid: socket.id, ready: false, occ: null, hits: new Set(), online: true, timer: null, inv: newInv(), bonus: 0,
       profile: sanitizeProfile(arg && arg.profile),
@@ -1270,6 +1275,8 @@ io.on("connection", (socket) => {
       return cb && cb({ ok: false, code: "ROOM_FULL" });
     }
     if (room.started) return cb && cb({ ok: false, code: "GAME_STARTED" });
+    // D-02/D-03: a guest cannot take the second seat in a ranked room (RANK-02)
+    if (room.ranked && socket.data.userId == null) return cb && cb({ ok: false, code: "RANKED_REQUIRES_ACCOUNT" });
     room.players[clientId] = {
       sid: socket.id, ready: false, occ: null, hits: new Set(), online: true, timer: null, inv: newInv(), bonus: 0,
       profile: sanitizeProfile(arg && arg.profile),
