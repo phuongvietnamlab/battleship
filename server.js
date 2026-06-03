@@ -795,6 +795,7 @@ function serializeRooms() {
         skipNext: !!p.skipNext,
         timeouts: p.timeouts || 0,
         profile: p.profile || null,
+        userId: p.userId ?? null,
       };
     }
     const mines = {};
@@ -808,6 +809,8 @@ function serializeRooms() {
       scores: r.scores || {},
       lastStarter: r.lastStarter || null,
       mode: r.mode || "classic",
+      ranked: !!r.ranked,
+      recorded: !!r.recorded,
       powerups: r.powerups || {},
       mines,
       players,
@@ -840,6 +843,7 @@ function restoreRooms(snap) {
         skipNext: !!p.skipNext,
         timeouts: p.timeouts || 0,
         profile: p.profile || null,
+        userId: p.userId ?? null,
       };
     }
     const mines = {};
@@ -854,6 +858,8 @@ function restoreRooms(snap) {
       scores: s.scores || {},
       lastStarter: s.lastStarter || null,
       mode: s.mode || "classic",
+      ranked: !!s.ranked,
+      recorded: !!s.recorded,
       powerups: s.powerups || {},
       mines,
       turnTimer: null,
@@ -1691,5 +1697,7 @@ module.exports = {
     cspMiddleware,
     CSP_HEADER_VALUE,
     app,  // exported for AUTH-06 route-level behavioral tests (Plan 07)
+    serializeRooms,
+    restoreRooms,
   },
 };
