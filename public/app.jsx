@@ -126,6 +126,12 @@ const I18N = {
     "profile.back": "Back to lobby",
     "profile.challengeSoon": "Challenge (coming soon)",
     "profile.notFound": "Player not found. Return to lobby.",
+    "leaderboard.title": "Leaderboard",
+    "leaderboard.empty": "No ranked players yet",
+    "leaderboard.provisionalNote": "New players appear after placement matches",
+    "leaderboard.rating": "Rating",
+    "leaderboard.back": "Back to lobby",
+    "leaderboard.open": "Leaderboard",
   },
   vi: {
     "common.or": "HOẶC", "common.copied": "Đã chép ✓",
@@ -236,6 +242,12 @@ const I18N = {
     "profile.back": "Quay lại sảnh",
     "profile.challengeSoon": "Thách đấu (sắp có)",
     "profile.notFound": "Không tìm thấy người chơi. Quay lại sảnh.",
+    "leaderboard.title": "Bảng xếp hạng",
+    "leaderboard.empty": "Chưa có người chơi xếp hạng",
+    "leaderboard.provisionalNote": "Người chơi mới xuất hiện sau các trận định hạng",
+    "leaderboard.rating": "Điểm",
+    "leaderboard.back": "Quay lại sảnh",
+    "leaderboard.open": "Bảng xếp hạng",
   },
 };
 function t(k, p) {
@@ -686,7 +698,7 @@ function EmailAuthForm({ onAuthSuccess, clientId: cid, onForgotPassword }) {
 // resetMode: boolean — true when PasswordResetForm should be shown in request mode
 // onForgotPassword: opens PasswordResetForm in request mode
 // onResetBack: closes PasswordResetForm and returns to normal login view
-function Lobby({ onCreate, onJoin, onBot, onHelp, error, authUser, authError, verifyNotice, clientId, signInDisabled, onSignInDisable, onEmailAuthSuccess, resetToken, resetMode, onForgotPassword, onResetBack }) {
+function Lobby({ onCreate, onJoin, onBot, onHelp, onLeaderboard, error, authUser, authError, verifyNotice, clientId, signInDisabled, onSignInDisable, onEmailAuthSuccess, resetToken, resetMode, onForgotPassword, onResetBack }) {
   const [code, setCode] = useState("");
   const [mode, setMode] = useState("classic");
   const [ranked, setRanked] = useState(false);
@@ -768,6 +780,7 @@ function Lobby({ onCreate, onJoin, onBot, onHelp, error, authUser, authError, ve
         </>
       )}
       <button className="btn ghost help-link" onClick={onHelp}>{t("help.open")}</button>
+      <button className="btn ghost" style={{ marginTop: 4 }} onClick={onLeaderboard}>{t("leaderboard.open")}</button>
     </div>
   );
 }
@@ -1494,9 +1507,93 @@ function ProfileView({ userId, currentUserId, onBack, onSignOut }) {
   );
 }
 
+// ---------- LeaderboardView ----------
+// Fetches GET /api/leaderboard on mount and renders the top 100 established players
+// (rd < 110 only — provisional players are filtered server-side).
+// Display names are rendered as text (no dangerouslySetInnerHTML) — T-04-15.
+function LeaderboardView({ onBack }) {
+  const [rows, setRows] = React.useState(null);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState(false);
+
+  React.useEffect(() => {
+    setLoading(true);
+    setError(false);
+    fetch("/api/leaderboard")
+      .then((r) => {
+        if (!r.ok) { setError(true); setLoading(false); return null; }
+        return r.json();
+      })
+      .then((json) => {
+        if (json) { setRows(json); }
+        setLoading(false);
+      })
+      .catch(() => { setError(true); setLoading(false); });
+  }, []);
+
+  return (
+    <div className="profile-view" role="main">
+      <h2 style={{ textAlign: "center", marginBottom: 8 }}>{t("leaderboard.title")}</h2>
+      {loading && (
+        <div style={{ textAlign: "center", padding: "24px 0", color: "#888" }}>…</div>
+      )}
+      {error && !loading && (
+        <div className="error" style={{ textAlign: "center", marginBottom: 16 }}>
+          {t("leaderboard.empty")}
+        </div>
+      )}
+      {!loading && !error && rows && rows.length === 0 && (
+        <div style={{ textAlign: "center", color: "#888", padding: "24px 0" }}>
+          {t("leaderboard.empty")}
+        </div>
+      )}
+      {!loading && !error && rows && rows.length > 0 && (
+        <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 12 }}>
+          <thead>
+            <tr style={{ borderBottom: "1px solid #ddd", color: "#888", fontSize: "0.85em" }}>
+              <th style={{ textAlign: "left", padding: "4px 6px" }}>#</th>
+              <th style={{ textAlign: "left", padding: "4px 6px" }}>Player</th>
+              <th style={{ textAlign: "right", padding: "4px 6px" }}>{t("leaderboard.rating")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, idx) => {
+              const avatarLetter = row.display_name ? row.display_name.slice(0, 1).toUpperCase() : "?";
+              return (
+                <tr key={row.id} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                  <td style={{ padding: "6px 6px", color: "#888", width: 32 }}>{idx + 1}</td>
+                  <td style={{ padding: "6px 6px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      {row.avatar_url
+                        ? <img src={row.avatar_url} alt="" referrerPolicy="no-referrer" style={{ width: 28, height: 28, borderRadius: "50%", objectFit: "cover" }} />
+                        : <span style={{ width: 28, height: 28, borderRadius: "50%", background: "#c0d4f0", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: "0.85em", fontWeight: 700 }}>{avatarLetter}</span>
+                      }
+                      {/* Render as text — never dangerouslySetInnerHTML (T-04-15) */}
+                      <span>{row.display_name || "—"}</span>
+                    </div>
+                  </td>
+                  <td style={{ padding: "6px 6px", textAlign: "right", fontWeight: 700 }}>{Math.round(Number(row.rating))}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+      {!loading && (
+        <p style={{ textAlign: "center", fontSize: "0.8em", color: "#999", marginTop: 8 }}>
+          {t("leaderboard.provisionalNote")}
+        </p>
+      )}
+      <div style={{ textAlign: "center", marginTop: 12 }}>
+        <button className="btn ghost" style={{ padding: "8px 20px" }} onClick={onBack}>{t("leaderboard.back")}</button>
+      </div>
+    </div>
+  );
+}
+
 // ---------- App ----------
 function App() {
-  const [screen, setScreen] = useState("lobby"); // lobby | room | placement | battle | profile
+  const [screen, setScreen] = useState("lobby"); // lobby | room | placement | battle | profile | leaderboard
   const [code, setCode] = useState(null);
   const [error, setError] = useState(null);
   const [oppPresent, setOppPresent] = useState(false);
@@ -2103,7 +2200,7 @@ function App() {
 
       {notice && <div className="notice-toast">{notice}</div>}
 
-      {screen === "lobby" && <Lobby onCreate={createRoom} onJoin={joinRoom} onBot={startBot} onHelp={() => setHelpOpen(true)} error={error} authUser={authUser} authError={authError} verifyNotice={verifyNotice} clientId={clientId} signInDisabled={signInDisabled} onSignInDisable={() => setSignInDisabled(true)} onEmailAuthSuccess={setAuthUser} resetToken={resetToken} resetMode={resetMode} onForgotPassword={() => setResetMode(true)} onResetBack={() => { setResetToken(null); setResetMode(false); }} />}
+      {screen === "lobby" && <Lobby onCreate={createRoom} onJoin={joinRoom} onBot={startBot} onHelp={() => setHelpOpen(true)} onLeaderboard={() => setScreen("leaderboard")} error={error} authUser={authUser} authError={authError} verifyNotice={verifyNotice} clientId={clientId} signInDisabled={signInDisabled} onSignInDisable={() => setSignInDisabled(true)} onEmailAuthSuccess={setAuthUser} resetToken={resetToken} resetMode={resetMode} onForgotPassword={() => setResetMode(true)} onResetBack={() => { setResetToken(null); setResetMode(false); }} />}
 
       {screen === "profile" && (
         <ProfileView
@@ -2112,6 +2209,10 @@ function App() {
           onBack={() => setScreen("lobby")}
           onSignOut={handleSignOut}
         />
+      )}
+
+      {screen === "leaderboard" && (
+        <LeaderboardView onBack={() => setScreen("lobby")} />
       )}
 
       <HelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />
