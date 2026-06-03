@@ -8,7 +8,7 @@ const http = require("http");
 const path = require("path");
 const { Server } = require("socket.io");
 const store = require("./store"); // optional Redis snapshot; no-op without REDIS_URL
-const { pool, runMigrations, upsertGuestCredential, linkOrPromoteAccount, createEmailAccount, verifyEmailLogin, createAuthToken, consumeAuthToken, markEmailVerified, setEmailPassword, recordMatch } = require("./db"); // Postgres: identity persistence
+const { pool, runMigrations, upsertGuestCredential, linkOrPromoteAccount, createEmailAccount, verifyEmailLogin, createAuthToken, consumeAuthToken, markEmailVerified, setEmailPassword, recordMatch, getLeaderboard } = require("./db"); // Postgres: identity persistence
 const mailer = require("./mailer"); // optional email wrapper (graceful-degrade when RESEND_API_KEY unset)
 
 const app = express();
@@ -56,6 +56,18 @@ app.get("/healthz", (req, res) => res.json({ ok: true, uptimeSec: Math.floor(pro
 // Lightweight ops snapshot: room/game/player counts + memory. JSON, no auth
 // (no secrets exposed). Useful to eyeball load and spot leaked rooms.
 app.get("/metrics", (req, res) => res.json(computeStats()));
+// Top-100 leaderboard: Redis-cached (≤5 min TTL), Postgres fallback. Public,
+// no auth required. Returns only non-sensitive fields (T-04-12: no email/hashes).
+// DDoS mitigation: cache-first means Postgres is touched at most once per TTL window (T-04-13).
+app.get("/api/leaderboard", async (req, res) => {
+  try {
+    const rows = await getLeaderboard();
+    res.json(rows);
+  } catch (e) {
+    console.error("[leaderboard] endpoint error:", e.message);
+    res.status(500).json({ error: "LEADERBOARD_UNAVAILABLE" });
+  }
+});
 
 // Built game bundle (run `npm run build:game`) served first, so the no-CDN
 // index.html + bundled app.js are used for local/web preview. Falls back to

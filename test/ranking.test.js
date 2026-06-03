@@ -158,6 +158,32 @@ describe("store.js — leaderboard cache helpers (static grep, Plan 04)", () => 
   });
 });
 
+describe("server.js — GET /api/leaderboard endpoint (static grep, Plan 04)", () => {
+  const serverPath = path.join(rootDir, "server.js");
+
+  it("server.js contains app.get('/api/leaderboard')", () => {
+    const src = fs.readFileSync(serverPath, "utf8");
+    expect(src).toContain("app.get(\"/api/leaderboard\"");
+  });
+
+  it("server.js /api/leaderboard calls getLeaderboard()", () => {
+    const src = fs.readFileSync(serverPath, "utf8");
+    expect(src).toContain("getLeaderboard()");
+  });
+
+  it("server.js /api/leaderboard 500 error uses LEADERBOARD_UNAVAILABLE code", () => {
+    const src = fs.readFileSync(serverPath, "utf8");
+    expect(src).toContain("LEADERBOARD_UNAVAILABLE");
+  });
+
+  it("server.js /api/leaderboard imports getLeaderboard from db.js", () => {
+    const src = fs.readFileSync(serverPath, "utf8");
+    // Destructured require of db.js must include getLeaderboard
+    expect(src).toMatch(/require\(['"]\.\/db['"]\)/);
+    expect(src).toContain("getLeaderboard");
+  });
+});
+
 describe("db.js — leaderboard functions (static grep, Plan 04)", () => {
   const dbPath = path.join(rootDir, "db.js");
 
