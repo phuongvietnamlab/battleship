@@ -690,7 +690,11 @@ async function getPlayerRating(userId) {
     "SELECT rating, rd FROM ratings WHERE user_id = $1",
     [userId]
   );
-  return rows.length > 0 ? { rating: rows[0].rating, rd: rows[0].rd } : { rating: 1500, rd: 350 };
+  // Postgres numeric/real columns are returned as strings by the pg driver.
+  // Coerce explicitly so rankedWindow/findPair arithmetic stays numeric (WR-06).
+  return rows.length > 0
+    ? { rating: Number(rows[0].rating), rd: Number(rows[0].rd) }
+    : { rating: 1500, rd: 350 };
 }
 
 module.exports = {
