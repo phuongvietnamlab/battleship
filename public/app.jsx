@@ -9,6 +9,8 @@ const ROWS = ["A","B","C","D","E","F","G","H","I","J","K"];
 
 // D-09: delay before bot offer appears on the queue wait screen (mirrors server BOT_OFFER_DELAY_MS)
 const BOT_OFFER_DELAY_MS = 30000;
+// Bot difficulty tier whitelist — used for localStorage validation (T-06-02)
+const VALID_TIERS = ["easy", "medium", "hard", "insane"];
 
 // ---------- i18n (English primary, Vietnamese secondary) ----------
 // Locale auto-detected once at load: Vietnamese device -> vi, everything else -> en.
@@ -150,6 +152,11 @@ const I18N = {
     "err.ALREADY_IN_QUEUE": "You're already in a queue",
     "err.ALREADY_IN_ROOM": "You're already in a match",
     "err.RATE_LIMITED": "Too many attempts — wait a moment",
+    "bot.easy": "Easy",
+    "bot.medium": "Medium",
+    "bot.hard": "Hard",
+    "bot.insane": "Insane",
+    "bot.selectTier": "Select difficulty",
   },
   vi: {
     "common.or": "HOẶC", "common.copied": "Đã chép ✓",
@@ -281,6 +288,11 @@ const I18N = {
     "err.ALREADY_IN_QUEUE": "Bạn đang trong hàng chờ rồi",
     "err.ALREADY_IN_ROOM": "Bạn đang trong trận rồi",
     "err.RATE_LIMITED": "Quá nhiều lần thử — chờ một lát",
+    "bot.easy": "Dễ",
+    "bot.medium": "Trung bình",
+    "bot.hard": "Khó",
+    "bot.insane": "Cực khó",
+    "bot.selectTier": "Chọn độ khó",
   },
 };
 function t(k, p) {
@@ -375,6 +387,8 @@ let clientId = (function () {
 })();
 function saveRoom(c) { try { c ? localStorage.setItem("bs_room", c) : localStorage.removeItem("bs_room"); } catch (e) {} }
 function loadRoom() { try { return localStorage.getItem("bs_room"); } catch (e) { return null; } }
+function saveBotTier(tier) { try { localStorage.setItem("bs_botTier", tier); } catch (e) {} }
+function loadBotTier() { try { const stored = localStorage.getItem("bs_botTier"); return VALID_TIERS.includes(stored) ? stored : "medium"; } catch (e) { return "medium"; } }
 // Invite-by-link: a shared URL like https://site/?room=ABCDE lets a friend join
 // directly. roomFromUrl reads the code; clearRoomUrl strips it after joining so a
 // reload doesn't re-trigger (reconnect is handled by resume/localStorage instead).
@@ -735,6 +749,7 @@ function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onRankedMatch, onHelp, o
   const [code, setCode] = useState("");
   const [mode, setMode] = useState("classic");
   const [ranked, setRanked] = useState(false);
+  const [selectedTier, setSelectedTier] = useState(loadBotTier);
   // D-05: ranked is classic-only — if ranked is enabled, force classic and disable advance
   function handleModeChange(m) {
     if (ranked && m === "advance") return; // advance blocked while ranked
@@ -747,7 +762,16 @@ function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onRankedMatch, onHelp, o
       {error && <div className="error">{error}</div>}
       {verifyNotice === "success" && <div className="notice verify-notice">{t("auth.verifySuccess")}</div>}
       {verifyNotice === "error" && <div className="error verify-notice">{t("auth.verifyError")}</div>}
-      <button className="btn primary" onClick={onBot}>{t("lobby.playBot")}</button>
+      <p style={{ margin: "0 0 6px", fontSize: "13px", opacity: 0.75 }}>{t("bot.selectTier")}</p>
+      <div className="bot-tier-row">
+        {VALID_TIERS.map((tier) => (
+          <button
+            key={tier}
+            className={"btn" + (selectedTier === tier ? " primary" : " ghost")}
+            onClick={() => { saveBotTier(tier); setSelectedTier(tier); onBot(tier); }}
+          >{t("bot." + tier)}</button>
+        ))}
+      </div>
       <div style={{ height: 8 }} />
       <div className="divider">{t("common.or")}</div>
       <button className="btn primary" onClick={onQuickMatch}>{t("queue.quickMatch")}</button>
@@ -2118,6 +2142,8 @@ function App() {
     if (vsBot) { startBot(true); return; } // giữ tỉ số
     socket.emit("rematch");
   }
+  // handleBot: Lobby tier-button handler — threads selected tier into startBot (D-07: classic single-player only)
+  function handleBot(tier) { startBot(false, tier); }
   // ── Bot tier algorithm helpers ─────────────────────────────────────────────
   // pickEasy: pure random from unshot cells
   function pickEasy() {
@@ -2494,7 +2520,7 @@ function App() {
 
       {notice && <div className="notice-toast">{notice}</div>}
 
-      {screen === "lobby" && <Lobby onCreate={createRoom} onJoin={joinRoom} onBot={startBot} onQuickMatch={handleQuickMatch} onRankedMatch={handleRankedMatch} onHelp={() => setHelpOpen(true)} onLeaderboard={() => setScreen("leaderboard")} error={error} authUser={authUser} authError={authError} verifyNotice={verifyNotice} clientId={clientId} signInDisabled={signInDisabled} onSignInDisable={() => setSignInDisabled(true)} onEmailAuthSuccess={setAuthUser} resetToken={resetToken} resetMode={resetMode} onForgotPassword={() => setResetMode(true)} onResetBack={() => { setResetToken(null); setResetMode(false); }} />}
+      {screen === "lobby" && <Lobby onCreate={createRoom} onJoin={joinRoom} onBot={handleBot} onQuickMatch={handleQuickMatch} onRankedMatch={handleRankedMatch} onHelp={() => setHelpOpen(true)} onLeaderboard={() => setScreen("leaderboard")} error={error} authUser={authUser} authError={authError} verifyNotice={verifyNotice} clientId={clientId} signInDisabled={signInDisabled} onSignInDisable={() => setSignInDisabled(true)} onEmailAuthSuccess={setAuthUser} resetToken={resetToken} resetMode={resetMode} onForgotPassword={() => setResetMode(true)} onResetBack={() => { setResetToken(null); setResetMode(false); }} />}
 
       {screen === "queue" && (
         <div className="lobby">
