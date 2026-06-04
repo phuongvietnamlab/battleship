@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 05-01-PLAN.md, at human-verify checkpoint
-last_updated: "2026-06-04T01:16:33.901Z"
+stopped_at: Completed 05-02-PLAN.md, at human-verify checkpoint
+last_updated: "2026-06-04T01:31:01.553Z"
 last_activity: 2026-06-03 -- Phase 05 execution started
 progress:
   total_phases: 6
   completed_phases: 4
   total_plans: 25
-  completed_plans: 23
+  completed_plans: 24
   percent: 67
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-06-01)
 ## Current Position
 
 Phase: 05 (public-matchmaking) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-06-03 -- Phase 05 execution started
 
@@ -62,6 +62,7 @@ Progress: [█░░░░░░░░░] 11%
 | Phase 04 P03 | ~4 min | 2 tasks | 3 files |
 | Phase 04-ranked-mode-leaderboard P04 | 4min | 4 tasks | 5 files |
 | Phase 05-public-matchmaking P01 | 7 min | 3 tasks | 4 files |
+| Phase 05-public-matchmaking P02 | 15min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -98,6 +99,8 @@ Recent decisions affecting current work:
 - [Phase ?]: Synchronous delete-before-await in tryPair prevents double-pairing race (T-5-05)
 - [Phase ?]: matchFound sets setScreen('placement') unconditionally — no screen guard per D-10 (Pitfall 4)
 - [Phase ?]: joinQueueLimiter: 5/60s per clientId using RateLimiterMemory (T-5-03, no new dependency)
+- [Phase ?]: rankedWindow uses Infinity sentinel when width >= RANKED_WINDOW_CAP — thin pools always eventually pair
+- [Phase ?]: getPlayerRating in joinQueue: try/catch falls back to 1500/350 on DB failure (graceful degradation T-5-09)
 
 ### Pending Todos
 
@@ -121,6 +124,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-06-04T01:16:33.896Z
-Stopped at: Completed 05-01-PLAN.md, at human-verify checkpoint
-Resume file: None
+Last session: 2026-06-04T01:31:01.547Z
+Stopped at: Completed 05-02-PLAN.md, at human-verify checkpoint
+Resume file: 

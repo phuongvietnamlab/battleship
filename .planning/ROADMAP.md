@@ -195,7 +195,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 **Wave 2** *(blocked on Wave 1 — extends server.js + app.jsx queue engine)*
 
-- [ ] 05-02-PLAN.md — Ranked matchmaking slice: getPlayerRating (db.js), rankedWindow stepped-widening + provisional + unbounded cap, ranked joinQueue gate (RANKED_REQUIRES_ACCOUNT, server-authoritative rating read), ranked findPair, queueStatus, Ranked button (guest-disabled) + ELO window display (EN/VI) (QUEUE-02)
+- [x] 05-02-PLAN.md — Ranked matchmaking slice: getPlayerRating (db.js), rankedWindow stepped-widening + provisional + unbounded cap, ranked joinQueue gate (RANKED_REQUIRES_ACCOUNT, server-authoritative rating read), ranked findPair, queueStatus, Ranked button (guest-disabled) + ELO window display (EN/VI) (QUEUE-02)
 
 **Wave 3** *(blocked on Waves 1-2 — extends disconnect handler + queue screen)*
 
@@ -227,5 +227,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 2. Accounts & Identity | 9/9 | Complete   | 2026-06-02 |
 | 3. Match Recording | 3/3 | Complete    | 2026-06-03 |
 | 4. Ranked Mode & Leaderboard | 7/7 | Complete    | 2026-06-03 |
-| 5. Public Matchmaking | 1/3 | In Progress|  |
+| 5. Public Matchmaking | 2/3 | In Progress|  |
 | 6. Bot Difficulty Tiers | 0/TBD | Not started | - |
