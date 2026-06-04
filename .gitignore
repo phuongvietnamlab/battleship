@@ -6,3 +6,11 @@ npm-debug.log*
 *.log
 x.txt
 .gstack/
+
+# GSD Core (installed locally, not needed in repo)
+gsd-core/
+agents/
+.clinerules
+.gsd-profile
+gsd-file-manifest.json
+gsd-install-state.json
