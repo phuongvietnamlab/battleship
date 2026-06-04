@@ -198,6 +198,25 @@ const chatLimiter    = new RateLimiterMemory({ points: 5,  duration: 10 }); // 5
 // Consecutive violation threshold before forcibly disconnecting the abusing socket (D-08).
 const RL_ABUSE_THRESHOLD = 10;
 
+// ─── Matchmaking queue constants and maps (05-01) ────────────────────────────
+// RANKED_WINDOW_* constants are used by Plan 02's rankedWindow() function;
+// declared here so the module-level map and sweep share the same namespace.
+const RANKED_WINDOW_START      = 150;   // ±150 rating points at enqueue
+const RANKED_WINDOW_STEP       = 100;   // widen by 100 per step
+const RANKED_WINDOW_CAP        = 500;   // cap at ±500 before unbounded
+const RANKED_STEP_MS           = 10000; // step every 10 s
+const RANKED_PROVISIONAL_START = 300;   // wider start for RD >= 110 (P4 D-08)
+const BOT_OFFER_DELAY_MS       = 30000; // 30 s alone before bot prompt (D-09)
+const QUEUE_SWEEP_MS           = 5000;  // sweep timer cadence
+
+// mirrors rooms map — module-level, never per-request (clientId → QueueEntry)
+const queues = {
+  casual: new Map(),
+  ranked: new Map(),
+};
+
+const joinQueueLimiter = new RateLimiterMemory({ points: 5, duration: 60 }); // 5/min per clientId
+
 // ─── Leaderboard rate limiter ────────────────────────────────────────────────
 // In-process DoS guard for the public, unauthenticated GET /api/leaderboard
 // route (T-04-19, CR-02). 30 reads/min/IP — accommodates normal browser polling
@@ -1250,6 +1269,87 @@ function reclaimSeat(room, code, seatId, newClientId, socket) {
   return true;
 }
 
+// ─── Matchmaking queue engine (05-01) ────────────────────────────────────────
+
+// Return the first two non-pairing entries from the given type's queue.
+// For casual, any two entries are a valid pair.
+// Ranked window logic is added in Plan 02 — for now ranked also returns any two.
+function findPair(type, entries) {
+  if (entries.length < 2) return null;
+  return [entries[0], entries[1]];
+}
+
+// Attempt to pair the two oldest non-pairing entries in the given queue.
+// Synchronous deletion of both entries from the map happens BEFORE any async
+// work — this is the double-pairing race guard (T-5-05, mirrors room.resolving).
+function tryPair(type) {
+  const q = queues[type];
+  if (q.size < 2) return;
+  const entries = [...q.values()].filter((e) => !e.pairing);
+  const pair = findPair(type, entries);
+  if (!pair) return;
+  const [a, b] = pair;
+  // Synchronous race guard: mark + delete BEFORE any await (T-5-05)
+  a.pairing = true;
+  b.pairing = true;
+  q.delete(a.clientId);
+  q.delete(b.clientId);
+  createMatchedRoom(a, b, type).catch((err) => {
+    console.error("[queue] createMatchedRoom error:", err && err.message);
+    // On failure: reset pairing flag and re-insert both entries so they can
+    // be paired again on the next sweep
+    a.pairing = false;
+    b.pairing = false;
+    q.set(a.clientId, a);
+    q.set(b.clientId, b);
+  });
+}
+
+// Sweep both queues — called by the setInterval sweep and after each joinQueue.
+function tryPairAll() {
+  tryPair("casual");
+  tryPair("ranked");
+}
+
+// Build a matched room in the exact createRoom shape and seat both players.
+// Async because future plans call getPlayerRating() before seating; for casual
+// there is no await but the signature is async for consistency (Plan 02 extends this).
+async function createMatchedRoom(entryA, entryB, type) {
+  const code = newCode();
+  const ranked = type === "ranked";
+  rooms[code] = {
+    code, players: {}, order: [], started: false, turn: null, scores: {},
+    lastStarter: null, mode: "classic", ranked,
+    powerups: {}, turnTimer: null, turnDeadline: null,
+    resolving: false, lastActivityAt: Date.now(),
+  };
+  for (const entry of [entryA, entryB]) {
+    rooms[code].players[entry.clientId] = {
+      sid: entry.socketId, ready: false, occ: null, hits: new Set(), online: true,
+      timer: null, inv: newInv(), bonus: 0,
+      profile: entry.profile,
+      userId: entry.userId ?? null,
+    };
+    rooms[code].order.push(entry.clientId);
+    const sock = io.of("/").sockets.get(entry.socketId);
+    if (sock) {
+      sock.join(code);
+      sock.data.code = code;
+      sock.data.clientId = entry.clientId;
+      sock.data.queueType = null;
+      sock.data.queueClientId = null;
+    }
+    upsertGuestCredential(entry.clientId); // fire-and-forget: durable identity (DATA-01)
+  }
+  io.to(code).emit("roomUpdate", roomPublic(rooms[code]));
+  io.to(code).emit("opponentJoined");
+  io.to(entryA.socketId).emit("oppProfile", entryB.profile || null);
+  io.to(entryB.socketId).emit("oppProfile", entryA.profile || null);
+  io.to(entryA.socketId).emit("matchFound", { code, ranked });
+  io.to(entryB.socketId).emit("matchFound", { code, ranked });
+  console.log(`[queue] matched ${type}: ${entryA.clientId} vs ${entryB.clientId} -> room ${code}`);
+}
+
 io.on("connection", (socket) => {
   socket.data.code = null;
   socket.data.clientId = null;
@@ -1285,6 +1385,54 @@ io.on("connection", (socket) => {
     cb && cb({ ok: true, code });
     io.to(code).emit("roomUpdate", roomPublic(rooms[code]));
     upsertGuestCredential(clientId); // fire-and-forget: durable identity (DATA-01)
+  });
+
+  // ─── Queue handlers (05-01) ───────────────────────────────────────────────
+
+  socket.on("joinQueue", async (arg, cb) => {
+    // Normalize type to allowlist — any non-"ranked" value coerces to casual (T-5-02)
+    const type = (arg && arg.type) === "ranked" ? "ranked" : "casual";
+    const clientId = (arg && arg.clientId) || socket.id;
+    socket.data.clientId = clientId;
+    // Rate limit: 5 join attempts/min per clientId (T-5-03)
+    const rlKey = clientId;
+    try {
+      await joinQueueLimiter.consume(rlKey);
+    } catch (e) {
+      return cb && cb({ ok: false, code: "RATE_LIMITED" });
+    }
+    // Guard: already in a room (T-5-04)
+    if (socket.data.code) return cb && cb({ ok: false, code: "ALREADY_IN_ROOM" });
+    // Guard: already in queue (T-5-04)
+    if (socket.data.queueType) return cb && cb({ ok: false, code: "ALREADY_IN_QUEUE" });
+    // Guard: ranked requires an authenticated account (mirrors createRoom guard)
+    if (type === "ranked" && socket.data.userId == null) return cb && cb({ ok: false, code: "RANKED_REQUIRES_ACCOUNT" });
+    const entry = {
+      socketId: socket.id,
+      clientId,
+      userId: socket.data.userId ?? null,
+      rating: 1500,
+      rd: 350,
+      enqueuedAt: Date.now(),
+      pairing: false,
+      profile: sanitizeProfile(arg && arg.profile), // T-5-01
+      queueType: type,
+    };
+    socket.data.queueType = type;
+    socket.data.queueClientId = clientId;
+    queues[type].set(clientId, entry);
+    upsertGuestCredential(clientId); // fire-and-forget: durable identity (DATA-01)
+    cb && cb({ ok: true });
+    tryPair(type);
+  });
+
+  socket.on("leaveQueue", (arg, cb) => {
+    const clientId = socket.data.queueClientId || socket.data.clientId || socket.id;
+    queues.casual.delete(clientId);
+    queues.ranked.delete(clientId);
+    socket.data.queueType = null;
+    socket.data.queueClientId = null;
+    cb && cb({ ok: true });
   });
 
   socket.on("joinRoom", (arg, cb) => {
@@ -1699,6 +1847,9 @@ if (require.main === module) {
     // Room cleanup sweep: evict empty and idle rooms every 60s so memory is bounded
     // by active games, not by all rooms ever created (SEC-03, ROOM_IDLE_THRESHOLD_MS).
     setInterval(sweepRooms, CLEANUP_INTERVAL_MS).unref();
+    // Queue pairing sweep: re-run tryPairAll every QUEUE_SWEEP_MS so entries that
+    // missed a pair on enqueue (e.g. single waiter) get matched when a second joins.
+    setInterval(tryPairAll, QUEUE_SWEEP_MS).unref();
     server.listen(PORT, () => {
       console.log(`Battleship server running at http://localhost:${PORT}`);
     });
