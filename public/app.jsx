@@ -749,6 +749,7 @@ function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onRankedMatch, onHelp, o
   const [code, setCode] = useState("");
   const [mode, setMode] = useState("classic");
   const [ranked, setRanked] = useState(false);
+  const [selectedTier, setSelectedTier] = useState(loadBotTier);
   // D-05: ranked is classic-only — if ranked is enabled, force classic and disable advance
   function handleModeChange(m) {
     if (ranked && m === "advance") return; // advance blocked while ranked
@@ -761,7 +762,16 @@ function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onRankedMatch, onHelp, o
       {error && <div className="error">{error}</div>}
       {verifyNotice === "success" && <div className="notice verify-notice">{t("auth.verifySuccess")}</div>}
       {verifyNotice === "error" && <div className="error verify-notice">{t("auth.verifyError")}</div>}
-      <button className="btn primary" onClick={onBot}>{t("lobby.playBot")}</button>
+      <p style={{ margin: "0 0 6px", fontSize: "13px", opacity: 0.75 }}>{t("bot.selectTier")}</p>
+      <div className="bot-tier-row">
+        {VALID_TIERS.map((tier) => (
+          <button
+            key={tier}
+            className={"btn" + (selectedTier === tier ? " primary" : " ghost")}
+            onClick={() => { saveBotTier(tier); setSelectedTier(tier); onBot(tier); }}
+          >{t("bot." + tier)}</button>
+        ))}
+      </div>
       <div style={{ height: 8 }} />
       <div className="divider">{t("common.or")}</div>
       <button className="btn primary" onClick={onQuickMatch}>{t("queue.quickMatch")}</button>
@@ -2132,6 +2142,8 @@ function App() {
     if (vsBot) { startBot(true); return; } // giữ tỉ số
     socket.emit("rematch");
   }
+  // handleBot: Lobby tier-button handler — threads selected tier into startBot (D-07: classic single-player only)
+  function handleBot(tier) { startBot(false, tier); }
   // ── Bot tier algorithm helpers ─────────────────────────────────────────────
   // pickEasy: pure random from unshot cells
   function pickEasy() {
@@ -2508,7 +2520,7 @@ function App() {
 
       {notice && <div className="notice-toast">{notice}</div>}
 
-      {screen === "lobby" && <Lobby onCreate={createRoom} onJoin={joinRoom} onBot={startBot} onQuickMatch={handleQuickMatch} onRankedMatch={handleRankedMatch} onHelp={() => setHelpOpen(true)} onLeaderboard={() => setScreen("leaderboard")} error={error} authUser={authUser} authError={authError} verifyNotice={verifyNotice} clientId={clientId} signInDisabled={signInDisabled} onSignInDisable={() => setSignInDisabled(true)} onEmailAuthSuccess={setAuthUser} resetToken={resetToken} resetMode={resetMode} onForgotPassword={() => setResetMode(true)} onResetBack={() => { setResetToken(null); setResetMode(false); }} />}
+      {screen === "lobby" && <Lobby onCreate={createRoom} onJoin={joinRoom} onBot={handleBot} onQuickMatch={handleQuickMatch} onRankedMatch={handleRankedMatch} onHelp={() => setHelpOpen(true)} onLeaderboard={() => setScreen("leaderboard")} error={error} authUser={authUser} authError={authError} verifyNotice={verifyNotice} clientId={clientId} signInDisabled={signInDisabled} onSignInDisable={() => setSignInDisabled(true)} onEmailAuthSuccess={setAuthUser} resetToken={resetToken} resetMode={resetMode} onForgotPassword={() => setResetMode(true)} onResetBack={() => { setResetToken(null); setResetMode(false); }} />}
 
       {screen === "queue" && (
         <div className="lobby">
