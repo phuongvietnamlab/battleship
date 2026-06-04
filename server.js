@@ -1271,12 +1271,35 @@ function reclaimSeat(room, code, seatId, newClientId, socket) {
 
 // ─── Matchmaking queue engine (05-01 + 05-02 + 05-03) ──────────────────────
 
-// Remove a clientId from BOTH queues atomically (QUEUE-03, T-5-10).
-// Safe to call when the client was never queued — no-op in that case.
-function removeFromQueues(clientId) {
+// Liveness check for a queue entry's socketId (CR-01, WR-05).
+// Returns true only if the socketId still maps to a connected socket on the
+// default namespace. A queue entry can outlive its socket (tab closed between
+// enqueue and pairing) because disconnect cleanup is keyed on the socket's own
+// clientId, which may differ from the entry key — see WR-02/WR-03. Pairing a
+// dead entry produces a phantom-player room that stalls in placement.
+// Indirected through a mutable binding so unit tests can simulate liveness
+// without a live Socket.IO server (default consults the real io namespace).
+let socketIsLive = (socketId) => !!io.of("/").sockets.get(socketId);
+
+// Server-trusted queue key (WR-02/WR-03). The queue Map MUST NOT be keyed on
+// the client-supplied arg.clientId: a malicious client could pass a victim's
+// clientId to overwrite/displace their entry, and disconnect cleanup (keyed on
+// the socket's own identity) could diverge from the entry key, orphaning a
+// phantom. Derive the key from non-forgeable, server-held state:
+//   - authenticated: "u:<userId>" (stable across reconnects on the same account)
+//   - guest:         "s:<socket.id>" (unique per live connection)
+// The entry still carries the real clientId for the room seat / localStorage
+// reclaim, but it is never used as the map key.
+function queueKeyFor(socket) {
+  return socket.data.userId != null ? `u:${socket.data.userId}` : `s:${socket.id}`;
+}
+
+// Remove a queue key from BOTH queues atomically (QUEUE-03, T-5-10).
+// Safe to call when the key was never queued — no-op in that case.
+function removeFromQueues(queueKey) {
   for (const type of ["casual", "ranked"]) {
-    if (queues[type].delete(clientId)) {
-      console.log(`[queue] ${type} entry removed on disconnect: ${clientId}`);
+    if (queues[type].delete(queueKey)) {
+      console.log(`[queue] ${type} entry removed: ${queueKey}`);
     }
   }
 }
@@ -1320,24 +1343,37 @@ function findPair(type, entries) {
 // work — this is the double-pairing race guard (T-5-05, mirrors room.resolving).
 function tryPair(type) {
   const q = queues[type];
+  // CR-01: prune entries whose socket has already disconnected before they can
+  // be selected for pairing — prevents a dead entry being matched into a
+  // phantom-player room. Skip entries currently mid-pairing (their socket
+  // liveness is re-checked in createMatchedRoom).
+  for (const [key, e] of [...q.entries()]) {
+    if (!e.pairing && !socketIsLive(e.socketId)) {
+      q.delete(key);
+      console.log(`[queue] pruned dead ${type} entry before pairing: ${key}`);
+    }
+  }
   if (q.size < 2) return;
   const entries = [...q.values()].filter((e) => !e.pairing);
   const pair = findPair(type, entries);
   if (!pair) return;
   const [a, b] = pair;
-  // Synchronous race guard: mark + delete BEFORE any await (T-5-05)
+  // Synchronous race guard: mark + delete BEFORE any await (T-5-05).
+  // Entries are keyed on the server-trusted queueKey (WR-02), with a fallback
+  // to clientId for entries created before this field existed.
   a.pairing = true;
   b.pairing = true;
-  q.delete(a.clientId);
-  q.delete(b.clientId);
+  q.delete(a.queueKey ?? a.clientId);
+  q.delete(b.queueKey ?? b.clientId);
   createMatchedRoom(a, b, type).catch((err) => {
     console.error("[queue] createMatchedRoom error:", err && err.message);
-    // On failure: reset pairing flag and re-insert both entries so they can
-    // be paired again on the next sweep
+    // On failure: reset pairing flag and re-insert ONLY entries whose socket is
+    // still live (WR-05) — re-inserting a dead entry resurrects a phantom that
+    // would be matched on the next sweep.
     a.pairing = false;
     b.pairing = false;
-    q.set(a.clientId, a);
-    q.set(b.clientId, b);
+    if (socketIsLive(a.socketId)) q.set(a.queueKey ?? a.clientId, a);
+    if (socketIsLive(b.socketId)) q.set(b.queueKey ?? b.clientId, b);
   });
 }
 
@@ -1370,6 +1406,21 @@ function tryPairAll() {
 // Async because future plans call getPlayerRating() before seating; for casual
 // there is no await but the signature is async for consistency (Plan 02 extends this).
 async function createMatchedRoom(entryA, entryB, type) {
+  // CR-01: re-validate BOTH sockets are still live before committing the room.
+  // tryPair deleted these entries from the queue synchronously; if one socket
+  // died in the meantime, seating it would create a phantom-player room that
+  // stalls in placement. Abort and re-queue whichever side is still connected.
+  if (!socketIsLive(entryA.socketId) || !socketIsLive(entryB.socketId)) {
+    const survivor = socketIsLive(entryA.socketId)
+      ? entryA
+      : (socketIsLive(entryB.socketId) ? entryB : null);
+    if (survivor) {
+      survivor.pairing = false;
+      queues[type].set(survivor.queueKey ?? survivor.clientId, survivor);
+      console.log(`[queue] aborted ${type} pairing — partner socket gone; re-queued ${survivor.clientId}`);
+    }
+    return;
+  }
   const code = newCode();
   const ranked = type === "ranked";
   rooms[code] = {
@@ -1386,6 +1437,10 @@ async function createMatchedRoom(entryA, entryB, type) {
       profile: entry.profile,
       userId: entry.userId ?? null,
       matchQueueType: type, // D-11: retained so disconnect handler can re-queue survivor
+      // WR-01: carry the queued rating/rd onto the seat so a D-11 re-queue can
+      // restore the survivor's real rating instead of resetting to 1500/350.
+      rating: entry.rating ?? 1500,
+      rd: entry.rd ?? 350,
     };
     rooms[code].order.push(entry.clientId);
     const sock = io.of("/").sockets.get(entry.socketId);
@@ -1451,8 +1506,12 @@ io.on("connection", (socket) => {
     const type = (arg && arg.type) === "ranked" ? "ranked" : "casual";
     const clientId = (arg && arg.clientId) || socket.id;
     socket.data.clientId = clientId;
-    // Rate limit: 5 join attempts/min per clientId (T-5-03)
-    const rlKey = clientId;
+    // Server-trusted queue key — never the forgeable arg.clientId (WR-02).
+    const queueKey = queueKeyFor(socket);
+    // Rate limit on a non-forgeable identity (WR-02): the live socket id, so a
+    // malicious client cannot spend another player's budget by passing their
+    // clientId. socket.id is unique per connection and not client-controlled.
+    const rlKey = socket.id;
     try {
       await joinQueueLimiter.consume(rlKey);
     } catch (e) {
@@ -1460,8 +1519,12 @@ io.on("connection", (socket) => {
     }
     // Guard: already in a room (T-5-04)
     if (socket.data.code) return cb && cb({ ok: false, code: "ALREADY_IN_ROOM" });
-    // Guard: already in queue (T-5-04)
-    if (socket.data.queueType) return cb && cb({ ok: false, code: "ALREADY_IN_QUEUE" });
+    // Guard: already in queue (T-5-04). Authoritative check against the queue
+    // maps using the server-trusted key (WR-03) — not just socket.data, which a
+    // fresh reconnect socket (Safari backgrounding) would have reset to null.
+    if (socket.data.queueType || queues.casual.has(queueKey) || queues.ranked.has(queueKey)) {
+      return cb && cb({ ok: false, code: "ALREADY_IN_QUEUE" });
+    }
     // Guard: ranked requires an authenticated account (mirrors createRoom guard)
     // Read userId from session ONLY (socket.data.userId), never from arg (T-5-06, P4 D-02)
     if (type === "ranked" && socket.data.userId == null) return cb && cb({ ok: false, code: "RANKED_REQUIRES_ACCOUNT" });
@@ -1478,6 +1541,7 @@ io.on("connection", (socket) => {
     const entry = {
       socketId: socket.id,
       clientId,
+      queueKey, // WR-02: server-trusted map key, retained for re-queue/cleanup
       userId: socket.data.userId ?? null,
       rating,
       rd,
@@ -1487,18 +1551,27 @@ io.on("connection", (socket) => {
       queueType: type,
     };
     socket.data.queueType = type;
+    socket.data.queueKey = queueKey;
     socket.data.queueClientId = clientId;
-    queues[type].set(clientId, entry);
+    queues[type].set(queueKey, entry);
     upsertGuestCredential(clientId); // fire-and-forget: durable identity (DATA-01)
     cb && cb({ ok: true });
     tryPair(type);
   });
 
   socket.on("leaveQueue", (arg, cb) => {
-    const clientId = socket.data.queueClientId || socket.data.clientId || socket.id;
-    queues.casual.delete(clientId);
-    queues.ranked.delete(clientId);
+    // WR-04: never null queue state while already in a room — a stray client
+    // leaveQueue racing the matchFound transition must not touch the queue.
+    if (socket.data.code) return cb && cb({ ok: true });
+    const queueKey = socket.data.queueKey || queueKeyFor(socket);
+    // WR-04: delete only an entry this socket actually owns (socketId match),
+    // so a forged key cannot evict another player's entry.
+    for (const type of ["casual", "ranked"]) {
+      const e = queues[type].get(queueKey);
+      if (e && e.socketId === socket.id) queues[type].delete(queueKey);
+    }
     socket.data.queueType = null;
+    socket.data.queueKey = null;
     socket.data.queueClientId = null;
     cb && cb({ ok: true });
   });
@@ -1575,6 +1648,13 @@ io.on("connection", (socket) => {
       for (const code in rooms) {
         if (rooms[code].players && rooms[code].players[clientId]) {
           touchRoom(rooms[code]); // SEC-03: stamp activity on resume so sweep doesn't evict
+          // WR-03: a player back in a room must not leave a phantom queue entry
+          // behind. Clear any lingering entry under this socket's queue key and
+          // reset per-socket queue state.
+          removeFromQueues(socket.data.queueKey || queueKeyFor(socket));
+          socket.data.queueType = null;
+          socket.data.queueKey = null;
+          socket.data.queueClientId = null;
           reclaimSeat(rooms[code], code, clientId, clientId, socket);
           upsertGuestCredential(clientId); // fire-and-forget: ensure durable credential on resume (DATA-01)
           // Stamp userId onto seat if the player signed in between sessions; never overwrite existing id with null
@@ -1597,6 +1677,12 @@ io.on("connection", (socket) => {
       return cb && cb({ ok: false });
     }
     touchRoom(room); // SEC-03: stamp activity on rejoin so sweep doesn't evict live room
+    // WR-03: clear any lingering queue entry so a reconnect cannot leave a
+    // phantom behind, and reset per-socket queue state.
+    removeFromQueues(socket.data.queueKey || queueKeyFor(socket));
+    socket.data.queueType = null;
+    socket.data.queueKey = null;
+    socket.data.queueClientId = null;
     const p = room.players[clientId];
     if (p.timer) { clearTimeout(p.timer); p.timer = null; }
     p.sid = socket.id; p.online = true;
@@ -1868,8 +1954,9 @@ io.on("connection", (socket) => {
   socket.on("disconnect", () => {
     // QUEUE-03: queue cleanup runs FIRST — must happen before any room handling
     // so a phantom slot never lingers (T-5-10, RESEARCH Pitfall 2).
-    const qClientId = socket.data.clientId || socket.id;
-    removeFromQueues(qClientId);
+    // WR-03: remove by the server-trusted queue key (the same key joinQueue used),
+    // so cleanup can never diverge from the entry's map key.
+    removeFromQueues(socket.data.queueKey || queueKeyFor(socket));
 
     const code = socket.data.code;
     const clientId = socket.data.clientId;
@@ -1890,15 +1977,23 @@ io.on("connection", (socket) => {
           socketId: oppPlayer.sid,
           clientId: oppId,
           userId: oppPlayer.userId ?? null,
-          rating: 1500, // default; exact rating not needed for re-queue (we have no live entry)
-          rd: 350,
+          // WR-01: restore the survivor's real rating/rd (carried onto the seat
+          // in createMatchedRoom). For a ranked re-queue, resetting to 1500/350
+          // would mismatch a high-rated player against ±150 of 1500 and still
+          // write the result to Glicko. Fall back to defaults only if absent.
+          rating: oppPlayer.rating ?? 1500,
+          rd: oppPlayer.rd ?? 350,
           enqueuedAt: Date.now(), // fresh window — they are first in line
           pairing: false,
           profile: oppPlayer.profile || null,
           queueType: qt,
         };
+        // WR-02/WR-03: re-queue under the server-trusted key so disconnect
+        // cleanup (which also keys on queueKey) stays consistent.
+        const survivorKey = oppPlayer.userId != null ? `u:${oppPlayer.userId}` : `s:${oppPlayer.sid}`;
+        survivorEntry.queueKey = survivorKey;
         // Insert survivor at FRONT via full Map replacement (Pitfall 5)
-        queues[qt] = new Map([[oppId, survivorEntry], ...queues[qt]]);
+        queues[qt] = new Map([[survivorKey, survivorEntry], ...queues[qt]]);
         console.log(`[queue] D-11: partner disconnected before start, re-queued survivor ${oppId} at front of ${qt}`);
         // Tear down the dead room before emitting so it cannot be re-paired
         clearTurnTimer(room);
@@ -1909,6 +2004,7 @@ io.on("connection", (socket) => {
           survivorSock.leave(code);
           survivorSock.data.code = null;
           survivorSock.data.queueType = qt;
+          survivorSock.data.queueKey = survivorKey;
           survivorSock.data.queueClientId = oppId;
         }
         // Notify survivor to return to queue wait screen (D-11 — dedicated event)
@@ -2003,5 +2099,11 @@ module.exports = {
     tryPair,
     rankedWindow,
     removeFromQueues,
+    createMatchedRoom,
+    queueKeyFor,
+    // CR-01/WR-05 test helpers: override the socket-liveness predicate so unit
+    // tests can simulate live/dead sockets without a running Socket.IO server.
+    setSocketIsLive: (fn) => { socketIsLive = fn; },
+    resetSocketIsLive: () => { socketIsLive = (socketId) => !!io.of("/").sockets.get(socketId); },
   },
 };
