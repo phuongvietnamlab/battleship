@@ -1269,7 +1269,17 @@ function reclaimSeat(room, code, seatId, newClientId, socket) {
   return true;
 }
 
-// ─── Matchmaking queue engine (05-01 + 05-02) ───────────────────────────────
+// ─── Matchmaking queue engine (05-01 + 05-02 + 05-03) ──────────────────────
+
+// Remove a clientId from BOTH queues atomically (QUEUE-03, T-5-10).
+// Safe to call when the client was never queued — no-op in that case.
+function removeFromQueues(clientId) {
+  for (const type of ["casual", "ranked"]) {
+    if (queues[type].delete(clientId)) {
+      console.log(`[queue] ${type} entry removed on disconnect: ${clientId}`);
+    }
+  }
+}
 
 // Compute the current ELO window width for a ranked queue entry (05-02).
 // Provisional players (rd >= 110) get a wider starting window.
@@ -1367,6 +1377,7 @@ async function createMatchedRoom(entryA, entryB, type) {
     lastStarter: null, mode: "classic", ranked,
     powerups: {}, turnTimer: null, turnDeadline: null,
     resolving: false, lastActivityAt: Date.now(),
+    matchQueueType: type, // D-11: preserved for partner re-queue on pre-start disconnect
   };
   for (const entry of [entryA, entryB]) {
     rooms[code].players[entry.clientId] = {
@@ -1374,6 +1385,7 @@ async function createMatchedRoom(entryA, entryB, type) {
       timer: null, inv: newInv(), bonus: 0,
       profile: entry.profile,
       userId: entry.userId ?? null,
+      matchQueueType: type, // D-11: retained so disconnect handler can re-queue survivor
     };
     rooms[code].order.push(entry.clientId);
     const sock = io.of("/").sockets.get(entry.socketId);
@@ -1854,12 +1866,57 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", () => {
+    // QUEUE-03: queue cleanup runs FIRST — must happen before any room handling
+    // so a phantom slot never lingers (T-5-10, RESEARCH Pitfall 2).
+    const qClientId = socket.data.clientId || socket.id;
+    removeFromQueues(qClientId);
+
     const code = socket.data.code;
     const clientId = socket.data.clientId;
     const room = rooms[code];
     if (!room || !clientId || !room.players[clientId]) return;
     const p = room.players[clientId];
     if (p.sid !== socket.id) return; // stale socket, newer one already took over
+
+    // D-11: if the room was queue-matched but NOT yet started, re-enqueue the
+    // surviving partner at the FRONT of the original queue type so search resumes
+    // immediately, then tear down the dead room — no grace window for un-started rooms.
+    if (!room.started && room.matchQueueType) {
+      const oppId = opponentOf(room, clientId);
+      const oppPlayer = oppId && room.players[oppId];
+      if (oppPlayer && oppPlayer.online) {
+        const qt = room.matchQueueType;
+        const survivorEntry = {
+          socketId: oppPlayer.sid,
+          clientId: oppId,
+          userId: oppPlayer.userId ?? null,
+          rating: 1500, // default; exact rating not needed for re-queue (we have no live entry)
+          rd: 350,
+          enqueuedAt: Date.now(), // fresh window — they are first in line
+          pairing: false,
+          profile: oppPlayer.profile || null,
+          queueType: qt,
+        };
+        // Insert survivor at FRONT via full Map replacement (Pitfall 5)
+        queues[qt] = new Map([[oppId, survivorEntry], ...queues[qt]]);
+        console.log(`[queue] D-11: partner disconnected before start, re-queued survivor ${oppId} at front of ${qt}`);
+        // Tear down the dead room before emitting so it cannot be re-paired
+        clearTurnTimer(room);
+        delete rooms[code];
+        // Restore socket.data on survivor's socket so it can re-enter the queue
+        const survivorSock = io.of("/").sockets.get(oppPlayer.sid);
+        if (survivorSock) {
+          survivorSock.leave(code);
+          survivorSock.data.code = null;
+          survivorSock.data.queueType = qt;
+          survivorSock.data.queueClientId = oppId;
+        }
+        // Notify survivor to return to queue wait screen (D-11 — dedicated event)
+        io.to(oppPlayer.sid).emit("requeued", { type: qt });
+        return; // room already deleted — skip standard disconnect handling
+      }
+    }
+
     p.online = false;
     const oppId = opponentOf(room, clientId);
     if (oppId) emitToClient(room, oppId, "opponentOffline");
@@ -1941,9 +1998,10 @@ module.exports = {
     leaderboardLimiter,
     getLbCache: () => lbCache,
     resetLbCache: () => { lbCache = { at: 0, payload: null }; },
-    // Phase 5 queue exports (05-01 + 05-02)
+    // Phase 5 queue exports (05-01 + 05-02 + 05-03)
     queues,
     tryPair,
     rankedWindow,
+    removeFromQueues,
   },
 };

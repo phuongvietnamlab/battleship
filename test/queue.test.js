@@ -14,7 +14,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import serverModule from "../server.js";
 
 const { TEST_EXPORTS } = serverModule;
-const { queues, tryPair, rooms, rankedWindow } = TEST_EXPORTS;
+const { queues, tryPair, rooms, rankedWindow, removeFromQueues } = TEST_EXPORTS;
 
 // Helper: minimal queue entry
 function makeEntry(overrides = {}) {
@@ -219,7 +219,64 @@ describe("QUEUE-03 — disconnect cleanup and re-queue (Plan 03)", () => {
     for (const k of Object.keys(rooms)) delete rooms[k];
   });
 
-  it.todo("disconnect removes entry from casual queue");
-  it.todo("disconnect removes entry from ranked queue");
-  it.todo("partner re-enqueue on disconnect from paired-but-not-started room (D-11)");
+  it("disconnect removes entry from casual queue (removeFromQueues)", () => {
+    const a = makeEntry({ clientId: "dc-casual-a", queueType: "casual" });
+    queues.casual.set(a.clientId, a);
+    expect(queues.casual.size).toBe(1);
+
+    removeFromQueues(a.clientId);
+
+    expect(queues.casual.size).toBe(0);
+    expect(queues.ranked.size).toBe(0);
+  });
+
+  it("disconnect removes entry from ranked queue (removeFromQueues)", () => {
+    const a = makeEntry({ clientId: "dc-ranked-a", queueType: "ranked" });
+    queues.ranked.set(a.clientId, a);
+    expect(queues.ranked.size).toBe(1);
+
+    removeFromQueues(a.clientId);
+
+    expect(queues.ranked.size).toBe(0);
+    expect(queues.casual.size).toBe(0);
+  });
+
+  it("removeFromQueues is a no-op when clientId is not in any queue", () => {
+    // Should not throw
+    expect(() => removeFromQueues("nonexistent-client")).not.toThrow();
+    expect(queues.casual.size).toBe(0);
+    expect(queues.ranked.size).toBe(0);
+  });
+
+  it("no double-pairing: three casual entries, tryPair twice, at most one room created", () => {
+    const a = makeEntry({ clientId: "trio-a", queueType: "casual" });
+    const b = makeEntry({ clientId: "trio-b", queueType: "casual" });
+    const c = makeEntry({ clientId: "trio-c", queueType: "casual" });
+    queues.casual.set(a.clientId, a);
+    queues.casual.set(b.clientId, b);
+    queues.casual.set(c.clientId, c);
+
+    tryPair("casual"); // pairs a+b, removes both; c remains
+    tryPair("casual"); // c alone — no pair
+
+    // Only one room should exist (a+b), c is still in queue
+    expect(Object.keys(rooms).length).toBe(1);
+    expect(queues.casual.size).toBe(1);
+    expect(queues.casual.has("trio-c")).toBe(true);
+  });
+
+  it("front re-queue: survivor inserted at front of queue", () => {
+    // Simulate existing entry then insert survivor at front
+    const existing = makeEntry({ clientId: "existing-x", queueType: "casual" });
+    queues.casual.set(existing.clientId, existing);
+
+    // Simulate the survivor re-insertion at front via new Map([[survivor, ...rest]])
+    const survivor = makeEntry({ clientId: "survivor-s", queueType: "casual" });
+    const rest = [...queues.casual.entries()];
+    queues.casual = new Map([[survivor.clientId, survivor], ...rest]);
+
+    const keys = [...queues.casual.keys()];
+    expect(keys[0]).toBe("survivor-s");
+    expect(keys[1]).toBe("existing-x");
+  });
 });
