@@ -17,7 +17,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2: Accounts & Identity** - Google + Facebook OAuth + email/password sign-in, guest-to-account linking, player profiles (completed 2026-06-02)
 - [x] **Phase 3: Match Recording** - Durable match records + explicit forfeit handling (completed 2026-06-03)
 - [x] **Phase 4: Ranked Mode & Leaderboard** - Glicko-2 ratings, ranked queue gating, global leaderboard (5/5 plans built; verification gaps_found — 2 gap-closure plans (04-06, 04-07) planned to close CR-01 blocker + CR-02 hardening) (completed 2026-06-03)
-- [ ] **Phase 5: Public Matchmaking** - Quick-match and ranked queues, ELO-window pairing
+- [x] **Phase 5: Public Matchmaking** - Quick-match and ranked queues, ELO-window pairing (completed 2026-06-04)
 - [ ] **Phase 6: Bot Difficulty Tiers** - Easy / medium / hard / insane bot algorithms
 
 ## Phase Details
@@ -199,7 +199,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 **Wave 3** *(blocked on Waves 1-2 — extends disconnect handler + queue screen)*
 
-- [ ] 05-03-PLAN.md — Queue cleanup integrity slice: disconnect-handler queue removal (both queues), D-11 partner-vanish re-queue-at-front, client navigate-away leaveQueue cleanup, delayed unranked bot offer (D-09), QUEUE-03 engine tests (QUEUE-03)
+- [x] 05-03-PLAN.md — Queue cleanup integrity slice: disconnect-handler queue removal (both queues), D-11 partner-vanish re-queue-at-front, client navigate-away leaveQueue cleanup, delayed unranked bot offer (D-09), QUEUE-03 engine tests (QUEUE-03)
 
 ### Phase 6: Bot Difficulty Tiers
 
@@ -227,5 +227,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 2. Accounts & Identity | 9/9 | Complete   | 2026-06-02 |
 | 3. Match Recording | 3/3 | Complete    | 2026-06-03 |
 | 4. Ranked Mode & Leaderboard | 7/7 | Complete    | 2026-06-03 |
-| 5. Public Matchmaking | 2/3 | In Progress|  |
+| 5. Public Matchmaking | 3/3 | Complete   | 2026-06-04 |
 | 6. Bot Difficulty Tiers | 0/TBD | Not started | - |
