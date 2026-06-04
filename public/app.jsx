@@ -149,6 +149,7 @@ const I18N = {
     "queue.botOfferBtn": "🤖 Play vs Bot",
     "err.ALREADY_IN_QUEUE": "You're already in a queue",
     "err.ALREADY_IN_ROOM": "You're already in a match",
+    "err.RATE_LIMITED": "Too many attempts — wait a moment",
   },
   vi: {
     "common.or": "HOẶC", "common.copied": "Đã chép ✓",
@@ -279,6 +280,7 @@ const I18N = {
     "queue.botOfferBtn": "🤖 Chơi với máy",
     "err.ALREADY_IN_QUEUE": "Bạn đang trong hàng chờ rồi",
     "err.ALREADY_IN_ROOM": "Bạn đang trong trận rồi",
+    "err.RATE_LIMITED": "Quá nhiều lần thử — chờ một lát",
   },
 };
 function t(k, p) {
