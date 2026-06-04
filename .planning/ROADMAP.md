@@ -191,7 +191,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 **Wave 1**
 
-- [ ] 05-01-PLAN.md — Casual Quick Match slice: queues map, tryPair/createMatchedRoom pairing engine + double-pairing race guard, joinQueue/leaveQueue/matchFound, sweep timer, Wave-0 test scaffold + TEST_EXPORTS seam, lobby Quick Match button + queue wait screen (EN/VI) (QUEUE-01)
+- [x] 05-01-PLAN.md — Casual Quick Match slice: queues map, tryPair/createMatchedRoom pairing engine + double-pairing race guard, joinQueue/leaveQueue/matchFound, sweep timer, Wave-0 test scaffold + TEST_EXPORTS seam, lobby Quick Match button + queue wait screen (EN/VI) (QUEUE-01)
 
 **Wave 2** *(blocked on Wave 1 — extends server.js + app.jsx queue engine)*
 
@@ -227,5 +227,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 2. Accounts & Identity | 9/9 | Complete   | 2026-06-02 |
 | 3. Match Recording | 3/3 | Complete    | 2026-06-03 |
 | 4. Ranked Mode & Leaderboard | 7/7 | Complete    | 2026-06-03 |
-| 5. Public Matchmaking | 0/TBD | Not started | - |
+| 5. Public Matchmaking | 1/3 | In Progress|  |
 | 6. Bot Difficulty Tiers | 0/TBD | Not started | - |

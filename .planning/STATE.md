@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 5 context gathered
-last_updated: "2026-06-03T10:46:49.952Z"
-last_activity: 2026-06-03
+stopped_at: Completed 05-01-PLAN.md, at human-verify checkpoint
+last_updated: "2026-06-04T01:16:33.901Z"
+last_activity: 2026-06-03 -- Phase 05 execution started
 progress:
   total_phases: 6
   completed_phases: 4
-  total_plans: 22
-  completed_plans: 22
+  total_plans: 25
+  completed_plans: 23
   percent: 67
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-01)
 
 **Core value:** Two players can find each other and play a fair, fast, satisfying game of Battleship — and have a reason to come back tomorrow.
-**Current focus:** Phase 04 — ranked-mode-leaderboard
+**Current focus:** Phase 05 — public-matchmaking
 
 ## Current Position
 
-Phase: 5
-Plan: Not started
-Status: Executing Phase 04
-Last activity: 2026-06-03
+Phase: 05 (public-matchmaking) — EXECUTING
+Plan: 2 of 3
+Status: Ready to execute
+Last activity: 2026-06-03 -- Phase 05 execution started
 
 Progress: [█░░░░░░░░░] 11%
 
@@ -61,6 +61,7 @@ Progress: [█░░░░░░░░░] 11%
 | Phase 04 P01 | 25 min | 3 tasks | 4 files |
 | Phase 04 P03 | ~4 min | 2 tasks | 3 files |
 | Phase 04-ranked-mode-leaderboard P04 | 4min | 4 tasks | 5 files |
+| Phase 05-public-matchmaking P01 | 7 min | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -94,6 +95,9 @@ Recent decisions affecting current work:
 - [Phase 04 P05 D-11]: Season soft-reset formula: new_rating = 1500 + (old_rating - 1500) * 0.5; rd reset to 350; volatility = 0.06; games_played = 0; all bound as $N (RANK-05)
 - [Phase 04 P05 D-12]: Archive runs BEFORE blend — INSERT INTO rating_history SELECT FROM ratings precedes UPDATE ratings; history rows are INSERT-only and never deleted
 - [Phase 04 P05 D-13]: Season reset is CLI-only (no express/socket/HTTP surface); runs on server box via npm run season-reset; grep-verified absence of HTTP in script
+- [Phase ?]: Synchronous delete-before-await in tryPair prevents double-pairing race (T-5-05)
+- [Phase ?]: matchFound sets setScreen('placement') unconditionally — no screen guard per D-10 (Pitfall 4)
+- [Phase ?]: joinQueueLimiter: 5/60s per clientId using RateLimiterMemory (T-5-03, no new dependency)
 
 ### Pending Todos
 
@@ -117,6 +121,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-06-03T10:46:49.934Z
-Stopped at: Phase 5 context gathered
-Resume file: .planning/phases/05-public-matchmaking/05-CONTEXT.md
+Last session: 2026-06-04T01:16:33.896Z
+Stopped at: Completed 05-01-PLAN.md, at human-verify checkpoint
+Resume file: None

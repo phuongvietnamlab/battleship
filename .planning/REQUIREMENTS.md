@@ -51,7 +51,7 @@ The competitive core: durable persistence, accounts, ranked play, and public mat
 
 ### Matchmaking (QUEUE)
 
-- [ ] **QUEUE-01**: A player can join a public quick-match queue and be paired with another online player without a room code
+- [x] **QUEUE-01**: A player can join a public quick-match queue and be paired with another online player without a room code
 - [ ] **QUEUE-02**: Ranked matchmaking pairs players within an ELO window that widens the longer they wait
 - [ ] **QUEUE-03**: A player's queue entry is removed when they disconnect or leave the queue
 
@@ -127,7 +127,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | RANK-03 | Phase 4 — Ranked Mode & Leaderboard | Complete |
 | RANK-04 | Phase 4 — Ranked Mode & Leaderboard | Complete |
 | RANK-05 | Phase 4 — Ranked Mode & Leaderboard | Complete |
-| QUEUE-01 | Phase 5 — Public Matchmaking | Pending |
+| QUEUE-01 | Phase 5 — Public Matchmaking | Complete |
 | QUEUE-02 | Phase 5 — Public Matchmaking | Pending |
 | QUEUE-03 | Phase 5 — Public Matchmaking | Pending |
 | BOT-01 | Phase 6 — Bot Difficulty Tiers | Pending |
