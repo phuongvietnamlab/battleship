@@ -636,7 +636,7 @@ function PasswordResetForm({ resetToken, onSuccess, onBack }) {
 // Only rendered when !authUser (guests only). Collapsed by default.
 // On success calls onAuthSuccess(user) so App sets authUser.
 // onForgotPassword: callback from App/Lobby to open PasswordResetForm (Plan 09).
-function EmailAuthForm({ onAuthSuccess, clientId: cid, onForgotPassword }) {
+function EmailAuthForm({ onAuthSuccess, clientId: cid }) {
   const [collapsed, setCollapsed] = useState(true);
   const [mode, setMode] = useState("login"); // "login" | "signup"
   const [email, setEmail] = useState("");
@@ -728,11 +728,7 @@ function EmailAuthForm({ onAuthSuccess, clientId: cid, onForgotPassword }) {
             >
               {mode === "login" ? t("auth.toggleToSignup") : t("auth.toggleToLogin")}
             </button>
-            {mode === "login" && (
-              <button type="button" className="email-auth-link" onClick={handleForgotPassword}>
-                {t("auth.forgotPassword")}
-              </button>
-            )}
+            {mode === "login" && null}
           </div>
         </form>
       )}
@@ -745,7 +741,7 @@ function EmailAuthForm({ onAuthSuccess, clientId: cid, onForgotPassword }) {
 // resetMode: boolean — true when PasswordResetForm should be shown in request mode
 // onForgotPassword: opens PasswordResetForm in request mode
 // onResetBack: closes PasswordResetForm and returns to normal login view
-function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onRankedMatch, onHelp, onLeaderboard, error, authUser, authError, verifyNotice, clientId, signInDisabled, onSignInDisable, onEmailAuthSuccess, resetToken, resetMode, onForgotPassword, onResetBack }) {
+function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onRankedMatch, onHelp, onLeaderboard, error, authUser, authError, verifyNotice, clientId, signInDisabled, onSignInDisable, onEmailAuthSuccess }) {
   const [code, setCode] = useState("");
   const [mode, setMode] = useState("classic");
   const [ranked, setRanked] = useState(false);
@@ -820,23 +816,13 @@ function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onRankedMatch, onHelp, o
               {authError === "rateLimited" ? t("auth.errRateLimited") : t("auth.errFailed")}
             </div>
           )}
-          {(resetToken != null || resetMode) ? (
-            <div className="email-auth-wrap">
-              <PasswordResetForm
-                resetToken={resetToken || null}
-                onSuccess={onResetBack}
-                onBack={onResetBack}
-              />
-            </div>
-          ) : (
-            <>
+                    <>
               <GoogleSignInButton clientId={clientId} disabled={signInDisabled} onDisable={onSignInDisable} />
               <div style={{ height: 8 }} />
               <FacebookSignInButton clientId={clientId} disabled={signInDisabled} onDisable={onSignInDisable} />
               <div style={{ height: 8 }} />
-              <EmailAuthForm onAuthSuccess={onEmailAuthSuccess} clientId={clientId} onForgotPassword={onForgotPassword} />
+              <EmailAuthForm onAuthSuccess={onEmailAuthSuccess} clientId={clientId} />
             </>
-          )}
         </>
       )}
       <button className="btn ghost help-link" onClick={onHelp}>{t("help.open")}</button>
@@ -2513,7 +2499,7 @@ function App() {
 
       {notice && <div className="notice-toast">{notice}</div>}
 
-      {screen === "lobby" && <Lobby onCreate={createRoom} onJoin={joinRoom} onBot={handleBot} onQuickMatch={handleQuickMatch} onRankedMatch={handleRankedMatch} onHelp={() => setHelpOpen(true)} onLeaderboard={() => setScreen("leaderboard")} error={error} authUser={authUser} authError={authError} verifyNotice={verifyNotice} clientId={clientId} signInDisabled={signInDisabled} onSignInDisable={() => setSignInDisabled(true)} onEmailAuthSuccess={setAuthUser} resetToken={resetToken} resetMode={resetMode} onForgotPassword={() => setResetMode(true)} onResetBack={() => { setResetToken(null); setResetMode(false); }} />}
+      {screen === "lobby" && <Lobby onCreate={createRoom} onJoin={joinRoom} onBot={handleBot} onQuickMatch={handleQuickMatch} onRankedMatch={handleRankedMatch} onHelp={() => setHelpOpen(true)} onLeaderboard={() => setScreen("leaderboard")} error={error} authUser={authUser} authError={authError} verifyNotice={verifyNotice} clientId={clientId} signInDisabled={signInDisabled} onSignInDisable={() => setSignInDisabled(true)} onEmailAuthSuccess={setAuthUser} />}
 
       {screen === "queue" && (
         <div className="lobby">
