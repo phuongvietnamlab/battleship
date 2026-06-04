@@ -218,7 +218,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 **Wave 1**
 
-- [ ] 06-01-PLAN.md — Algorithm engine: four pure tier algorithms (easy/medium/hard/insane) + headless Vitest win-rate validation + botPick dispatch wiring (BOT-01, SC#2, SC#3)
+- [x] 06-01-PLAN.md — Algorithm engine: four pure tier algorithms (easy/medium/hard/insane) + headless Vitest win-rate validation + botPick dispatch wiring (BOT-01, SC#2, SC#3)
 
 **Wave 2** *(blocked on Wave 1)*
 
@@ -236,4 +236,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 3. Match Recording | 3/3 | Complete    | 2026-06-03 |
 | 4. Ranked Mode & Leaderboard | 7/7 | Complete    | 2026-06-03 |
 | 5. Public Matchmaking | 3/3 | Complete    | 2026-06-04 |
-| 6. Bot Difficulty Tiers | 0/2 | Not started | - |
+| 6. Bot Difficulty Tiers | 1/2 | In Progress|  |
