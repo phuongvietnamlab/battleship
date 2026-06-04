@@ -132,14 +132,18 @@ const I18N = {
     "leaderboard.rating": "Rating",
     "leaderboard.back": "Back to lobby",
     "leaderboard.open": "Leaderboard",
-    "queue.quickMatch": "Quick Match",
-    "queue.titleCasual": "Finding Opponent",
-    "queue.sub": "Sit tight — we are matching you with another player.",
+    "queue.quickMatch": "⚡ Quick Match",
+    "queue.ranked": "🏆 Ranked Match",
+    "queue.titleCasual": "Quick Match",
+    "queue.titleRanked": "Ranked Match",
+    "queue.sub": "Searching for an opponent…",
     "queue.searching": "Searching…",
-    "queue.elapsed": "Waiting",
+    "queue.elapsed": "Time waiting",
+    "queue.searchWindow": "Search window",
+    "queue.windowAny": "Any rating",
     "queue.cancel": "Leave Queue",
-    "err.ALREADY_IN_QUEUE": "Already in queue",
-    "err.ALREADY_IN_ROOM": "Already in a game",
+    "err.ALREADY_IN_QUEUE": "You're already in a queue",
+    "err.ALREADY_IN_ROOM": "You're already in a match",
   },
   vi: {
     "common.or": "HOẶC", "common.copied": "Đã chép ✓",
@@ -256,14 +260,18 @@ const I18N = {
     "leaderboard.rating": "Điểm",
     "leaderboard.back": "Quay lại sảnh",
     "leaderboard.open": "Bảng xếp hạng",
-    "queue.quickMatch": "Đấu nhanh",
-    "queue.titleCasual": "Đang tìm đối thủ",
-    "queue.sub": "Hãy chờ một chút — chúng tôi đang ghép cặp bạn.",
+    "queue.quickMatch": "⚡ Ghép trận nhanh",
+    "queue.ranked": "🏆 Trận xếp hạng",
+    "queue.titleCasual": "Ghép trận nhanh",
+    "queue.titleRanked": "Trận xếp hạng",
+    "queue.sub": "Đang tìm đối thủ…",
     "queue.searching": "Đang tìm…",
-    "queue.elapsed": "Đang chờ",
+    "queue.elapsed": "Thời gian chờ",
+    "queue.searchWindow": "Khoảng điểm tìm kiếm",
+    "queue.windowAny": "Mọi điểm số",
     "queue.cancel": "Rời hàng chờ",
-    "err.ALREADY_IN_QUEUE": "Bạn đang trong hàng chờ",
-    "err.ALREADY_IN_ROOM": "Bạn đang trong một ván đấu",
+    "err.ALREADY_IN_QUEUE": "Bạn đang trong hàng chờ rồi",
+    "err.ALREADY_IN_ROOM": "Bạn đang trong trận rồi",
   },
 };
 function t(k, p) {
@@ -714,7 +722,7 @@ function EmailAuthForm({ onAuthSuccess, clientId: cid, onForgotPassword }) {
 // resetMode: boolean — true when PasswordResetForm should be shown in request mode
 // onForgotPassword: opens PasswordResetForm in request mode
 // onResetBack: closes PasswordResetForm and returns to normal login view
-function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onHelp, onLeaderboard, error, authUser, authError, verifyNotice, clientId, signInDisabled, onSignInDisable, onEmailAuthSuccess, resetToken, resetMode, onForgotPassword, onResetBack }) {
+function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onRankedMatch, onHelp, onLeaderboard, error, authUser, authError, verifyNotice, clientId, signInDisabled, onSignInDisable, onEmailAuthSuccess, resetToken, resetMode, onForgotPassword, onResetBack }) {
   const [code, setCode] = useState("");
   const [mode, setMode] = useState("classic");
   const [ranked, setRanked] = useState(false);
@@ -734,6 +742,15 @@ function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onHelp, onLeaderboard, e
       <div style={{ height: 8 }} />
       <div className="divider">{t("common.or")}</div>
       <button className="btn primary" onClick={onQuickMatch}>{t("queue.quickMatch")}</button>
+      <div style={{ height: 8 }} />
+      {authUser ? (
+        <button className="btn steel" onClick={onRankedMatch}>{t("queue.ranked")}</button>
+      ) : (
+        <div>
+          <button className="btn ghost" disabled aria-disabled="true" onClick={() => {}}>{t("queue.ranked")}</button>
+          <span style={{ display: "block", fontSize: "14px", color: "var(--sky)", textAlign: "center", marginTop: 4 }}>{t("ranked.guestHint")}</span>
+        </div>
+      )}
       <div style={{ height: 10 }} />
       <div className="mode-pick">
         <button className={"mode-opt" + (mode === "classic" ? " on" : "")} onClick={() => handleModeChange("classic")}>
@@ -1672,6 +1689,7 @@ function App() {
   // Queue state (Phase 5 — 05-01)
   const [queueType, setQueueType]               = useState(null);   // "casual" | "ranked" | null
   const [queueSince, setQueueSince]             = useState(null);   // Date.now() when enqueued
+  const [queueWindow, setQueueWindow]           = useState(null);   // current ELO window width (ranked only)
   const [botOfferVisible, setBotOfferVisible]   = useState(false);  // D-09 delayed bot prompt
   const [elapsedSec, setElapsedSec]             = useState(0);      // re-render tick for elapsed timer
   const myBubbleTimer = useRef(null);
@@ -1897,6 +1915,7 @@ function App() {
       persistRoom(matchCode);
       setQueueType(null);
       setQueueSince(null);
+      setQueueWindow(null);
       setBotOfferVisible(false);
       if (botOfferTimerRef.current) { clearTimeout(botOfferTimerRef.current); botOfferTimerRef.current = null; }
       if (queueTimerRef.current) { clearInterval(queueTimerRef.current); queueTimerRef.current = null; }
@@ -1904,7 +1923,8 @@ function App() {
       setScreen("placement");
     });
     socket.on("queueStatus", ({ waitSec, windowWidth }) => {
-      if (windowWidth != null) { /* setQueueWindow(windowWidth) — Plan 02 */ }
+      if (windowWidth != null) setQueueWindow(windowWidth);
+      // waitSec from server is secondary — client derives elapsed from queueSince for accuracy
     });
     // Connect now that all listeners are attached. If the socket somehow already
     // connected (hot remount), run resume immediately instead.
@@ -1971,11 +1991,26 @@ function App() {
     socket.emit("leaveQueue", {}, () => {});
     setQueueType(null);
     setQueueSince(null);
+    setQueueWindow(null);
     setBotOfferVisible(false);
     if (botOfferTimerRef.current) { clearTimeout(botOfferTimerRef.current); botOfferTimerRef.current = null; }
     if (queueTimerRef.current) { clearInterval(queueTimerRef.current); queueTimerRef.current = null; }
     setElapsedSec(0);
     setScreen("lobby");
+  }
+  function handleRankedMatch() {
+    setError(null);
+    socket.emit("joinQueue", { type: "ranked", clientId, profile }, (res) => {
+      if (res && res.ok) {
+        setQueueType("ranked");
+        setQueueSince(Date.now());
+        setQueueWindow(null);
+        setElapsedSec(0);
+        setScreen("queue");
+      } else {
+        setError(errText(res));
+      }
+    });
   }
   function confirmPlacement(ships) {
     if (vsBot) {
@@ -2281,16 +2316,28 @@ function App() {
 
       {notice && <div className="notice-toast">{notice}</div>}
 
-      {screen === "lobby" && <Lobby onCreate={createRoom} onJoin={joinRoom} onBot={startBot} onQuickMatch={handleQuickMatch} onHelp={() => setHelpOpen(true)} onLeaderboard={() => setScreen("leaderboard")} error={error} authUser={authUser} authError={authError} verifyNotice={verifyNotice} clientId={clientId} signInDisabled={signInDisabled} onSignInDisable={() => setSignInDisabled(true)} onEmailAuthSuccess={setAuthUser} resetToken={resetToken} resetMode={resetMode} onForgotPassword={() => setResetMode(true)} onResetBack={() => { setResetToken(null); setResetMode(false); }} />}
+      {screen === "lobby" && <Lobby onCreate={createRoom} onJoin={joinRoom} onBot={startBot} onQuickMatch={handleQuickMatch} onRankedMatch={handleRankedMatch} onHelp={() => setHelpOpen(true)} onLeaderboard={() => setScreen("leaderboard")} error={error} authUser={authUser} authError={authError} verifyNotice={verifyNotice} clientId={clientId} signInDisabled={signInDisabled} onSignInDisable={() => setSignInDisabled(true)} onEmailAuthSuccess={setAuthUser} resetToken={resetToken} resetMode={resetMode} onForgotPassword={() => setResetMode(true)} onResetBack={() => { setResetToken(null); setResetMode(false); }} />}
 
       {screen === "queue" && (
         <div className="lobby">
-          <h2>{t("queue.titleCasual")}</h2>
+          <h2>{queueType === "ranked" ? t("queue.titleRanked") : t("queue.titleCasual")}</h2>
           <p className="sub">{t("queue.sub")}</p>
           <div className="queue-timer">
-            <span className="queue-elapsed">{String(Math.floor(elapsedSec / 60)).padStart(2, "0")}:{String(elapsedSec % 60).padStart(2, "0")}</span>
+            <span className="queue-elapsed" aria-live="polite" aria-atomic="true">{String(Math.floor(elapsedSec / 60)).padStart(2, "0")}:{String(elapsedSec % 60).padStart(2, "0")}</span>
             <span className="queue-label">{t("queue.elapsed")}</span>
           </div>
+          {queueType === "ranked" && (
+            <div className="queue-window">
+              <span className="queue-window-label">{t("queue.searchWindow")}</span>
+              <span className="queue-window-value">
+                {queueWindow == null
+                  ? "±150"
+                  : !isFinite(queueWindow)
+                    ? t("queue.windowAny")
+                    : "±" + queueWindow}
+              </span>
+            </div>
+          )}
           <div style={{ height: 12 }} />
           <span className="status-pill pill-wait">{t("queue.searching")}</span>
           <div style={{ height: 20 }} />
