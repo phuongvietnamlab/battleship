@@ -814,3 +814,20 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
   color: var(--gold);
   font-variant-numeric: tabular-nums;
 }
+/* Bot offer prompt (delayed, D-09 — Phase 5 05-03) */
+.queue-bot-offer {
+  margin: 16px 0 0;
+  padding: 16px;
+  background: rgba(255,255,255,.04);
+  border: 1px solid var(--panel-brd);
+  border-radius: 12px;
+  text-align: center;
+  animation: rise .35s cubic-bezier(.34,1.4,.4,1) both;
+}
+.queue-bot-offer .sub {
+  margin: 0 0 8px;
+}
+.queue-bot-offer .btn {
+  width: auto;
+  padding: 12px 24px;
+}

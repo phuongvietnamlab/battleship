@@ -7,6 +7,9 @@ const BOARD = 11;
 const COLS = ["1","2","3","4","5","6","7","8","9","10","11"];
 const ROWS = ["A","B","C","D","E","F","G","H","I","J","K"];
 
+// D-09: delay before bot offer appears on the queue wait screen (mirrors server BOT_OFFER_DELAY_MS)
+const BOT_OFFER_DELAY_MS = 30000;
+
 // ---------- i18n (English primary, Vietnamese secondary) ----------
 // Locale auto-detected once at load: Vietnamese device -> vi, everything else -> en.
 // t(key, params) interpolates {name} placeholders. Missing keys fall back to en.
@@ -142,6 +145,8 @@ const I18N = {
     "queue.searchWindow": "Search window",
     "queue.windowAny": "Any rating",
     "queue.cancel": "Leave Queue",
+    "queue.botOfferBody": "No opponent yet. Play against the bot instead?",
+    "queue.botOfferBtn": "🤖 Play vs Bot",
     "err.ALREADY_IN_QUEUE": "You're already in a queue",
     "err.ALREADY_IN_ROOM": "You're already in a match",
   },
@@ -270,6 +275,8 @@ const I18N = {
     "queue.searchWindow": "Khoảng điểm tìm kiếm",
     "queue.windowAny": "Mọi điểm số",
     "queue.cancel": "Rời hàng chờ",
+    "queue.botOfferBody": "Chưa tìm được đối thủ. Chơi với máy thay vào?",
+    "queue.botOfferBtn": "🤖 Chơi với máy",
     "err.ALREADY_IN_QUEUE": "Bạn đang trong hàng chờ rồi",
     "err.ALREADY_IN_ROOM": "Bạn đang trong trận rồi",
   },
@@ -1697,6 +1704,7 @@ function App() {
   const graceTimerRef = useRef(null);
   const botOfferTimerRef = useRef(null);
   const queueTimerRef    = useRef(null);
+  const queueTypeRef     = useRef(null); // mirrors queueType for cleanup closures (D-12)
   const joinedUrlRef = useRef(false);   // chỉ auto-join từ link mời 1 lần
   const shakeTimer = useRef(null);
   const triggerShake = useCallback(() => {
@@ -1926,6 +1934,18 @@ function App() {
       if (windowWidth != null) setQueueWindow(windowWidth);
       // waitSec from server is secondary — client derives elapsed from queueSince for accuracy
     });
+    // D-11: partner disconnected before game started — server re-queued this player at front.
+    // Reset queue state and return to the queue wait screen so search resumes.
+    socket.on("requeued", ({ type }) => {
+      setQueueType(type || "casual");
+      setQueueSince(Date.now());
+      setQueueWindow(null);
+      setBotOfferVisible(false);
+      if (botOfferTimerRef.current) { clearTimeout(botOfferTimerRef.current); botOfferTimerRef.current = null; }
+      setCode(null);
+      persistRoom(null);
+      setScreen("queue");
+    });
     // Connect now that all listeners are attached. If the socket somehow already
     // connected (hot remount), run resume immediately instead.
     if (!socket.connected) socket.connect();
@@ -1939,7 +1959,14 @@ function App() {
     return () => socket.off();
   }, [addLog]);
 
-  // Elapsed timer: tick every 1 s while on the queue screen; clear when leaving.
+  // Keep queueTypeRef in sync with queueType state for cleanup closures (D-12).
+  // Effect closures capture the value at render time; using a mutable ref lets
+  // the leaveQueue guard read the LATEST value even when batched state updates
+  // (e.g. matchFound: setQueueType(null) + setScreen) change both atomically.
+  useEffect(() => { queueTypeRef.current = queueType; }, [queueType]);
+
+  // Elapsed timer + bot-offer timer + navigate-away leaveQueue cleanup.
+  // Gated on screen === "queue": all timers start on mount, all cleared on unmount.
   useEffect(() => {
     if (screen !== "queue") {
       if (queueTimerRef.current) { clearInterval(queueTimerRef.current); queueTimerRef.current = null; }
@@ -1949,8 +1976,19 @@ function App() {
     queueTimerRef.current = setInterval(() => {
       setElapsedSec(queueSince ? Math.floor((Date.now() - queueSince) / 1000) : 0);
     }, 1000);
+    // D-09: show bot offer after delay if still waiting
+    if (botOfferTimerRef.current) clearTimeout(botOfferTimerRef.current);
+    botOfferTimerRef.current = setTimeout(() => setBotOfferVisible(true), BOT_OFFER_DELAY_MS);
     return () => {
       if (queueTimerRef.current) { clearInterval(queueTimerRef.current); queueTimerRef.current = null; }
+      if (botOfferTimerRef.current) { clearTimeout(botOfferTimerRef.current); botOfferTimerRef.current = null; }
+      // D-12: navigate-away / unmount while still queued → drop the entry immediately.
+      // Use queueTypeRef (not closed-over queueType) to read the LATEST value at cleanup
+      // time — avoids firing leaveQueue on the matchFound transition where React batches
+      // setQueueType(null) + setScreen("placement") atomically before the cleanup runs (T-5-12).
+      if (queueTypeRef.current) {
+        socket.emit("leaveQueue", {}, () => {});
+      }
     };
   }, [screen, queueSince]);
 
@@ -2342,6 +2380,22 @@ function App() {
           <span className="status-pill pill-wait">{t("queue.searching")}</span>
           <div style={{ height: 20 }} />
           <button className="btn ghost" onClick={handleLeaveQueue}>{t("queue.cancel")}</button>
+          {botOfferVisible && (
+            <div className="queue-bot-offer">
+              <p className="sub">{t("queue.botOfferBody")}</p>
+              <button className="btn ghost" onClick={() => {
+                socket.emit("leaveQueue", {}, () => {});
+                setQueueType(null);
+                setQueueSince(null);
+                setQueueWindow(null);
+                setBotOfferVisible(false);
+                if (botOfferTimerRef.current) { clearTimeout(botOfferTimerRef.current); botOfferTimerRef.current = null; }
+                if (queueTimerRef.current) { clearInterval(queueTimerRef.current); queueTimerRef.current = null; }
+                setElapsedSec(0);
+                startBot();
+              }}>{t("queue.botOfferBtn")}</button>
+            </div>
+          )}
         </div>
       )}
 
