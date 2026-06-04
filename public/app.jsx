@@ -1722,6 +1722,9 @@ function App() {
   const botShotsRef = useRef(new Set());       // ô máy đã bắn
   const botQueueRef = useRef([]);              // hàng đợi ô mục tiêu của máy
   const myShotsRef = useRef(new Set());         // ô ta đã bắn (đồng bộ tức thời cho bot)
+  const botTierRef = useRef("medium");         // tier hiện tại ("easy"|"medium"|"hard"|"insane")
+  const botHitsRef = useRef(new Set());        // ô máy đã trúng (cho density/axis inference)
+  const botRemainingRef = useRef([]);          // kích thước tàu còn lại (chưa chìm)
 
   const addLog = useCallback((s) => setLog((l) => [s, ...l].slice(0, 40)), []);
   const showNotice = useCallback((s) => { setNotice(s); setTimeout(() => setNotice((n) => (n === s ? null : n)), 4000); }, []);
@@ -2097,7 +2100,7 @@ function App() {
     }
     return { occ, ships };
   }
-  function startBot(keepScore) {
+  function startBot(keepScore, tier = "medium") {
     setError(null); setVsBot(true); persistRoom(null); setCode(null); setTurnDeadline(null);
     setOppPresent(true); setOppReady(false); setIReady(false); setMyTurn(false);
     setOcc(new Set()); setIncoming(new Map()); setMyShots(new Map());
@@ -2106,13 +2109,28 @@ function App() {
     if (!keepScore) { setMyScore(0); setOppScore(0); }
     botData.current = null; myShipsRef.current = []; botShotsRef.current = new Set();
     botQueueRef.current = []; myShotsRef.current = new Set();
+    botTierRef.current = tier;
+    botHitsRef.current = new Set();
+    botRemainingRef.current = FLEET_DEF.map((f) => f.size);
     setScreen("placement");
   }
   function rematchAction() {
     if (vsBot) { startBot(true); return; } // giữ tỉ số
     socket.emit("rematch");
   }
-  function botPick() {
+  // ── Bot tier algorithm helpers ─────────────────────────────────────────────
+  // pickEasy: pure random from unshot cells
+  function pickEasy() {
+    const pool = [];
+    for (let r = 0; r < BOARD; r++)
+      for (let c = 0; c < BOARD; c++) {
+        const k = key(r, c);
+        if (!botShotsRef.current.has(k)) pool.push(k);
+      }
+    return pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
+  }
+  // pickMedium: verbatim copy of legacy botPick body (SC#3 anchor — must not change)
+  function pickMedium() {
     while (botQueueRef.current.length) {
       const k = botQueueRef.current.pop();
       if (!botShotsRef.current.has(k)) return k;
@@ -2126,12 +2144,126 @@ function App() {
     const pool = parity.length ? parity : any;
     return pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
   }
+  // buildDensityMap: enumerate valid placements for unsunk ships, reject miss cells (D-03)
+  function buildDensityMap() {
+    const shots = botShotsRef.current;
+    const hits = botHitsRef.current;
+    const remaining = botRemainingRef.current;
+    // Miss set: shots that are not hits
+    const misses = new Set();
+    for (const k of shots) { if (!hits.has(k)) misses.add(k); }
+    const density = {};
+    for (let r = 0; r < BOARD; r++)
+      for (let c = 0; c < BOARD; c++)
+        density[key(r, c)] = 0;
+    for (const size of remaining) {
+      for (const dir of ["h", "v"]) {
+        for (let r = 0; r < BOARD; r++) {
+          for (let c = 0; c < BOARD; c++) {
+            const cells = cellsFor(r, c, size, dir);
+            if (!inBounds(cells)) continue;
+            let valid = true;
+            for (const cell of cells) {
+              if (misses.has(key(cell.r, cell.c))) { valid = false; break; }
+            }
+            if (!valid) continue;
+            for (const cell of cells) { density[key(cell.r, cell.c)]++; }
+          }
+        }
+      }
+    }
+    return density;
+  }
+  // inferAxis: derive ship orientation from confirmed hit geometry (reads only botHitsRef — D-03)
+  function inferAxis() {
+    const hits = botHitsRef.current;
+    if (hits.size < 2) return null;
+    const hitArr = [...hits].map((k) => { const [r, c] = k.split(",").map(Number); return { r, c }; });
+    const rows = new Set(hitArr.map((h) => h.r));
+    const cols = new Set(hitArr.map((h) => h.c));
+    if (rows.size === 1) return "h";
+    if (cols.size === 1) return "v";
+    return null;
+  }
+  // pickHard: drain queue by highest density, else global max-density hunt (D-03)
+  function pickHard() {
+    if (botQueueRef.current.length) {
+      const density = buildDensityMap();
+      const queueCandidates = botQueueRef.current.filter((k) => !botShotsRef.current.has(k));
+      botQueueRef.current = [];
+      if (queueCandidates.length) {
+        queueCandidates.sort((a, b) => density[b] - density[a]);
+        botQueueRef.current = queueCandidates.slice(1);
+        return queueCandidates[0];
+      }
+    }
+    const density = buildDensityMap();
+    let bestKey = null, bestScore = -1;
+    for (let r = 0; r < BOARD; r++)
+      for (let c = 0; c < BOARD; c++) {
+        const k = key(r, c);
+        if (botShotsRef.current.has(k)) continue;
+        if (density[k] > bestScore) { bestScore = density[k]; bestKey = k; }
+      }
+    return bestKey;
+  }
+  // pickInsane: axis-lock from hits + parity-masked density with unmasked fallback (D-03)
+  function pickInsane() {
+    const density = buildDensityMap();
+    if (botQueueRef.current.length) {
+      const validQueue = botQueueRef.current.filter((k) => !botShotsRef.current.has(k));
+      const axis = inferAxis();
+      let candidates = validQueue;
+      if (axis) {
+        const hitArr = [...botHitsRef.current].map((h) => { const [hr, hc] = h.split(",").map(Number); return { r: hr, c: hc }; });
+        const axisFiltered = validQueue.filter((k) => {
+          const [r, c] = k.split(",").map(Number);
+          return axis === "h" ? hitArr.some((h) => h.r === r) : hitArr.some((h) => h.c === c);
+        });
+        if (axisFiltered.length) candidates = axisFiltered;
+      }
+      botQueueRef.current = [];
+      if (candidates.length) {
+        candidates.sort((a, b) => density[b] - density[a]);
+        botQueueRef.current = candidates.slice(1);
+        return candidates[0];
+      }
+    }
+    // Hunt phase: parity-masked density
+    let bestKey = null, bestScore = -1;
+    for (let r = 0; r < BOARD; r++)
+      for (let c = 0; c < BOARD; c++) {
+        if ((r + c) % 2 !== 0) continue;
+        const k = key(r, c);
+        if (botShotsRef.current.has(k)) continue;
+        if (density[k] > bestScore) { bestScore = density[k]; bestKey = k; }
+      }
+    // Fallback: lift parity mask when exhausted (Pitfall 7)
+    if (!bestKey) {
+      for (let r = 0; r < BOARD; r++)
+        for (let c = 0; c < BOARD; c++) {
+          const k = key(r, c);
+          if (botShotsRef.current.has(k)) continue;
+          if (density[k] > bestScore) { bestScore = density[k]; bestKey = k; }
+        }
+    }
+    return bestKey;
+  }
+  // botPick: dispatches on botTierRef.current (guard-clause style per CLAUDE.md)
+  function botPick() {
+    const tier = botTierRef.current;
+    if (tier === "easy")   return pickEasy();
+    if (tier === "hard")   return pickHard();
+    if (tier === "insane") return pickInsane();
+    return pickMedium(); // default: covers "medium" + any unknown stored value
+  }
   function botShoot() {
     const k = botPick();
     if (k == null) return;
     botShotsRef.current.add(k);
     const [r, c] = k.split(",").map(Number);
     const hit = myShipsRef.current.some((ship) => ship.has(k));
+    if (hit) botHitsRef.current.add(k); // track hits for density/axis inference
     setIncoming((m) => new Map(m).set(k, hit));
     setFlashMine(k);
     if (hit) {
@@ -2146,6 +2278,12 @@ function App() {
         if ([...ship].every((kk) => botShotsRef.current.has(kk))) { sunk = ship; break; }
       }
       if (sunk) {
+        // Remove one entry of sunk.size from botRemainingRef (for density enumeration)
+        const idx = botRemainingRef.current.indexOf(sunk.size);
+        if (idx !== -1) botRemainingRef.current.splice(idx, 1);
+        // Clear active-hit tracking — sunk ship resolved (Pitfall 4)
+        botHitsRef.current = new Set();
+        botQueueRef.current = [];
         setSunkMine((n) => n + 1);
         setSunkMyCells((s) => { const n = new Set(s); sunk.forEach((kk) => n.add(kk)); return n; });
         addLog(t("log.botSunk", { n: sunk.size })); Sound.sunk(); triggerShake();
