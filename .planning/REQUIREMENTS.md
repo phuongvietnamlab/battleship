@@ -57,7 +57,7 @@ The competitive core: durable persistence, accounts, ranked play, and public mat
 
 ### Bot (BOT)
 
-- [ ] **BOT-01**: A single-player can choose a bot difficulty tier (easy / medium / hard / insane), each a distinct targeting algorithm
+- [x] **BOT-01**: A single-player can choose a bot difficulty tier (easy / medium / hard / insane), each a distinct targeting algorithm
 
 ## v2 Requirements
 
@@ -130,7 +130,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | QUEUE-01 | Phase 5 — Public Matchmaking | Complete |
 | QUEUE-02 | Phase 5 — Public Matchmaking | Complete |
 | QUEUE-03 | Phase 5 — Public Matchmaking | Complete |
-| BOT-01 | Phase 6 — Bot Difficulty Tiers | Pending |
+| BOT-01 | Phase 6 — Bot Difficulty Tiers | Complete |
 
 **Coverage:**
 
