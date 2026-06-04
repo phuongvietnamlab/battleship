@@ -14,3 +14,8 @@ agents/
 .gsd-profile
 gsd-file-manifest.json
 gsd-install-state.json
+
+# Backups (contain secrets + data, never commit)
+backups/*.sql.gz
+backups/*.tar.gz
+!backups/.gitkeep

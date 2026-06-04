@@ -1,0 +1,33 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            set -e
+            cd /opt/battleship
+            
+            # Pull latest code
+            git pull origin main
+            
+            # Build only the app image (DB/Redis persist)
+            docker compose -f docker-compose.prod.yml build --no-cache app
+            
+            # Rolling restart: app only, DB/Redis untouched
+            docker compose -f docker-compose.prod.yml up -d --no-deps app
+            
+            # Cleanup old images
+            docker image prune -f
+            
+            echo "✅ Deployed at $(date)"

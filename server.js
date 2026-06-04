@@ -262,7 +262,7 @@ app.get("/api/leaderboard", leaderboardRateLimit, async (req, res) => {
 // 10 auth attempts/min per IP — protects against auth-route brute-force (T-02-09).
 const authLimiter = new RateLimiterMemory({ points: 10, duration: 60 });
 function authRateLimit(req, res, next) {
-  authLimiter.consume(req.ip).then(next).catch(() => res.status(429).json({ code: "RATE_LIMITED" }));
+  authLimiter.consume(req.ip).then(() => next()).catch(() => res.status(429).json({ code: "RATE_LIMITED" }));
 }
 
 // ─── JSON body parsing for email auth routes ────────────────────────────────

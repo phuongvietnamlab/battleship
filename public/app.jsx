@@ -29,7 +29,7 @@ const I18N = {
     "topbar.tagline": "Online · Sea Battle", "topbar.soundToggle": "Toggle sound",
     "lobby.title": "Sea Battle", "lobby.sub": "Play vs the bot, or create a room and send the code to a friend.",
     "lobby.playBot": "🤖 Play vs Bot", "lobby.createRoom": "⚓ Create new room", "lobby.enterCodeLabel": "Enter room code", "lobby.joinBtn": "Join room",
-    "mode.classicDesc": "Classic, no power-ups", "mode.advanceDesc": "Collect & use power-ups",
+    "mode.classic": "Classic", "mode.advance": "Advance ⚡", "mode.classicDesc": "Classic, no power-ups", "mode.advanceDesc": "Collect & use power-ups",
     "ranked.label": "Ranked", "ranked.desc": "Affects your rating", "ranked.guestHint": "Sign in to play ranked",
     "err.RANKED_REQUIRES_ACCOUNT": "Ranked requires a signed-in account", "err.RANKED_REQUIRES_CLASSIC": "Ranked is classic-mode only",
     "ship.carrier": "Carrier", "ship.battleship": "Battleship", "ship.cruiser": "Cruiser", "ship.submarine": "Submarine", "ship.destroyer": "Destroyer",
@@ -165,7 +165,7 @@ const I18N = {
     "topbar.tagline": "Online · Hải chiến", "topbar.soundToggle": "Bật/tắt âm thanh",
     "lobby.title": "Trận hải chiến", "lobby.sub": "Chơi với máy, hoặc tạo phòng rồi gửi mã cho bạn bè.",
     "lobby.playBot": "🤖 Chơi với máy", "lobby.createRoom": "⚓ Tạo phòng mới", "lobby.enterCodeLabel": "Nhập mã phòng", "lobby.joinBtn": "Vào phòng",
-    "mode.classicDesc": "Cổ điển, không power-up", "mode.advanceDesc": "Nhặt & dùng power-up",
+    "mode.classic": "Cổ điển", "mode.advance": "Nâng cao ⚡", "mode.classicDesc": "Cổ điển, không power-up", "mode.advanceDesc": "Nhặt & dùng power-up",
     "ranked.label": "Xếp hạng", "ranked.desc": "Ảnh hưởng xếp hạng của bạn", "ranked.guestHint": "Đăng nhập để chơi xếp hạng",
     "err.RANKED_REQUIRES_ACCOUNT": "Xếp hạng yêu cầu tài khoản đã đăng nhập", "err.RANKED_REQUIRES_CLASSIC": "Xếp hạng chỉ dành cho chế độ classic",
     "ship.carrier": "Tàu sân bay", "ship.battleship": "Thiết giáp hạm", "ship.cruiser": "Tàu tuần dương", "ship.submarine": "Tàu ngầm", "ship.destroyer": "Khu trục hạm",
@@ -758,11 +758,9 @@ function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onRankedMatch, onHelp, o
   return (
     <div className="lobby">
       <h2>{t("lobby.title")}</h2>
-      <p className="sub">{t("lobby.sub")}</p>
       {error && <div className="error">{error}</div>}
       {verifyNotice === "success" && <div className="notice verify-notice">{t("auth.verifySuccess")}</div>}
       {verifyNotice === "error" && <div className="error verify-notice">{t("auth.verifyError")}</div>}
-      <p style={{ margin: "0 0 6px", fontSize: "13px", opacity: 0.75 }}>{t("bot.selectTier")}</p>
       <div className="bot-tier-row">
         {VALID_TIERS.map((tier) => (
           <button
@@ -772,25 +770,21 @@ function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onRankedMatch, onHelp, o
           >{t("bot." + tier)}</button>
         ))}
       </div>
-      <div style={{ height: 8 }} />
       <div className="divider">{t("common.or")}</div>
       <button className="btn primary" onClick={onQuickMatch}>{t("queue.quickMatch")}</button>
       <div style={{ height: 8 }} />
       {authUser ? (
         <button className="btn steel" onClick={onRankedMatch}>{t("queue.ranked")}</button>
       ) : (
-        <div>
-          <button className="btn ghost" disabled aria-disabled="true" onClick={() => {}}>{t("queue.ranked")}</button>
-          <span style={{ display: "block", fontSize: "14px", color: "var(--sky)", textAlign: "center", marginTop: 4 }}>{t("ranked.guestHint")}</span>
-        </div>
+        <button className="btn ghost" disabled aria-disabled="true">{t("queue.ranked")}</button>
       )}
       <div style={{ height: 10 }} />
       <div className="mode-pick">
         <button className={"mode-opt" + (mode === "classic" ? " on" : "")} onClick={() => handleModeChange("classic")}>
-          <b>Classic</b><span>{t("mode.classicDesc")}</span>
+          <b>{t("mode.classic")}</b><span>{t("mode.classicDesc")}</span>
         </button>
         <button className={"mode-opt" + (mode === "advance" ? " on" : "") + (ranked ? " disabled" : "")} onClick={() => handleModeChange("advance")} disabled={ranked}>
-          <b>Advance ⚡</b><span>{t("mode.advanceDesc")}</span>
+          <b>{t("mode.advance")}</b><span>{t("mode.advanceDesc")}</span>
         </button>
       </div>
       <div className="ranked-toggle" style={{ display: "flex", alignItems: "center", gap: 8, margin: "8px 0" }}>
@@ -802,13 +796,12 @@ function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onRankedMatch, onHelp, o
             onChange={(e) => {
               const val = e.target.checked;
               setRanked(val);
-              if (val) setMode("classic"); // D-05: ranked forces classic
+              if (val) setMode("classic");
             }}
           />
           <b>{t("ranked.label")}</b>
           <span style={{ fontSize: "0.85em", color: "#888" }}>{t("ranked.desc")}</span>
         </label>
-        {!authUser && <span style={{ fontSize: "0.8em", color: "#888" }}>{t("ranked.guestHint")}</span>}
       </div>
       <button className="btn steel" onClick={() => onCreate(mode, ranked)}>{t("lobby.createRoom")}</button>
       <div className="divider">{t("common.or")}</div>
@@ -827,8 +820,6 @@ function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onRankedMatch, onHelp, o
               {authError === "rateLimited" ? t("auth.errRateLimited") : t("auth.errFailed")}
             </div>
           )}
-          {/* PasswordResetForm shown when: (a) ?reset= token in URL (set-new mode)
-              or (b) user clicked "Forgot password?" (request mode) */}
           {(resetToken != null || resetMode) ? (
             <div className="email-auth-wrap">
               <PasswordResetForm
@@ -1154,7 +1145,7 @@ function TurnRing({ secs, frac, show, myTurn }) {
         <circle cx="28" cy="28" r={R} fill="none" stroke="rgba(255,255,255,.12)" strokeWidth="5" />
         <circle cx="28" cy="28" r={R} fill="none" stroke={color} strokeWidth="5" strokeLinecap="round"
           strokeDasharray={C} strokeDashoffset={C * (1 - frac)} transform="rotate(-90 28 28)"
-          style={{ transition: "stroke-dashoffset .12s linear" }} />
+          style={{ transition: "stroke-dashoffset 1s linear" }} />
       </svg>
       <span className="turn-ring-sec" style={{ color }}>{secs}</span>
     </div>
@@ -1170,11 +1161,13 @@ function Battle({ myTurn, vsBot, occ, incoming, myShots, onFire, log, sunkOpp, s
     const dur = turnDur || 20000;
     const tick = () => {
       const rem = Math.max(0, turnDeadline - Date.now());
-      setSecs(Math.ceil(rem / 1000));
-      setFrac(Math.max(0, Math.min(1, rem / dur)));
+      const newSecs = Math.ceil(rem / 1000);
+      const newFrac = Math.max(0, Math.min(1, rem / dur));
+      setSecs(newSecs);
+      setFrac(newFrac);
     };
     tick();
-    const iv = setInterval(tick, 100);
+    const iv = setInterval(tick, 1000);
     return () => clearInterval(iv);
   }, [turnDeadline, turnDur]);
   // tự động chuyển tab theo lượt, delay ~2s để kịp nhìn địch bắn vào đâu rồi mới đổi bản đồ

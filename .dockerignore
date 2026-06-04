@@ -1,0 +1,16 @@
+node_modules
+dist
+.git
+.gstack
+.planning
+.claude
+.kiro
+gsd-core
+agents
+.clinerules
+.gsd-profile
+gsd-file-manifest.json
+gsd-install-state.json
+*.md
+!README.md
+test
