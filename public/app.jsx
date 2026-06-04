@@ -132,6 +132,14 @@ const I18N = {
     "leaderboard.rating": "Rating",
     "leaderboard.back": "Back to lobby",
     "leaderboard.open": "Leaderboard",
+    "queue.quickMatch": "Quick Match",
+    "queue.titleCasual": "Finding Opponent",
+    "queue.sub": "Sit tight — we are matching you with another player.",
+    "queue.searching": "Searching…",
+    "queue.elapsed": "Waiting",
+    "queue.cancel": "Leave Queue",
+    "err.ALREADY_IN_QUEUE": "Already in queue",
+    "err.ALREADY_IN_ROOM": "Already in a game",
   },
   vi: {
     "common.or": "HOẶC", "common.copied": "Đã chép ✓",
@@ -248,6 +256,14 @@ const I18N = {
     "leaderboard.rating": "Điểm",
     "leaderboard.back": "Quay lại sảnh",
     "leaderboard.open": "Bảng xếp hạng",
+    "queue.quickMatch": "Đấu nhanh",
+    "queue.titleCasual": "Đang tìm đối thủ",
+    "queue.sub": "Hãy chờ một chút — chúng tôi đang ghép cặp bạn.",
+    "queue.searching": "Đang tìm…",
+    "queue.elapsed": "Đang chờ",
+    "queue.cancel": "Rời hàng chờ",
+    "err.ALREADY_IN_QUEUE": "Bạn đang trong hàng chờ",
+    "err.ALREADY_IN_ROOM": "Bạn đang trong một ván đấu",
   },
 };
 function t(k, p) {
@@ -698,7 +714,7 @@ function EmailAuthForm({ onAuthSuccess, clientId: cid, onForgotPassword }) {
 // resetMode: boolean — true when PasswordResetForm should be shown in request mode
 // onForgotPassword: opens PasswordResetForm in request mode
 // onResetBack: closes PasswordResetForm and returns to normal login view
-function Lobby({ onCreate, onJoin, onBot, onHelp, onLeaderboard, error, authUser, authError, verifyNotice, clientId, signInDisabled, onSignInDisable, onEmailAuthSuccess, resetToken, resetMode, onForgotPassword, onResetBack }) {
+function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onHelp, onLeaderboard, error, authUser, authError, verifyNotice, clientId, signInDisabled, onSignInDisable, onEmailAuthSuccess, resetToken, resetMode, onForgotPassword, onResetBack }) {
   const [code, setCode] = useState("");
   const [mode, setMode] = useState("classic");
   const [ranked, setRanked] = useState(false);
@@ -715,6 +731,9 @@ function Lobby({ onCreate, onJoin, onBot, onHelp, onLeaderboard, error, authUser
       {verifyNotice === "success" && <div className="notice verify-notice">{t("auth.verifySuccess")}</div>}
       {verifyNotice === "error" && <div className="error verify-notice">{t("auth.verifyError")}</div>}
       <button className="btn primary" onClick={onBot}>{t("lobby.playBot")}</button>
+      <div style={{ height: 8 }} />
+      <div className="divider">{t("common.or")}</div>
+      <button className="btn primary" onClick={onQuickMatch}>{t("queue.quickMatch")}</button>
       <div style={{ height: 10 }} />
       <div className="mode-pick">
         <button className={"mode-opt" + (mode === "classic" ? " on" : "")} onClick={() => handleModeChange("classic")}>
@@ -1593,7 +1612,7 @@ function LeaderboardView({ onBack }) {
 
 // ---------- App ----------
 function App() {
-  const [screen, setScreen] = useState("lobby"); // lobby | room | placement | battle | profile | leaderboard
+  const [screen, setScreen] = useState("lobby"); // lobby | room | placement | battle | profile | leaderboard | queue
   const [code, setCode] = useState(null);
   const [error, setError] = useState(null);
   const [oppPresent, setOppPresent] = useState(false);
@@ -1650,9 +1669,16 @@ function App() {
   const [profileLoading, setProfileLoading] = useState(false); // skeleton while fetching
   const [myBubble, setMyBubble] = useState(null);   // {id, text} — speech bubble over my avatar
   const [oppBubble, setOppBubble] = useState(null); // {id, text} — over opponent avatar
+  // Queue state (Phase 5 — 05-01)
+  const [queueType, setQueueType]               = useState(null);   // "casual" | "ranked" | null
+  const [queueSince, setQueueSince]             = useState(null);   // Date.now() when enqueued
+  const [botOfferVisible, setBotOfferVisible]   = useState(false);  // D-09 delayed bot prompt
+  const [elapsedSec, setElapsedSec]             = useState(0);      // re-render tick for elapsed timer
   const myBubbleTimer = useRef(null);
   const oppBubbleTimer = useRef(null);
   const graceTimerRef = useRef(null);
+  const botOfferTimerRef = useRef(null);
+  const queueTimerRef    = useRef(null);
   const joinedUrlRef = useRef(false);   // chỉ auto-join từ link mời 1 lần
   const shakeTimer = useRef(null);
   const triggerShake = useCallback(() => {
@@ -1863,6 +1889,23 @@ function App() {
       setInv({ scatter: 0, cross: 0, double: 0, reveal: 0, mine: 0 });
       setPowerups(new Map()); setRevealedEnemy(new Set()); setAim(null); setMyMines(new Set());
     });
+    // matchFound: server has paired this socket into a room — drop straight to placement (D-10).
+    // Does NOT guard on s === "queue" — matchFound can arrive even if the player is on the lobby
+    // (e.g. connection lag) and must always route to placement (Pitfall 4 from 05-RESEARCH.md).
+    socket.on("matchFound", ({ code: matchCode, ranked: isRanked }) => {
+      setCode(matchCode);
+      persistRoom(matchCode);
+      setQueueType(null);
+      setQueueSince(null);
+      setBotOfferVisible(false);
+      if (botOfferTimerRef.current) { clearTimeout(botOfferTimerRef.current); botOfferTimerRef.current = null; }
+      if (queueTimerRef.current) { clearInterval(queueTimerRef.current); queueTimerRef.current = null; }
+      setElapsedSec(0);
+      setScreen("placement");
+    });
+    socket.on("queueStatus", ({ waitSec, windowWidth }) => {
+      if (windowWidth != null) { /* setQueueWindow(windowWidth) — Plan 02 */ }
+    });
     // Connect now that all listeners are attached. If the socket somehow already
     // connected (hot remount), run resume immediately instead.
     if (!socket.connected) socket.connect();
@@ -1875,6 +1918,21 @@ function App() {
     }
     return () => socket.off();
   }, [addLog]);
+
+  // Elapsed timer: tick every 1 s while on the queue screen; clear when leaving.
+  useEffect(() => {
+    if (screen !== "queue") {
+      if (queueTimerRef.current) { clearInterval(queueTimerRef.current); queueTimerRef.current = null; }
+      return;
+    }
+    setElapsedSec(queueSince ? Math.floor((Date.now() - queueSince) / 1000) : 0);
+    queueTimerRef.current = setInterval(() => {
+      setElapsedSec(queueSince ? Math.floor((Date.now() - queueSince) / 1000) : 0);
+    }, 1000);
+    return () => {
+      if (queueTimerRef.current) { clearInterval(queueTimerRef.current); queueTimerRef.current = null; }
+    };
+  }, [screen, queueSince]);
 
   function createRoom(mode, ranked) {
     setError(null);
@@ -1895,6 +1953,29 @@ function App() {
       // go straight to placement.
       if (!res.reclaimed) { setOppPresent(true); setScreen("placement"); }
     });
+  }
+  function handleQuickMatch() {
+    setError(null);
+    socket.emit("joinQueue", { type: "casual", clientId, profile }, (res) => {
+      if (res && res.ok) {
+        setQueueType("casual");
+        setQueueSince(Date.now());
+        setElapsedSec(0);
+        setScreen("queue");
+      } else {
+        setError(errText(res));
+      }
+    });
+  }
+  function handleLeaveQueue() {
+    socket.emit("leaveQueue", {}, () => {});
+    setQueueType(null);
+    setQueueSince(null);
+    setBotOfferVisible(false);
+    if (botOfferTimerRef.current) { clearTimeout(botOfferTimerRef.current); botOfferTimerRef.current = null; }
+    if (queueTimerRef.current) { clearInterval(queueTimerRef.current); queueTimerRef.current = null; }
+    setElapsedSec(0);
+    setScreen("lobby");
   }
   function confirmPlacement(ships) {
     if (vsBot) {
@@ -2200,7 +2281,22 @@ function App() {
 
       {notice && <div className="notice-toast">{notice}</div>}
 
-      {screen === "lobby" && <Lobby onCreate={createRoom} onJoin={joinRoom} onBot={startBot} onHelp={() => setHelpOpen(true)} onLeaderboard={() => setScreen("leaderboard")} error={error} authUser={authUser} authError={authError} verifyNotice={verifyNotice} clientId={clientId} signInDisabled={signInDisabled} onSignInDisable={() => setSignInDisabled(true)} onEmailAuthSuccess={setAuthUser} resetToken={resetToken} resetMode={resetMode} onForgotPassword={() => setResetMode(true)} onResetBack={() => { setResetToken(null); setResetMode(false); }} />}
+      {screen === "lobby" && <Lobby onCreate={createRoom} onJoin={joinRoom} onBot={startBot} onQuickMatch={handleQuickMatch} onHelp={() => setHelpOpen(true)} onLeaderboard={() => setScreen("leaderboard")} error={error} authUser={authUser} authError={authError} verifyNotice={verifyNotice} clientId={clientId} signInDisabled={signInDisabled} onSignInDisable={() => setSignInDisabled(true)} onEmailAuthSuccess={setAuthUser} resetToken={resetToken} resetMode={resetMode} onForgotPassword={() => setResetMode(true)} onResetBack={() => { setResetToken(null); setResetMode(false); }} />}
+
+      {screen === "queue" && (
+        <div className="lobby">
+          <h2>{t("queue.titleCasual")}</h2>
+          <p className="sub">{t("queue.sub")}</p>
+          <div className="queue-timer">
+            <span className="queue-elapsed">{String(Math.floor(elapsedSec / 60)).padStart(2, "0")}:{String(elapsedSec % 60).padStart(2, "0")}</span>
+            <span className="queue-label">{t("queue.elapsed")}</span>
+          </div>
+          <div style={{ height: 12 }} />
+          <span className="status-pill pill-wait">{t("queue.searching")}</span>
+          <div style={{ height: 20 }} />
+          <button className="btn ghost" onClick={handleLeaveQueue}>{t("queue.cancel")}</button>
+        </div>
+      )}
 
       {screen === "profile" && (
         <ProfileView

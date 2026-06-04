@@ -774,3 +774,26 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 }
 .email-auth-link:hover { opacity: 1; }
 .email-auth-link:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; border-radius: 3px; }
+
+/* ─── Queue wait panel (Phase 5 — 05-01) ─────────────────────────────────── */
+.queue-timer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin: 12px 0 4px;
+}
+.queue-elapsed {
+  font-family: "Oswald", sans-serif;
+  font-size: 42px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  color: var(--gold);
+  text-shadow: 0 0 18px rgba(240,193,75,.45);
+}
+.queue-label {
+  font-size: 13px;
+  color: #a9ccec;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
