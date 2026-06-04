@@ -18,7 +18,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: Match Recording** - Durable match records + explicit forfeit handling (completed 2026-06-03)
 - [x] **Phase 4: Ranked Mode & Leaderboard** - Glicko-2 ratings, ranked queue gating, global leaderboard (5/5 plans built; verification gaps_found — 2 gap-closure plans (04-06, 04-07) planned to close CR-01 blocker + CR-02 hardening) (completed 2026-06-03)
 - [x] **Phase 5: Public Matchmaking** - Quick-match and ranked queues, ELO-window pairing (completed 2026-06-04)
-- [ ] **Phase 6: Bot Difficulty Tiers** - Easy / medium / hard / insane bot algorithms
+- [x] **Phase 6: Bot Difficulty Tiers** - Easy / medium / hard / insane bot algorithms (completed 2026-06-04)
 
 ## Phase Details
 
@@ -222,7 +222,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 **Wave 2** *(blocked on Wave 1)*
 
-- [ ] 06-02-PLAN.md — Selector slice: 4-button tier row, bs_botTier persistence, EN/VI labels, advance path untouched (BOT-01, SC#1)
+- [x] 06-02-PLAN.md — Selector slice: 4-button tier row, bs_botTier persistence, EN/VI labels, advance path untouched (BOT-01, SC#1)
 
 ## Progress
 
@@ -236,4 +236,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 3. Match Recording | 3/3 | Complete    | 2026-06-03 |
 | 4. Ranked Mode & Leaderboard | 7/7 | Complete    | 2026-06-03 |
 | 5. Public Matchmaking | 3/3 | Complete    | 2026-06-04 |
-| 6. Bot Difficulty Tiers | 1/2 | In Progress|  |
+| 6. Bot Difficulty Tiers | 2/2 | Complete   | 2026-06-04 |
