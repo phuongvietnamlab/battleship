@@ -8,7 +8,7 @@ const http = require("http");
 const path = require("path");
 const { Server } = require("socket.io");
 const store = require("./store"); // optional Redis snapshot; no-op without REDIS_URL
-const { pool, runMigrations, upsertGuestCredential, linkOrPromoteAccount, createEmailAccount, verifyEmailLogin, createAuthToken, consumeAuthToken, markEmailVerified, setEmailPassword, recordMatch, getLeaderboard } = require("./db"); // Postgres: identity persistence
+const { pool, runMigrations, upsertGuestCredential, linkOrPromoteAccount, createEmailAccount, verifyEmailLogin, createAuthToken, consumeAuthToken, markEmailVerified, setEmailPassword, recordMatch, getLeaderboard, getPlayerRating } = require("./db"); // Postgres: identity persistence
 const mailer = require("./mailer"); // optional email wrapper (graceful-degrade when RESEND_API_KEY unset)
 
 const app = express();
@@ -1269,11 +1269,23 @@ function reclaimSeat(room, code, seatId, newClientId, socket) {
   return true;
 }
 
-// ─── Matchmaking queue engine (05-01) ────────────────────────────────────────
+// ─── Matchmaking queue engine (05-01 + 05-02) ───────────────────────────────
+
+// Compute the current ELO window width for a ranked queue entry (05-02).
+// Provisional players (rd >= 110) get a wider starting window.
+// Width widens by RANKED_WINDOW_STEP per RANKED_STEP_MS elapsed; becomes
+// Infinity (unbounded) once width >= RANKED_WINDOW_CAP so thin pools always pair.
+function rankedWindow(entry) {
+  const isProvisional = entry.rd >= 110;
+  const base = isProvisional ? RANKED_PROVISIONAL_START : RANKED_WINDOW_START;
+  const steps = Math.floor((Date.now() - entry.enqueuedAt) / RANKED_STEP_MS);
+  const width = base + steps * RANKED_WINDOW_STEP;
+  return width >= RANKED_WINDOW_CAP ? Infinity : width;
+}
 
 // Return the first two non-pairing entries from the given type's queue.
 // For casual, any two entries are a valid pair.
-// Ranked window logic is added in Plan 02 — for now ranked also returns any two.
+// For ranked (05-02): pair only if |ratingA - ratingB| <= min window of the two entries.
 function findPair(type, entries) {
   if (entries.length < 2) return null;
   return [entries[0], entries[1]];
@@ -1885,8 +1897,9 @@ module.exports = {
     leaderboardLimiter,
     getLbCache: () => lbCache,
     resetLbCache: () => { lbCache = { at: 0, payload: null }; },
-    // Phase 5 queue exports (05-01)
+    // Phase 5 queue exports (05-01 + 05-02)
     queues,
     tryPair,
+    rankedWindow,
   },
 };

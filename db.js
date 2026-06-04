@@ -679,6 +679,20 @@ async function setEmailPassword(userId, newPassword) {
   }
 }
 
+// ─── getPlayerRating (05-02) ─────────────────────────────────────────────────
+// Read rating + rd for a user from the ratings table.
+// Used by joinQueue ranked branch to seed the ELO window calculation.
+// Returns defaults { rating:1500, rd:350 } for guests (null userId) or missing rows.
+// Uses pool directly (no transaction) — read-only, no side-effects.
+async function getPlayerRating(userId) {
+  if (!userId) return { rating: 1500, rd: 350 };
+  const { rows } = await pool.query(
+    "SELECT rating, rd FROM ratings WHERE user_id = $1",
+    [userId]
+  );
+  return rows.length > 0 ? { rating: rows[0].rating, rd: rows[0].rd } : { rating: 1500, rd: 350 };
+}
+
 module.exports = {
   pool,
   runMigrations,
@@ -694,4 +708,5 @@ module.exports = {
   recordMatch,
   getLeaderboard,
   refreshLeaderboardCache,
+  getPlayerRating,
 };

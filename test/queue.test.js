@@ -14,7 +14,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import serverModule from "../server.js";
 
 const { TEST_EXPORTS } = serverModule;
-const { queues, tryPair, rooms } = TEST_EXPORTS;
+const { queues, tryPair, rooms, rankedWindow } = TEST_EXPORTS;
 
 // Helper: minimal queue entry
 function makeEntry(overrides = {}) {
@@ -127,6 +127,38 @@ describe("QUEUE-02 — ranked matchmaking (Plan 02)", () => {
     queues.ranked.clear();
     for (const k of Object.keys(rooms)) delete rooms[k];
   });
+
+  // ── rankedWindow unit tests (Task 1) ────────────────────────────────────────
+
+  it("rankedWindow: established entry (rd<110) at enqueue time returns RANKED_WINDOW_START (150)", () => {
+    const entry = makeEntry({ queueType: "ranked", rd: 50, enqueuedAt: Date.now() });
+    expect(rankedWindow(entry)).toBe(150);
+  });
+
+  it("rankedWindow: provisional entry (rd>=110) at enqueue time returns RANKED_PROVISIONAL_START (300)", () => {
+    const entry = makeEntry({ queueType: "ranked", rd: 350, enqueuedAt: Date.now() });
+    expect(rankedWindow(entry)).toBe(300);
+  });
+
+  it("rankedWindow: widens by RANKED_WINDOW_STEP per RANKED_STEP_MS elapsed", () => {
+    // 2 steps elapsed = 150 + 2*100 = 350
+    const entry = makeEntry({ queueType: "ranked", rd: 50, enqueuedAt: Date.now() - 2 * 10000 });
+    expect(rankedWindow(entry)).toBe(350);
+  });
+
+  it("rankedWindow: returns Infinity when width >= RANKED_WINDOW_CAP (500)", () => {
+    // 4 steps elapsed = 150 + 4*100 = 550 >= 500 → Infinity
+    const entry = makeEntry({ queueType: "ranked", rd: 50, enqueuedAt: Date.now() - 4 * 10000 });
+    expect(rankedWindow(entry)).toBe(Infinity);
+  });
+
+  it("rankedWindow: provisional entry returns Infinity when width >= cap", () => {
+    // provisional start=300, 2 steps = 300 + 2*100 = 500 >= 500 → Infinity
+    const entry = makeEntry({ queueType: "ranked", rd: 350, enqueuedAt: Date.now() - 2 * 10000 });
+    expect(rankedWindow(entry)).toBe(Infinity);
+  });
+
+  // ── Pairing tests (Task 2) ───────────────────────────────────────────────────
 
   it.todo("two ranked entries within window → paired into ranked:true room");
   it.todo("two ranked entries outside initial window → not paired yet");
