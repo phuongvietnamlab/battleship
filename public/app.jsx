@@ -9,6 +9,8 @@ const ROWS = ["A","B","C","D","E","F","G","H","I","J","K"];
 
 // D-09: delay before bot offer appears on the queue wait screen (mirrors server BOT_OFFER_DELAY_MS)
 const BOT_OFFER_DELAY_MS = 30000;
+// Bot difficulty tier whitelist — used for localStorage validation (T-06-02)
+const VALID_TIERS = ["easy", "medium", "hard", "insane"];
 
 // ---------- i18n (English primary, Vietnamese secondary) ----------
 // Locale auto-detected once at load: Vietnamese device -> vi, everything else -> en.
@@ -150,6 +152,11 @@ const I18N = {
     "err.ALREADY_IN_QUEUE": "You're already in a queue",
     "err.ALREADY_IN_ROOM": "You're already in a match",
     "err.RATE_LIMITED": "Too many attempts — wait a moment",
+    "bot.easy": "Easy",
+    "bot.medium": "Medium",
+    "bot.hard": "Hard",
+    "bot.insane": "Insane",
+    "bot.selectTier": "Select difficulty",
   },
   vi: {
     "common.or": "HOẶC", "common.copied": "Đã chép ✓",
@@ -281,6 +288,11 @@ const I18N = {
     "err.ALREADY_IN_QUEUE": "Bạn đang trong hàng chờ rồi",
     "err.ALREADY_IN_ROOM": "Bạn đang trong trận rồi",
     "err.RATE_LIMITED": "Quá nhiều lần thử — chờ một lát",
+    "bot.easy": "Dễ",
+    "bot.medium": "Trung bình",
+    "bot.hard": "Khó",
+    "bot.insane": "Cực khó",
+    "bot.selectTier": "Chọn độ khó",
   },
 };
 function t(k, p) {
@@ -375,6 +387,8 @@ let clientId = (function () {
 })();
 function saveRoom(c) { try { c ? localStorage.setItem("bs_room", c) : localStorage.removeItem("bs_room"); } catch (e) {} }
 function loadRoom() { try { return localStorage.getItem("bs_room"); } catch (e) { return null; } }
+function saveBotTier(tier) { try { localStorage.setItem("bs_botTier", tier); } catch (e) {} }
+function loadBotTier() { try { const stored = localStorage.getItem("bs_botTier"); return VALID_TIERS.includes(stored) ? stored : "medium"; } catch (e) { return "medium"; } }
 // Invite-by-link: a shared URL like https://site/?room=ABCDE lets a friend join
 // directly. roomFromUrl reads the code; clearRoomUrl strips it after joining so a
 // reload doesn't re-trigger (reconnect is handled by resume/localStorage instead).
