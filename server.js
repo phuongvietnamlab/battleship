@@ -1734,5 +1734,8 @@ module.exports = {
     leaderboardLimiter,
     getLbCache: () => lbCache,
     resetLbCache: () => { lbCache = { at: 0, payload: null }; },
+    // Phase 5 queue exports (05-01)
+    queues,
+    tryPair,
   },
 };
