@@ -213,8 +213,16 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. Each difficulty tier uses a distinct targeting algorithm — easy fires at random cells; medium hunts after a hit; hard uses probability-density targeting; insane plays near-optimally — producing observably different win rates.
   3. An existing single-player game started before this phase behaves identically to before (no regression in the current bot behavior).
 
-**Plans**: TBD
+**Plans**: 2 plans
 **Research flag**: Brief spike recommended on probability-density targeting algorithm for "hard" tier before implementation.
+
+**Wave 1**
+
+- [ ] 06-01-PLAN.md — Algorithm engine: four pure tier algorithms (easy/medium/hard/insane) + headless Vitest win-rate validation + botPick dispatch wiring (BOT-01, SC#2, SC#3)
+
+**Wave 2** *(blocked on Wave 1)*
+
+- [ ] 06-02-PLAN.md — Selector slice: 4-button tier row, bs_botTier persistence, EN/VI labels, advance path untouched (BOT-01, SC#1)
 
 ## Progress
 
@@ -228,4 +236,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 3. Match Recording | 3/3 | Complete    | 2026-06-03 |
 | 4. Ranked Mode & Leaderboard | 7/7 | Complete    | 2026-06-03 |
 | 5. Public Matchmaking | 3/3 | Complete    | 2026-06-04 |
-| 6. Bot Difficulty Tiers | 0/TBD | Not started | - |
+| 6. Bot Difficulty Tiers | 0/2 | Not started | - |
