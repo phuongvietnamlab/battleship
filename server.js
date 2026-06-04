@@ -1286,8 +1286,22 @@ function rankedWindow(entry) {
 // Return the first two non-pairing entries from the given type's queue.
 // For casual, any two entries are a valid pair.
 // For ranked (05-02): pair only if |ratingA - ratingB| <= min window of the two entries.
+// Infinity windows always match (pool is thin / wait exceeded cap).
 function findPair(type, entries) {
   if (entries.length < 2) return null;
+  if (type === "ranked") {
+    for (let i = 0; i < entries.length - 1; i++) {
+      for (let j = i + 1; j < entries.length; j++) {
+        const a = entries[i];
+        const b = entries[j];
+        const window = Math.min(rankedWindow(a), rankedWindow(b));
+        if (Math.abs(a.rating - b.rating) <= window) {
+          return [a, b];
+        }
+      }
+    }
+    return null;
+  }
   return [entries[0], entries[1]];
 }
 
@@ -1317,10 +1331,29 @@ function tryPair(type) {
   });
 }
 
+// Emit queueStatus to each still-waiting ranked entry (D-08, T-5-08).
+// Payload: only recipient's own waitSec + windowWidth + aggregate queueSize.
+// No opponent identity or rating exposed (T-5-08).
+function emitQueueStatus() {
+  const size = queues.ranked.size;
+  for (const entry of queues.ranked.values()) {
+    if (entry.pairing) continue;
+    const sock = io.of("/").sockets.get(entry.socketId);
+    if (sock) {
+      sock.emit("queueStatus", {
+        waitSec: Math.floor((Date.now() - entry.enqueuedAt) / 1000),
+        windowWidth: rankedWindow(entry),
+        queueSize: size,
+      });
+    }
+  }
+}
+
 // Sweep both queues — called by the setInterval sweep and after each joinQueue.
 function tryPairAll() {
   tryPair("casual");
   tryPair("ranked");
+  emitQueueStatus();
 }
 
 // Build a matched room in the exact createRoom shape and seat both players.
@@ -1418,13 +1451,24 @@ io.on("connection", (socket) => {
     // Guard: already in queue (T-5-04)
     if (socket.data.queueType) return cb && cb({ ok: false, code: "ALREADY_IN_QUEUE" });
     // Guard: ranked requires an authenticated account (mirrors createRoom guard)
+    // Read userId from session ONLY (socket.data.userId), never from arg (T-5-06, P4 D-02)
     if (type === "ranked" && socket.data.userId == null) return cb && cb({ ok: false, code: "RANKED_REQUIRES_ACCOUNT" });
+    // Ranked path: read authoritative rating from DB (T-5-07); casual uses defaults
+    let rating = 1500, rd = 350;
+    if (type === "ranked" && socket.data.userId != null) {
+      try {
+        ({ rating, rd } = await getPlayerRating(socket.data.userId));
+      } catch (e) {
+        console.error("[queue] rating read failed, using defaults:", e.message);
+        // graceful degradation: join still succeeds with default 1500/350 (T-5-09)
+      }
+    }
     const entry = {
       socketId: socket.id,
       clientId,
       userId: socket.data.userId ?? null,
-      rating: 1500,
-      rd: 350,
+      rating,
+      rd,
       enqueuedAt: Date.now(),
       pairing: false,
       profile: sanitizeProfile(arg && arg.profile), // T-5-01

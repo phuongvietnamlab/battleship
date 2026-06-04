@@ -160,10 +160,54 @@ describe("QUEUE-02 — ranked matchmaking (Plan 02)", () => {
 
   // ── Pairing tests (Task 2) ───────────────────────────────────────────────────
 
-  it.todo("two ranked entries within window → paired into ranked:true room");
-  it.todo("two ranked entries outside initial window → not paired yet");
-  it.todo("entries outside initial window → paired after window widens past their diff");
-  it.todo("ranked requires account (RANKED_REQUIRES_ACCOUNT on joinQueue)");
+  it("two ranked entries within window → paired into ranked:true room", () => {
+    // ratings 1500 vs 1560, diff=60 < window=150
+    const a = makeEntry({ clientId: "ranked-a", queueType: "ranked", rating: 1500, rd: 50, enqueuedAt: Date.now() });
+    const b = makeEntry({ clientId: "ranked-b", queueType: "ranked", rating: 1560, rd: 50, enqueuedAt: Date.now() });
+    queues.ranked.set(a.clientId, a);
+    queues.ranked.set(b.clientId, b);
+
+    tryPair("ranked");
+
+    expect(queues.ranked.size).toBe(0);
+    const roomKeys = Object.keys(rooms);
+    expect(roomKeys.length).toBe(1);
+    expect(rooms[roomKeys[0]].ranked).toBe(true);
+  });
+
+  it("two ranked entries outside initial window → not paired immediately", () => {
+    // ratings 1500 vs 1900, diff=400 > initial window=150; enqueuedAt=now so 0 steps
+    const a = makeEntry({ clientId: "ranked-a", queueType: "ranked", rating: 1500, rd: 50, enqueuedAt: Date.now() });
+    const b = makeEntry({ clientId: "ranked-b", queueType: "ranked", rating: 1900, rd: 50, enqueuedAt: Date.now() });
+    queues.ranked.set(a.clientId, a);
+    queues.ranked.set(b.clientId, b);
+
+    tryPair("ranked");
+
+    // Still in queue — not paired yet
+    expect(queues.ranked.size).toBe(2);
+    expect(Object.keys(rooms).length).toBe(0);
+  });
+
+  it("entries outside initial window → paired once window widens past their diff", () => {
+    // ratings 1500 vs 1700, diff=200; need window > 200 → 3 steps = 150+300=450 (>200)
+    const a = makeEntry({ clientId: "ranked-a", queueType: "ranked", rating: 1500, rd: 50, enqueuedAt: Date.now() - 3 * 10000 });
+    const b = makeEntry({ clientId: "ranked-b", queueType: "ranked", rating: 1700, rd: 50, enqueuedAt: Date.now() - 3 * 10000 });
+    queues.ranked.set(a.clientId, a);
+    queues.ranked.set(b.clientId, b);
+
+    tryPair("ranked");
+
+    expect(queues.ranked.size).toBe(0);
+    const roomKeys = Object.keys(rooms);
+    expect(roomKeys.length).toBe(1);
+    expect(rooms[roomKeys[0]].ranked).toBe(true);
+  });
+
+  // Note: RANKED_REQUIRES_ACCOUNT is a joinQueue handler-level guard on socket.data.userId.
+  // It is tested end-to-end via the acceptance criteria; the engine-level guarantee is
+  // that entries without userId can only enter via casual (not ranked), enforced in the handler.
+  it.todo("ranked requires account (RANKED_REQUIRES_ACCOUNT on joinQueue — handler-level guard, E2E)");
 });
 
 // ─── QUEUE-03: Queue cleanup / disconnect handling ────────────────────────────
