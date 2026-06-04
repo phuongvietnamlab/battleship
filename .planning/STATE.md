@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
+status: Awaiting next milestone
 stopped_at: Phase 6 context gathered
-last_updated: "2026-06-04T04:43:32.773Z"
-last_activity: 2026-06-04
+last_updated: "2026-06-04T07:32:43.813Z"
+last_activity: 2026-06-04 — Milestone v1.0 completed and archived
 progress:
   total_phases: 6
   completed_phases: 6
@@ -25,12 +25,10 @@ See: .planning/PROJECT.md (updated 2026-06-01)
 
 ## Current Position
 
-Phase: 06
-Plan: Not started
-Status: Executing Phase 06
-Last activity: 2026-06-04
-
-Progress: [█░░░░░░░░░] 11%
+Phase: Milestone v1.0 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-06-04 — Milestone v1.0 completed and archived
 
 ## Performance Metrics
 
@@ -115,8 +113,18 @@ None yet.
 
 ## Deferred Items
 
+Items acknowledged and deferred at milestone close on 2026-06-04:
+
 | Category | Item | Status | Deferred At |
 |----------|------|--------|-------------|
+| uat_gap | Phase 02 - 6 pending UAT scenarios | partial | Milestone close |
+| uat_gap | Phase 03 - 5 pending UAT scenarios | partial | Milestone close |
+| uat_gap | Phase 05 - 6 pending UAT scenarios | partial | Milestone close |
+| verification | Phase 02 - human verification needed | human_needed | Milestone close |
+| verification | Phase 03 - human verification needed | human_needed | Milestone close |
+| verification | Phase 04 - human verification needed | human_needed | Milestone close |
+| verification | Phase 05 - human verification needed | human_needed | Milestone close |
+| verification | Phase 06 - human verification needed | human_needed | Milestone close |
 | Social | Friends list, direct challenge, rematch history (SOCL-01/02/03) | v2 | Roadmap |
 | Spectate | Live spectator mode (SPEC-01) | v2 | Roadmap |
 | Retention | XP/levels, daily challenges (RETN-01/02) | v2 | Roadmap |
@@ -129,3 +137,7 @@ Last session: 2026-06-04T02:21:23.452Z
 Stopped at: Phase 6 context gathered
 Resume file: 
 .planning/phases/06-bot-difficulty-tiers/06-CONTEXT.md
+
+## Operator Next Steps
+
+- Start the next milestone with /gsd-new-milestone

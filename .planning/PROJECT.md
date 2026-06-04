@@ -2,7 +2,7 @@
 
 ## What This Is
 
-A real-time, browser-based multiplayer Battleship game (Express + Socket.IO + React) where two players battle on an 11×11 grid via shareable room codes, with a single-player bot mode, power-ups, ephemeral chat, and EN/VI localization. This milestone evolves it from a "play with a friend via code" game into a competitive, social, replayable online game with persistent player identity, public matchmaking, ranked progression, and spectating.
+A real-time, browser-based multiplayer Battleship game (Express + Socket.IO + React) with persistent player accounts (Google/Facebook OAuth + email/password), public matchmaking queues (casual + ranked with Glicko-2 ratings), a global leaderboard, four-tier bot difficulty, power-ups, ephemeral chat, and EN/VI localization. Players can jump in instantly as guests or sign up to track stats, climb the ladder, and compete in ranked matches.
 
 ## Core Value
 
@@ -27,50 +27,48 @@ Two players can find each other and play a fair, fast, satisfying game of Battle
 - ✓ SEO / Open Graph social share metadata — existing
 - ✓ Health/metrics endpoints + Render auto-deploy — existing
 
-<!-- Milestone v1.0 deliverables, validated per phase. -->
+<!-- Milestone v1.0 deliverables -->
 
-- ✓ Durable Postgres persistence layer: shared `pg.Pool` (db.js) + auto-applied numbered-migration runner (fail-loud, idempotent) + canonical identity schema (`users`/`credentials`/`schema_migrations`) — Validated in Phase 1: Foundation (DATA-01, DATA-02)
-- ✓ Guest-credential durability: `upsertGuestCredential` wired into createRoom/joinRoom/resume/rejoin — Validated in Phase 1 (DATA-01)
-- ✓ Pre-public-matchmaking security hardening: per-event rate limiting (fire/useAbility/chat) + turn-clock race guard, `doShot` null/shape guard, abandoned-room eviction sweep, server-side profile/chat sanitization + stored-XSS escaping + CSP header — Validated in Phase 1 (SEC-01..SEC-04)
+- ✓ Durable Postgres persistence layer: shared pg.Pool + auto-migration runner + identity schema — v1.0 Phase 1
+- ✓ Guest-credential durability: upsertGuestCredential on all connect paths — v1.0 Phase 1
+- ✓ Security hardening: rate limiting, doShot null guard, room eviction, sanitization, CSP — v1.0 Phase 1
+- ✓ Google OAuth sign-in with guest history linking — v1.0 Phase 2
+- ✓ Facebook OAuth sign-in (provider-generic, email optional) — v1.0 Phase 2
+- ✓ Email/password signup with bcrypt, async verification email — v1.0 Phase 2
+- ✓ Password reset via single-use time-limited token — v1.0 Phase 2
+- ✓ Session persistence + server-side revocation (sign out all devices) — v1.0 Phase 2
+- ✓ Player profile with win/loss record and public view — v1.0 Phase 2
+- ✓ Durable match records with explicit forfeit handling — v1.0 Phase 3
+- ✓ Glicko-2 ratings atomically updated with match records — v1.0 Phase 4
+- ✓ Ranked mode gated to signed-in accounts — v1.0 Phase 4
+- ✓ Global leaderboard (top 100, provisional gating, Redis cache) — v1.0 Phase 4
+- ✓ Season soft-reset CLI (archive + blend) — v1.0 Phase 4
+- ✓ Public quick-match queue (casual pairing, no room code) — v1.0 Phase 5
+- ✓ Ranked matchmaking with ELO-window widening — v1.0 Phase 5
+- ✓ Queue cleanup on disconnect/navigate-away — v1.0 Phase 5
+- ✓ Four-tier bot difficulty (easy/medium/hard/insane) with distinct algorithms — v1.0 Phase 6
 
 ### Active
 
-<!-- New milestone scope. Hypotheses until shipped and validated. Sequenced foundation-first. -->
+<!-- v2 candidates — not yet planned -->
 
-**Foundation — persistence & identity**
-- [x] Postgres-backed durable storage (self-hosted EC2) — persistence layer + identity schema landed in Phase 1; per-feature tables (accounts, stats, rankings) added in later phases
-- [x] Guest-first play preserved (instant, no login via clientId) — Phase 1: guest credentials persisted transparently, instant play unchanged
-- [ ] Optional account sign-up (Google OAuth) that links a guest's history to a persistent identity
-- [ ] Player profile with win/loss record and lifetime stats
-
-**Retention & competition**
-- [ ] Public quick-match — pair two online players with no room code
-- [ ] Ranked mode with ELO rating
-- [ ] Global leaderboards (and seasonal reset)
-- [ ] XP / levels / progression
-
-**Social**
-- [ ] Friends list with online presence
-- [ ] Direct challenge / invite a friend to a game
-- [ ] Rematch history between players
-- [ ] Public-facing profiles
-
-**Depth & modes**
-- [ ] Bot difficulty tiers (easy / medium / hard / insane)
-- [ ] New game modes (configurable grid size, custom fleets, time controls, new power-ups)
-- [ ] Daily challenges / quests
-
-**Spectate & share**
-- [ ] Live spectator mode (watch a game via link)
-- [ ] Tournament brackets (future — deferred beyond this milestone)
+- [ ] Friends list with online presence (SOCL-01)
+- [ ] Direct challenge / invite a friend (SOCL-02)
+- [ ] Rematch history between players (SOCL-03)
+- [ ] Live spectator mode (SPEC-01)
+- [ ] XP / levels / progression (RETN-01)
+- [ ] Daily challenges / quests (RETN-02)
+- [ ] Configurable game modes (MODE-01)
+- [ ] Horizontal scaling via Socket.IO Redis adapter (SCAL-01)
+- [ ] Tournament brackets (TOUR-01)
 
 ### Out of Scope
 
-- Email + password auth — Google OAuth chosen to avoid owning password reset / credential-storage burden (revisitable)
-- Saved game replays (save / review past matches) — cut from product vision; live spectator mode covers the "watch" need without per-move persistence
-- Native mobile apps — web-first; PWA is sufficient for now
-- Real-money payments / monetization — not core to gameplay value this milestone
-- Voice chat — text/emoji chat covers social need; high complexity, low payoff
+- Saved game replays — cut from vision; live spectate covers "watch" need
+- Native mobile apps — web-first; PWA sufficient
+- Real-money payments / monetization — not core to gameplay
+- Voice chat — text/emoji covers social need; high complexity, low payoff
+- Real-time sub-second leaderboard — 5-minute cache indistinguishable to players
 
 ## Context
 
@@ -91,12 +89,15 @@ Two players can find each other and play a fair, fast, satisfying game of Battle
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Self-hosted Postgres on dedicated EC2 (was: Render-managed) | Owner runs app + Redis + Postgres on one EC2 box; full control, no managed-tier limits; trades low ops burden for self-managed backups/patching/TLS | — Pending |
-| Redis always available (self-hosted on EC2) | Was optional on Render; now co-located — usable for snapshots and future Socket.IO adapter | — Pending |
-| Guest-first, optional sign-up | Preserve zero-friction instant play; accounts additive only | — Pending |
-| Google OAuth for sign-up (no email/password) | Avoid owning password storage/reset/security | — Pending |
-| Sequence milestone foundation-first | Persistence + identity unblock matchmaking, social, replays | — Pending |
-| Extend existing stack, no rewrite | Mature working codebase; lower risk | — Pending |
+| Self-hosted Postgres on dedicated EC2 | Full control, no managed-tier limits; co-located with app + Redis | ✓ Good — stable through all 6 phases |
+| Redis always available (self-hosted on EC2) | Enables snapshots, leaderboard cache, future Socket.IO adapter | ✓ Good — used for crash-recovery + leaderboard |
+| Guest-first, optional sign-up | Preserve zero-friction instant play; accounts additive only | ✓ Good — guest play unchanged, 3 sign-in methods added |
+| Google + Facebook + Email auth (was: Google only) | Broader reach; email added Phase 2 after feedback | ✓ Good — 3 providers cover most users |
+| Glicko-2 over ELO | Handles provisional ratings, deviation, volatility; 40-line pure function | ✓ Good — validated against Glickman reference vector |
+| Sequence milestone foundation-first | Persistence + identity unblock matchmaking, ranked, social | ✓ Good — clean dependency chain P1→P2→P3→P4→P5; P6 parallel |
+| Extend existing stack, no rewrite | Mature working codebase; lower risk | ✓ Good — server.js grew to ~2800 lines but remained coherent |
+| RateLimiterMemory (in-process) for all rate limiting | No new dependency; sufficient for single-process | ⚠️ Revisit — needs Redis-backed limiter for horizontal scaling |
+| Season reset as CLI-only script | No HTTP surface = no attack vector; runs manually per season | ✓ Good — simple, secure, idempotent |
 
 ## Evolution
 
@@ -116,4 +117,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-03 — Phase 4 (Ranked Mode & Leaderboard) complete: Glicko-2 ratings update atomically with match records, ranked play is account-gated, top-100 leaderboard with provisional-player gating + cache, and season soft-reset CLI. RANK-01..05 validated.*
+*Last updated: 2026-06-04 after v1.0 milestone — all 6 phases shipped: persistence, accounts (3 auth methods), match recording, ranked Glicko-2 + leaderboard, public matchmaking, 4-tier bot difficulty.*
