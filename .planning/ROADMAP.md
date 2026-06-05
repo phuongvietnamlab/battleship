@@ -28,3 +28,14 @@
 | 4. Ranked Mode & Leaderboard | v1.0 | 7/7 | Complete | 2026-06-03 |
 | 5. Public Matchmaking | v1.0 | 3/3 | Complete | 2026-06-04 |
 | 6. Bot Difficulty Tiers | v1.0 | 2/2 | Complete | 2026-06-04 |
+
+### Phase 7: Points economy: remove ranking/leaderboard, add wagerable points for matches and power-up purchases
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 6
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 7 to break down)
