@@ -15,7 +15,7 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
-const { updateRatings } = require("./elo");
+
 
 const sslConfig =
   process.env.PG_SSL === "true" ? { rejectUnauthorized: false } : false;
@@ -221,6 +221,9 @@ async function linkOrPromoteAccount(provider, externalId, name, avatarUrl, pendi
       );
     }
 
+    // Phase 7: create wallet for signed-in user (idempotent)
+    await createWallet(userId, client);
+
     await client.query("COMMIT");
 
     const { rows } = await client.query(
@@ -335,6 +338,9 @@ async function createEmailAccount(email, password, pendingClientId) {
         [displayName, normalizedEmail, userId]
       );
     }
+
+    // Phase 7: create wallet for signed-in user (idempotent)
+    await createWallet(userId, client);
 
     await client.query("COMMIT");
 
@@ -697,6 +703,100 @@ async function getPlayerRating(userId) {
     : { rating: 1500, rd: 350 };
 }
 
+// ─── Wallet helpers (Phase 7: Points Economy) ────────────────────────────────
+
+async function getWalletBalance(userId) {
+  if (!userId) return 0;
+  const { rows } = await pool.query(
+    "SELECT balance FROM wallets WHERE user_id = $1",
+    [userId]
+  );
+  return rows.length > 0 ? rows[0].balance : 0;
+}
+
+async function debitWallet(userId, amount, type, referenceId) {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const { rows } = await client.query(
+      "SELECT balance FROM wallets WHERE user_id = $1 FOR UPDATE",
+      [userId]
+    );
+    if (rows.length === 0 || rows[0].balance < amount) {
+      await client.query("ROLLBACK");
+      return { ok: false, code: "INSUFFICIENT_BALANCE" };
+    }
+    const newBalance = rows[0].balance - amount;
+    await client.query(
+      "UPDATE wallets SET balance = $1, updated_at = now() WHERE user_id = $2",
+      [newBalance, userId]
+    );
+    await client.query(
+      "INSERT INTO transactions (user_id, type, amount, balance_after, reference_id) VALUES ($1, $2, $3, $4, $5)",
+      [userId, type, -amount, newBalance, referenceId]
+    );
+    await client.query("COMMIT");
+    return { ok: true, balance: newBalance };
+  } catch (e) {
+    await client.query("ROLLBACK");
+    console.error("[wallet] debitWallet failed:", e.message);
+    return { ok: false, code: "WALLET_ERROR" };
+  } finally {
+    client.release();
+  }
+}
+
+async function creditWallet(userId, amount, type, referenceId) {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const { rows } = await client.query(
+      "SELECT balance FROM wallets WHERE user_id = $1 FOR UPDATE",
+      [userId]
+    );
+    if (rows.length === 0) {
+      await client.query("ROLLBACK");
+      return { ok: false, code: "NO_WALLET" };
+    }
+    const newBalance = rows[0].balance + amount;
+    await client.query(
+      "UPDATE wallets SET balance = $1, updated_at = now() WHERE user_id = $2",
+      [newBalance, userId]
+    );
+    await client.query(
+      "INSERT INTO transactions (user_id, type, amount, balance_after, reference_id) VALUES ($1, $2, $3, $4, $5)",
+      [userId, type, amount, newBalance, referenceId]
+    );
+    await client.query("COMMIT");
+    return { ok: true, balance: newBalance };
+  } catch (e) {
+    await client.query("ROLLBACK");
+    console.error("[wallet] creditWallet failed:", e.message);
+    return { ok: false, code: "WALLET_ERROR" };
+  } finally {
+    client.release();
+  }
+}
+
+async function createWallet(userId, client) {
+  // Creates wallet + signup_bonus in a single INSERT pair.
+  // ON CONFLICT guards idempotency (user links multiple providers).
+  const q = client || pool;
+  await q.query(
+    "INSERT INTO wallets (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING",
+    [userId]
+  );
+  // Only insert signup_bonus if no prior bonus exists for this user
+  await q.query(
+    `INSERT INTO transactions (user_id, type, amount, balance_after, reference_id)
+     SELECT $1, 'signup_bonus', 500, 500, 'initial'
+     WHERE NOT EXISTS (
+       SELECT 1 FROM transactions WHERE user_id = $1 AND type = 'signup_bonus'
+     )`,
+    [userId]
+  );
+}
+
 module.exports = {
   pool,
   runMigrations,
@@ -710,7 +810,8 @@ module.exports = {
   markEmailVerified,
   setEmailPassword,
   recordMatch,
-  getLeaderboard,
-  refreshLeaderboardCache,
-  getPlayerRating,
+  getWalletBalance,
+  debitWallet,
+  creditWallet,
+  createWallet,
 };

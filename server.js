@@ -8,7 +8,7 @@ const http = require("http");
 const path = require("path");
 const { Server } = require("socket.io");
 const store = require("./store"); // optional Redis snapshot; no-op without REDIS_URL
-const { pool, runMigrations, upsertGuestCredential, linkOrPromoteAccount, createEmailAccount, verifyEmailLogin, recordMatch, getLeaderboard, getPlayerRating } = require("./db"); // Postgres: identity persistence
+const { pool, runMigrations, upsertGuestCredential, linkOrPromoteAccount, createEmailAccount, verifyEmailLogin, recordMatch, getWalletBalance, debitWallet, creditWallet, createWallet } = require("./db"); // Postgres: identity persistence + wallet
 
 const app = express();
 const server = http.createServer(app);
@@ -382,6 +382,18 @@ app.post("/auth/signout-all", async (req, res) => {
 app.get("/api/me", (req, res) => {
   if (!req.user) return res.json({ user: null });
   res.json({ user: { id: req.user.id, displayName: req.user.display_name, avatarUrl: req.user.avatar_url } });
+});
+
+// ─── Wallet balance endpoint (Phase 7) ──────────────────────────────────────
+app.get("/api/wallet", (req, res) => {
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ error: "NOT_AUTHENTICATED" });
+  getWalletBalance(userId)
+    .then((balance) => res.json({ balance }))
+    .catch((e) => {
+      console.error("[wallet] balance fetch failed:", e.message);
+      res.status(500).json({ error: "SERVER_ERROR" });
+    });
 });
 
 // ─── Email auth routes ───────────────────────────────────────────────────────
@@ -1309,6 +1321,13 @@ io.on("connection", (socket) => {
   const userId = socket.request.session?.passport?.user ?? null;
   socket.data.userId = userId;
   console.log("[auth] socket connected, clientId:", socket.data.clientId, "userId:", userId);
+
+  // Phase 7: push wallet balance to authenticated sockets on connect
+  if (userId) {
+    getWalletBalance(userId)
+      .then((balance) => socket.emit("balanceUpdate", { balance }))
+      .catch(() => {}); // non-fatal: balance can be fetched via /api/wallet
+  }
 
   socket.on("createRoom", (arg, cb) => {
     if (typeof arg === "function") { cb = arg; arg = {}; }
