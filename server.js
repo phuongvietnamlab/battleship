@@ -203,6 +203,9 @@ const queues = {
   wagered: new Map(),
 };
 
+// Phase 7: valid wager presets for the wagered queue and room-code games
+const VALID_STAKES = [10, 25, 50, 100];
+
 const joinQueueLimiter = new RateLimiterMemory({ points: 5, duration: 60 }); // 5/min per clientId
 
 // ─── Auth rate limiter ───────────────────────────────────────────────────────
@@ -602,6 +605,7 @@ function scheduleSeatRelease(room, code, clientId, ms) {
           lId: r2.players[clientId]?.userId ?? null,
           mode: r2.mode,
           startedAt: r2.startedAt,
+          stake: r2.stake || 0, // Phase 7
         };
         r2.recorded = true; // synchronous dedup guard (D-06) — set BEFORE delete
       }
@@ -618,7 +622,15 @@ function scheduleSeatRelease(room, code, clientId, ms) {
     }
     // Fire-and-forget match record after opponentLeft emit (D-07)
     if (disconnectRecord) {
-      recordMatch(disconnectRecord.wId, disconnectRecord.lId, "disconnect", disconnectRecord.mode, disconnectRecord.startedAt).catch(() => {});
+      recordMatch(disconnectRecord.wId, disconnectRecord.lId, "disconnect", disconnectRecord.mode, disconnectRecord.startedAt, disconnectRecord.stake || 0).catch(() => {});
+      // Phase 7: push balance update to winner after wagered disconnect-forfeit
+      if (disconnectRecord.stake > 0 && disconnectRecord.wId) {
+        getWalletBalance(disconnectRecord.wId).then((bal) => {
+          // Winner is the remaining player in the room (disconnected player was removed)
+          const winId = r2.order[0];
+          if (winId && r2.players[winId]) emitToClient(r2, winId, "balanceUpdate", { balance: bal });
+        }).catch(() => {});
+      }
     }
   }, ms != null ? ms : GRACE_MS);
 }
@@ -660,6 +672,7 @@ function serializeRooms() {
       powerups: r.powerups || {},
       mines,
       players,
+      stake: r.stake || 0, // Phase 7
     };
   }
   return out;
@@ -709,6 +722,7 @@ function restoreRooms(snap) {
       mines,
       turnTimer: null,
       turnDeadline: null,
+      stake: s.stake || 0, // Phase 7
     };
     for (const id of rooms[code].order) scheduleSeatRelease(rooms[code], code, id, RESTORE_GRACE_MS);
     if (rooms[code].started) armTurnTimer(rooms[code]);
@@ -749,6 +763,7 @@ function roomPublic(room) {
     playerCount: room.order.length,
     onlineCount: present.length,
     mode: room.mode || "classic",
+    stake: room.stake || 0, // Phase 7
   };
 }
 
@@ -877,6 +892,7 @@ function syncPayload(room, code, clientId) {
     inv: me && me.inv ? me.inv : newInv(),
     powerups: powerupsForAttacker(room, clientId),
     myMines: (room.mines && room.mines[clientId]) ? [...room.mines[clientId]] : [],
+    stake: room.stake || 0, // Phase 7
   };
 }
 
@@ -912,6 +928,21 @@ function sweepRooms() {
     if (r.order.length === 0) { delete rooms[code]; continue; }
     if (r.lastActivityAt && now - r.lastActivityAt > ROOM_IDLE_THRESHOLD_MS) {
       clearTurnTimer(r);
+      // Phase 7: refund wagers if game was started but never resolved (mutual abandon)
+      if (r.stake > 0 && r.started && !r.recorded) {
+        for (const id of r.order) {
+          const userId = r.players[id]?.userId;
+          if (userId) creditWallet(userId, r.stake, "wager_refund", "sweep_" + code).catch(() => {});
+        }
+      }
+      // Phase 7: also refund wagers for non-started wagered rooms (abandoned lobby)
+      if (r.stake > 0 && !r.started) {
+        for (const id of r.order) {
+          const userId = r.players[id]?.userId;
+          const wagerId = r.players[id]?.wagerId;
+          if (userId) creditWallet(userId, r.stake, "wager_refund", wagerId || "sweep_" + code).catch(() => {});
+        }
+      }
       delete rooms[code];
     }
   }
@@ -947,7 +978,13 @@ function endGameForfeit(room, loserId, reason) {
     room.recorded = true; // synchronous dedup guard (D-06) — set BEFORE the promise
     const wId = room.players[winnerId]?.userId ?? null;
     const lId = room.players[loserId]?.userId ?? null;
-    recordMatch(wId, lId, reason, room.mode, room.startedAt).catch(() => {});
+    recordMatch(wId, lId, reason, room.mode, room.startedAt, room.stake || 0).catch(() => {});
+    // Phase 7: push balance update to winner after wagered forfeit
+    if (room.stake > 0 && wId) {
+      getWalletBalance(wId).then((bal) => {
+        emitToClient(room, winnerId, "balanceUpdate", { balance: bal });
+      }).catch(() => {});
+    }
   }
 }
 
@@ -1021,7 +1058,13 @@ function doShot(room, clientId, cells) {
       room.recorded = true; // synchronous dedup guard (D-06) — set BEFORE the promise
       const wId = room.players[clientId]?.userId ?? null;
       const lId = room.players[opp]?.userId ?? null;
-      recordMatch(wId, lId, "normal", room.mode, room.startedAt).catch(() => {});
+      recordMatch(wId, lId, "normal", room.mode, room.startedAt, room.stake || 0).catch(() => {});
+      // Phase 7: push balance update to winner after wagered win
+      if (room.stake > 0 && wId) {
+        getWalletBalance(wId).then((bal) => {
+          emitToClient(room, clientId, "balanceUpdate", { balance: bal });
+        }).catch(() => {});
+      }
     }
     return { ok: true, cells: results, collected, sunkCells, sunkCount, newSunk, win, anyHit, mineHit };
   }
@@ -1187,6 +1230,7 @@ async function createMatchedRoom(entryA, entryB, type) {
     powerups: {}, turnTimer: null, turnDeadline: null,
     resolving: false, lastActivityAt: Date.now(),
     matchQueueType: type, // D-11: preserved for partner re-queue on pre-start disconnect
+    stake: type === "wagered" ? (entryA.stake || 0) : 0, // Phase 7: carry stake from queue entries
   };
   for (const entry of [entryA, entryB]) {
     rooms[code].players[entry.clientId] = {
@@ -1195,6 +1239,7 @@ async function createMatchedRoom(entryA, entryB, type) {
       profile: entry.profile,
       userId: entry.userId ?? null,
       matchQueueType: type, // D-11: retained so disconnect handler can re-queue survivor
+      wagerId: entry.wagerId ?? null, // Phase 7: track for potential refund
     };
     rooms[code].order.push(entry.clientId);
     const sock = io.of("/").sockets.get(entry.socketId);
@@ -1211,8 +1256,8 @@ async function createMatchedRoom(entryA, entryB, type) {
   io.to(code).emit("opponentJoined");
   io.to(entryA.socketId).emit("oppProfile", entryB.profile || null);
   io.to(entryB.socketId).emit("oppProfile", entryA.profile || null);
-  io.to(entryA.socketId).emit("matchFound", { code });
-  io.to(entryB.socketId).emit("matchFound", { code });
+  io.to(entryA.socketId).emit("matchFound", { code, stake: rooms[code].stake || 0 });
+  io.to(entryB.socketId).emit("matchFound", { code, stake: rooms[code].stake || 0 });
   console.log(`[queue] matched ${type}: ${entryA.clientId} vs ${entryB.clientId} -> room ${code}`);
 }
 
@@ -1234,23 +1279,40 @@ io.on("connection", (socket) => {
       .catch(() => {}); // non-fatal: balance can be fetched via /api/wallet
   }
 
-  socket.on("createRoom", (arg, cb) => {
+  socket.on("createRoom", async (arg, cb) => {
     if (typeof arg === "function") { cb = arg; arg = {}; }
     const clientId = (arg && arg.clientId) || socket.id;
     const code = newCode();
     const mode = (arg && arg.mode) === "advance" ? "advance" : "classic";
+    // Phase 7: stake for room-code games (0 = free, or from VALID_STAKES)
+    const stake = VALID_STAKES.includes(arg && arg.stake) ? arg.stake : 0;
+    if (stake > 0) {
+      // Guard: must be signed in to wager
+      if (socket.data.userId == null) {
+        return cb && cb({ ok: false, code: "WAGERED_REQUIRES_ACCOUNT" });
+      }
+      // Debit host's wager immediately
+      const referenceId = "room_host_" + Date.now() + "_" + socket.id;
+      const debitResult = await debitWallet(socket.data.userId, stake, "wager_debit", referenceId);
+      if (!debitResult.ok) {
+        return cb && cb({ ok: false, code: "INSUFFICIENT_BALANCE" });
+      }
+      // Store hostWagerId for potential refund
+      var hostWagerId = referenceId;
+    }
     // room.recorded is the D-06 dedup flag set synchronously at end paths (Task 2 — endGameForfeit/doShot/scheduleSeatRelease/leaveRoom)
-    rooms[code] = { code, players: {}, order: [], started: false, turn: null, scores: {}, lastStarter: null, mode, powerups: {}, turnTimer: null, turnDeadline: null, resolving: false, lastActivityAt: Date.now() };
+    rooms[code] = { code, players: {}, order: [], started: false, turn: null, scores: {}, lastStarter: null, mode, powerups: {}, turnTimer: null, turnDeadline: null, resolving: false, lastActivityAt: Date.now(), stake, hostWagerId: hostWagerId || null };
     rooms[code].players[clientId] = {
       sid: socket.id, ready: false, occ: null, hits: new Set(), online: true, timer: null, inv: newInv(), bonus: 0,
       profile: sanitizeProfile(arg && arg.profile),
       userId: socket.data.userId ?? null,
+      wagerId: hostWagerId || null, // Phase 7: track for refund
     };
     rooms[code].order.push(clientId);
     socket.join(code);
     socket.data.code = code;
     socket.data.clientId = clientId;
-    cb && cb({ ok: true, code });
+    cb && cb({ ok: true, code, stake });
     io.to(code).emit("roomUpdate", roomPublic(rooms[code]));
     upsertGuestCredential(clientId); // fire-and-forget: durable identity (DATA-01)
   });
@@ -1281,12 +1343,37 @@ io.on("connection", (socket) => {
     if (socket.data.queueType || queues.free.has(queueKey) || queues.wagered.has(queueKey)) {
       return cb && cb({ ok: false, code: "ALREADY_IN_QUEUE" });
     }
+
+    // Phase 7: wagered queue requires signed-in user + valid stake + sufficient balance
+    let stake = 0;
+    let wagerId = null;
+    if (type === "wagered") {
+      // Guard: must be signed in
+      if (socket.data.userId == null) {
+        return cb && cb({ ok: false, code: "WAGERED_REQUIRES_ACCOUNT" });
+      }
+      // Guard: valid stake preset
+      const requestedStake = arg && arg.stake;
+      if (!VALID_STAKES.includes(requestedStake)) {
+        return cb && cb({ ok: false, code: "INVALID_STAKE" });
+      }
+      stake = requestedStake;
+      // Debit wager immediately at queue join
+      const referenceId = "queue_" + Date.now() + "_" + socket.id;
+      const debitResult = await debitWallet(socket.data.userId, stake, "wager_debit", referenceId);
+      if (!debitResult.ok) {
+        return cb && cb({ ok: false, code: "INSUFFICIENT_BALANCE" });
+      }
+      wagerId = referenceId;
+    }
+
     const entry = {
       socketId: socket.id,
       clientId,
       queueKey, // WR-02: server-trusted map key, retained for re-queue/cleanup
       userId: socket.data.userId ?? null,
-      stake: (arg && arg.stake) || 0, // wagered stake level (Phase 7)
+      stake,
+      wagerId, // Phase 7: for refund tracking
       enqueuedAt: Date.now(),
       pairing: false,
       profile: sanitizeProfile(arg && arg.profile), // T-5-01
@@ -1295,13 +1382,15 @@ io.on("connection", (socket) => {
     socket.data.queueType = type;
     socket.data.queueKey = queueKey;
     socket.data.queueClientId = clientId;
+    socket.data.queueStake = stake;       // Phase 7: for refund on disconnect/leave
+    socket.data.queueWagerId = wagerId;   // Phase 7: for refund tracking
     queues[type].set(queueKey, entry);
     upsertGuestCredential(clientId); // fire-and-forget: durable identity (DATA-01)
     cb && cb({ ok: true });
     tryPair(type);
   });
 
-  socket.on("leaveQueue", (arg, cb) => {
+  socket.on("leaveQueue", async (arg, cb) => {
     // WR-04: never null queue state while already in a room — a stray client
     // leaveQueue racing the matchFound transition must not touch the queue.
     if (socket.data.code) return cb && cb({ ok: true });
@@ -1310,15 +1399,26 @@ io.on("connection", (socket) => {
     // so a forged key cannot evict another player's entry.
     for (const type of ["free", "wagered"]) {
       const e = queues[type].get(queueKey);
-      if (e && e.socketId === socket.id) queues[type].delete(queueKey);
+      if (e && e.socketId === socket.id) {
+        queues[type].delete(queueKey);
+        // Phase 7: refund wager if leaving wagered queue
+        if (e.stake && e.userId) {
+          creditWallet(e.userId, e.stake, "wager_refund", e.wagerId).catch(() => {});
+          getWalletBalance(e.userId).then((bal) => {
+            socket.emit("balanceUpdate", { balance: bal });
+          }).catch(() => {});
+        }
+      }
     }
     socket.data.queueType = null;
     socket.data.queueKey = null;
     socket.data.queueClientId = null;
+    socket.data.queueStake = null;
+    socket.data.queueWagerId = null;
     cb && cb({ ok: true });
   });
 
-  socket.on("joinRoom", (arg, cb) => {
+  socket.on("joinRoom", async (arg, cb) => {
     let code, clientId;
     if (typeof arg === "string") { code = arg; clientId = socket.id; }
     else { code = arg && arg.code; clientId = (arg && arg.clientId) || socket.id; }
@@ -1356,16 +1456,34 @@ io.on("connection", (socket) => {
       return cb && cb({ ok: false, code: "ROOM_FULL" });
     }
     if (room.started) return cb && cb({ ok: false, code: "GAME_STARTED" });
+
+    // Phase 7: wagered room-code game — debit joiner's wager
+    let joinerWagerId = null;
+    if (room.stake > 0) {
+      // Guard: must be signed in
+      if (socket.data.userId == null) {
+        return cb && cb({ ok: false, code: "WAGERED_REQUIRES_ACCOUNT", stake: room.stake });
+      }
+      // Debit joiner's wager
+      const referenceId = "room_join_" + Date.now() + "_" + socket.id;
+      const debitResult = await debitWallet(socket.data.userId, room.stake, "wager_debit", referenceId);
+      if (!debitResult.ok) {
+        return cb && cb({ ok: false, code: "INSUFFICIENT_BALANCE", stake: room.stake });
+      }
+      joinerWagerId = referenceId;
+    }
+
     room.players[clientId] = {
       sid: socket.id, ready: false, occ: null, hits: new Set(), online: true, timer: null, inv: newInv(), bonus: 0,
       profile: sanitizeProfile(arg && arg.profile),
       userId: socket.data.userId ?? null,
+      wagerId: joinerWagerId, // Phase 7: track for refund
     };
     room.order.push(clientId);
     socket.join(code);
     socket.data.code = code;
     socket.data.clientId = clientId;
-    cb && cb({ ok: true, code });
+    cb && cb({ ok: true, code, stake: room.stake || 0 });
     io.to(code).emit("roomUpdate", roomPublic(room));
     io.to(code).emit("opponentJoined");
     upsertGuestCredential(clientId); // fire-and-forget: P2 persists on first session (DATA-01)
@@ -1685,7 +1803,35 @@ io.on("connection", (socket) => {
           room.recorded = true; // synchronous dedup guard (D-06) — set BEFORE promise
           const wId = room.players[winnerId]?.userId ?? null;
           const lId = room.players[clientId]?.userId ?? null;
-          recordMatch(wId, lId, "leave", room.mode, room.startedAt).catch(() => {});
+          recordMatch(wId, lId, "leave", room.mode, room.startedAt, room.stake || 0).catch(() => {});
+          // Phase 7: push balance update to winner after wagered leave-forfeit
+          if (room.stake > 0 && wId) {
+            getWalletBalance(wId).then((bal) => {
+              emitToClient(room, winnerId, "balanceUpdate", { balance: bal });
+            }).catch(() => {});
+          }
+        }
+      }
+      // Phase 7: refund wagered pre-start leave (game not started yet)
+      if (!room.started && room.stake > 0) {
+        // Refund the leaving player
+        const leavingUserId = room.players[clientId]?.userId;
+        const leavingWagerId = room.players[clientId]?.wagerId;
+        if (leavingUserId) {
+          creditWallet(leavingUserId, room.stake, "wager_refund", leavingWagerId || "leave_" + code).catch(() => {});
+        }
+        // Refund the remaining player too (room will be torn down or they'll be alone)
+        const oppId = opponentOf(room, clientId);
+        if (oppId) {
+          const oppUserId = room.players[oppId]?.userId;
+          const oppWagerId = room.players[oppId]?.wagerId;
+          if (oppUserId) {
+            creditWallet(oppUserId, room.stake, "wager_refund", oppWagerId || "leave_opp_" + code).catch(() => {});
+            emitToClient(room, oppId, "balanceUpdate", { balance: -1 }); // client will re-fetch
+            getWalletBalance(oppUserId).then((bal) => {
+              emitToClient(room, oppId, "balanceUpdate", { balance: bal });
+            }).catch(() => {});
+          }
         }
       }
       const p = room.players[clientId];
@@ -1711,11 +1857,20 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", () => {
-    // QUEUE-03: queue cleanup runs FIRST — must happen before any room handling
-    // so a phantom slot never lingers (T-5-10, RESEARCH Pitfall 2).
-    // WR-03: remove by the server-trusted queue key (the same key joinQueue used),
-    // so cleanup can never diverge from the entry's map key.
-    removeFromQueues(socket.data.queueKey || queueKeyFor(socket));
+    // QUEUE-03: queue cleanup with wager refund runs FIRST — must happen before
+    // any room handling so a phantom slot never lingers (T-5-10, RESEARCH Pitfall 2).
+    // Phase 7: refund wagered entries on disconnect.
+    const queueKey = socket.data.queueKey || queueKeyFor(socket);
+    for (const type of ["free", "wagered"]) {
+      const e = queues[type].get(queueKey);
+      if (e && e.socketId === socket.id) {
+        queues[type].delete(queueKey);
+        // Phase 7: refund wager if disconnecting from wagered queue
+        if (e.stake && e.userId) {
+          creditWallet(e.userId, e.stake, "wager_refund", e.wagerId).catch(() => {});
+        }
+      }
+    }
 
     const code = socket.data.code;
     const clientId = socket.data.clientId;
@@ -1736,7 +1891,8 @@ io.on("connection", (socket) => {
           socketId: oppPlayer.sid,
           clientId: oppId,
           userId: oppPlayer.userId ?? null,
-          stake: oppPlayer.stake ?? 0,
+          stake: room.stake || 0, // Phase 7: preserve stake from room (originally from queue entry)
+          wagerId: oppPlayer.wagerId ?? null, // Phase 7: preserve wagerId for refund tracking
           enqueuedAt: Date.now(), // fresh window — they are first in line
           pairing: false,
           profile: oppPlayer.profile || null,
@@ -1749,6 +1905,11 @@ io.on("connection", (socket) => {
         // Insert survivor at FRONT via full Map replacement (Pitfall 5)
         queues[qt] = new Map([[survivorKey, survivorEntry], ...queues[qt]]);
         console.log(`[queue] D-11: partner disconnected before start, re-queued survivor ${oppId} at front of ${qt}`);
+        // Phase 7: refund disconnecting player's wager (match never started)
+        const dcUserId = room.players[clientId]?.userId;
+        if (room.stake > 0 && dcUserId) {
+          creditWallet(dcUserId, room.stake, "wager_refund", "prestart_dc_" + code).catch(() => {});
+        }
         // Tear down the dead room before emitting so it cannot be re-paired
         clearTurnTimer(room);
         delete rooms[code];
@@ -1760,6 +1921,8 @@ io.on("connection", (socket) => {
           survivorSock.data.queueType = qt;
           survivorSock.data.queueKey = survivorKey;
           survivorSock.data.queueClientId = oppId;
+          survivorSock.data.queueStake = room.stake || 0;       // Phase 7: preserve wager tracking
+          survivorSock.data.queueWagerId = oppPlayer.wagerId ?? null; // Phase 7
         }
         // Notify survivor to return to queue wait screen (D-11 — dedicated event)
         io.to(oppPlayer.sid).emit("requeued", { type: qt });
@@ -1850,6 +2013,7 @@ module.exports = {
     removeFromQueues,
     createMatchedRoom,
     queueKeyFor,
+    VALID_STAKES, // Phase 7
     // CR-01/WR-05 test helpers: override the socket-liveness predicate so unit
     // tests can simulate live/dead sockets without a running Socket.IO server.
     setSocketIsLive: (fn) => { socketIsLive = fn; },

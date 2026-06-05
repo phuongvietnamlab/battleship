@@ -456,7 +456,7 @@ async function markEmailVerified(userId) {
 // Never throws — all errors are caught, logged with [match] prefix, and swallowed
 // so a failing DB write can never block or break the end-game screen.
 
-async function recordMatch(winnerId, loserId, reason, mode, startedAt) {
+async function recordMatch(winnerId, loserId, reason, mode, startedAt, stake = 0) {
   // Graceful no-op guard: derive from poolConfig env vars (lines 22-32)
   if (!process.env.DATABASE_URL && !process.env.PGHOST && !process.env.PGDATABASE) {
     console.log("[match] DATABASE_URL not set — skipping match record");
@@ -481,12 +481,35 @@ async function recordMatch(winnerId, loserId, reason, mode, startedAt) {
     await client.query("BEGIN");
     // All values bound as $N — never string-concatenate (T-03-03 SQL-injection mitigation)
     const matchTs = startedAt || new Date();
+    const matchCode = "match_" + Date.now() + "_" + winnerId;
     await client.query(
-      "INSERT INTO matches (winner_id, loser_id, reason, mode, started_at, ended_at) VALUES ($1, $2, $3, $4, $5, now())",
-      [winnerId, loserId, reason, mode || "classic", matchTs]
+      "INSERT INTO matches (winner_id, loser_id, reason, mode, started_at, ended_at, stake) VALUES ($1, $2, $3, $4, $5, now(), $6)",
+      [winnerId, loserId, reason, mode || "classic", matchTs, stake]
     );
 
+    // Phase 7: wager payout — credit winner with 90% of pot
+    if (stake > 0 && winnerId != null) {
+      const pot = stake * 2;
+      const payout = Math.floor(pot * 0.9); // 90% to winner, 10% system fee
+      const { rows: wRows } = await client.query(
+        "SELECT balance FROM wallets WHERE user_id = $1 FOR UPDATE",
+        [winnerId]
+      );
+      if (wRows.length > 0) {
+        const newBal = wRows[0].balance + payout;
+        await client.query(
+          "UPDATE wallets SET balance = $1, updated_at = now() WHERE user_id = $2",
+          [newBal, winnerId]
+        );
+        await client.query(
+          "INSERT INTO transactions (user_id, type, amount, balance_after, reference_id) VALUES ($1, 'wager_win', $2, $3, $4)",
+          [winnerId, payout, newBal, matchCode]
+        );
+      }
+    }
+
     await client.query("COMMIT");
+    return { payout: stake > 0 ? Math.floor(stake * 2 * 0.9) : 0 };
   } catch (e) {
     await client.query("ROLLBACK");
     console.error("[match] recordMatch failed:", e.message);
