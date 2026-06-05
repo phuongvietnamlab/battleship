@@ -1452,12 +1452,12 @@ function PasskeyButton({ clientId, onAuthSuccess }) {
         await doRegister();
       }
     } catch (e) {
-      if (e.name === "NotAllowedError" || e.name === "AbortError") {
-        // User cancelled OR no discoverable credential on device — switch to register mode
-        if (isReturning) {
-          setIsReturning(false);
-        }
-        // Don't show error — user can tap "Tạo Passkey" button now
+      if (e.name === "NotAllowedError") {
+        // User cancelled biometric OR no discoverable credential on device — switch to register mode
+        if (isReturning) setIsReturning(false);
+      } else if (e.name === "AbortError") {
+        // Could be user cancel from biometric OR fetch timeout — show error
+        setError(t("auth.errPasskeyFailed"));
       } else if (e.name === "InvalidStateError") {
         // Device already has passkey for this RP — switch to login
         setIsReturning(true);
@@ -1485,16 +1485,27 @@ function PasskeyButton({ clientId, onAuthSuccess }) {
 
     const assertion = await startAuthentication({ optionsJSON: optData.options });
 
-    const verRes = await fetch("/auth/webauthn/login-verify", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "same-origin",
-      body: JSON.stringify({ credential: assertion, challengeToken: optData.challengeToken }),
-    });
+    // Use AbortController timeout to prevent hanging forever if server doesn't respond
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    let verRes;
+    try {
+      verRes = await fetch("/auth/webauthn/login-verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ credential: assertion, challengeToken: optData.challengeToken }),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
     const verData = await verRes.json();
     if (!verData.ok) throw new Error(verData.code || "WEBAUTHN_FAILED");
 
-    if (onAuthSuccess) onAuthSuccess(verData.user);
+    // Reload page to hydrate auth state cleanly via /api/me (avoids SPA state issues)
+    if (verData.user && onAuthSuccess) onAuthSuccess(verData.user);
+    window.location.reload();
   }
 
   async function doRegister() {
@@ -1534,6 +1545,7 @@ function PasskeyButton({ clientId, onAuthSuccess }) {
     // Now this device has a passkey — switch to login mode permanently
     setIsReturning(true);
     if (verData.user && onAuthSuccess) onAuthSuccess(verData.user);
+    window.location.reload();
   }
 
   if (!checked) return null; // don't render until server check is done

@@ -503,16 +503,17 @@ app.post("/auth/webauthn/register-verify", authRateLimit, async (req, res) => {
     delete req.session.webauthnExistingUserId;
 
     // Establish authenticated session
-    req.session.regenerate((err) => {
-      if (err) return res.status(500).json({ ok: false });
-      req.session.user_id = userId;
-      req.session.save(async () => {
-        const user = await getUserById(userId);
-        res.json({
-          ok: true,
-          credentialId: regCredential.id,
-          user: user ? { id: user.id, displayName: user.display_name, avatarUrl: user.avatar_url } : { id: userId },
-        });
+    req.session.user_id = userId;
+
+    // Explicitly save session before responding
+    req.session.save(async (saveErr) => {
+      if (saveErr) console.error("[webauthn] register-verify: session save failed:", saveErr.message);
+      let user;
+      try { user = await getUserById(userId); } catch (_) {}
+      res.json({
+        ok: true,
+        credentialId: regCredential.id,
+        user: user ? { id: user.id, displayName: user.display_name, avatarUrl: user.avatar_url } : { id: userId },
       });
     });
   } catch (e) {
@@ -640,17 +641,20 @@ app.post("/auth/webauthn/login-verify", authRateLimit, async (req, res) => {
     // Clear challenge
     delete req.session.webauthnChallenge;
 
-    // Establish authenticated session (SEC-05: regenerate before stamping)
-    const userId = storedCred.user_id;
-    req.session.regenerate((err) => {
-      if (err) return res.status(500).json({ ok: false });
-      req.session.user_id = userId;
-      req.session.save(async () => {
-        const user = await getUserById(userId);
-        res.json({
-          ok: true,
-          user: user ? { id: user.id, displayName: user.display_name, avatarUrl: user.avatar_url } : { id: userId },
-        });
+    // Establish authenticated session.
+    const userId = Number(storedCred.user_id);
+    req.session.user_id = userId;
+
+    // Explicitly save session before responding (same pattern as email login).
+    // This ensures the session is persisted and Set-Cookie header is correct
+    // before the response is sent to the client.
+    req.session.save(async (saveErr) => {
+      if (saveErr) console.error("[webauthn] login-verify: session save failed:", saveErr.message);
+      let user;
+      try { user = await getUserById(userId); } catch (_) {}
+      res.json({
+        ok: true,
+        user: user ? { id: user.id, displayName: user.display_name, avatarUrl: user.avatar_url } : { id: userId },
       });
     });
   } catch (e) {
