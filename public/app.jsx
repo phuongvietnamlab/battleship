@@ -132,6 +132,9 @@ const I18N = {
     "profile.noGamesYet": "No games yet. Play some matches to see your record here.",
     "profile.back": "Back to lobby",
     "profile.challengeSoon": "Challenge (coming soon)",
+    "profile.editName": "✏️ Edit name",
+    "profile.saveName": "Save",
+    "profile.nameSaved": "Name updated!",
     "profile.notFound": "Player not found. Return to lobby.",
     "queue.quickMatch": "⚡ Quick Match",
     "queue.titleCasual": "Quick Match",
@@ -181,6 +184,20 @@ const I18N = {
     "bot.hard": "Hard",
     "bot.insane": "Insane",
     "bot.selectTier": "Select difficulty",
+    "bot.easyDesc": "Bot fires randomly",
+    "bot.mediumDesc": "Bot hunts near hits",
+    "bot.hardDesc": "Smart targeting AI",
+    "bot.insaneDesc": "Near-perfect strategy",
+    "lobby.quickPlay": "Quick Play",
+    "lobby.quickPlaySub": "Find a random opponent",
+    "lobby.botCard": "Bot",
+    "lobby.botCardSub": "Practice",
+    "lobby.friendCard": "Friends",
+    "lobby.friendCardSub": "Room code",
+    "lobby.friendTitle": "Play with friends",
+    "lobby.onboardingHint": "Tap here to start playing!",
+    "auth.signIn": "Sign in",
+    "auth.signInTitle": "Sign in or create account",
   },
   vi: {
     "common.or": "HOẶC", "common.copied": "Đã chép ✓",
@@ -291,6 +308,9 @@ const I18N = {
     "profile.noGamesYet": "Chưa có ván nào. Hãy chơi vài trận để xem thành tích tại đây.",
     "profile.back": "Quay lại sảnh",
     "profile.challengeSoon": "Thách đấu (sắp có)",
+    "profile.editName": "✏️ Sửa tên",
+    "profile.saveName": "Lưu",
+    "profile.nameSaved": "Đã cập nhật tên!",
     "profile.notFound": "Không tìm thấy người chơi. Quay lại sảnh.",
     "queue.quickMatch": "⚡ Ghép trận nhanh",
     "queue.titleCasual": "Ghép trận nhanh",
@@ -340,6 +360,20 @@ const I18N = {
     "bot.hard": "Khó",
     "bot.insane": "Cực khó",
     "bot.selectTier": "Chọn độ khó",
+    "bot.easyDesc": "Bot bắn ngẫu nhiên",
+    "bot.mediumDesc": "Bot săn gần điểm trúng",
+    "bot.hardDesc": "AI nhắm mục tiêu thông minh",
+    "bot.insaneDesc": "Chiến thuật gần hoàn hảo",
+    "lobby.quickPlay": "Chơi nhanh",
+    "lobby.quickPlaySub": "Tìm đối thủ ngẫu nhiên",
+    "lobby.botCard": "Bot",
+    "lobby.botCardSub": "Luyện tập",
+    "lobby.friendCard": "Bạn bè",
+    "lobby.friendCardSub": "Mã phòng",
+    "lobby.friendTitle": "Chơi với bạn bè",
+    "lobby.onboardingHint": "Bấm vào đây để bắt đầu chơi!",
+    "auth.signIn": "Đăng nhập",
+    "auth.signInTitle": "Đăng nhập hoặc tạo tài khoản",
   },
 };
 function t(k, p) {
@@ -783,36 +817,62 @@ function EmailAuthForm({ onAuthSuccess, clientId: cid }) {
   );
 }
 
+// ---------- BottomSheet ----------
+function BottomSheet({ open, onClose, title, children }) {
+  const panelRef = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    function handleKey(e) { if (e.key === "Escape") onClose(); }
+    document.addEventListener("keydown", handleKey);
+    // Focus trap: focus first focusable element
+    setTimeout(() => {
+      if (panelRef.current) {
+        const el = panelRef.current.querySelector("button, input, [tabindex]");
+        if (el) el.focus();
+      }
+    }, 100);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [open, onClose]);
+  return (
+    <div className={"bottom-sheet-overlay" + (open ? " open" : "")} onClick={onClose} role="presentation">
+      <div className="bottom-sheet-panel" ref={panelRef} role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}>
+        <div className="bottom-sheet-title">{title}</div>
+        <button className="bottom-sheet-close" onClick={onClose} aria-label="Close">✕</button>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 // ---------- Lobby ----------
-// resetToken: string (set-new mode) | null (normal or request mode from "Forgot password?")
-// resetMode: boolean — true when PasswordResetForm should be shown in request mode
-// onForgotPassword: opens PasswordResetForm in request mode
-// onResetBack: closes PasswordResetForm and returns to normal login view
 function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onWageredMatch, onHelp, error, authUser, authError, verifyNotice, clientId, signInDisabled, onSignInDisable, onEmailAuthSuccess, balance }) {
   const [code, setCode] = useState("");
   const [mode, setMode] = useState("classic");
   const [selectedTier, setSelectedTier] = useState(loadBotTier);
   const [selectedStake, setSelectedStake] = useState(10);
   const [roomStake, setRoomStake] = useState(0);
+  const [botSheetOpen, setBotSheetOpen] = useState(false);
+  const [friendSheetOpen, setFriendSheetOpen] = useState(false);
+  const [authSheetOpen, setAuthSheetOpen] = useState(false);
   const [hasPlatformAuth, setHasPlatformAuth] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(() => {
+    try { return !localStorage.getItem("lobby_onboarded"); } catch { return true; }
+  });
 
+  function dismissOnboarding() {
+    setShowOnboarding(false);
+    try { localStorage.setItem("lobby_onboarded", "1"); } catch {}
+  }
   // Feature-detect WebAuthn support (passkeys).
-  // Show the button if the browser supports WebAuthn at all — even without a
-  // platform authenticator, the browser may offer a phone-as-authenticator or
-  // security key flow. Only hide on truly unsupported browsers.
   useEffect(() => {
     if (typeof window !== "undefined" && window.PublicKeyCredential) {
-      // First try the strict check (platform authenticator available)
       if (typeof window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable === "function") {
         window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()
           .then(available => setHasPlatformAuth(available))
-          .catch(() => setHasPlatformAuth(true)); // API exists but errored — show button anyway
+          .catch(() => setHasPlatformAuth(true));
       } else {
-        // PublicKeyCredential exists but no platform check method — still show button
         setHasPlatformAuth(true);
       }
-      // Fallback: if the strict check says false, still show if conditional mediation is available
-      // (means passkeys are supported even if no local authenticator is configured)
       if (typeof window.PublicKeyCredential.isConditionalMediationAvailable === "function") {
         window.PublicKeyCredential.isConditionalMediationAvailable()
           .then(available => { if (available) setHasPlatformAuth(true); })
@@ -821,95 +881,117 @@ function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onWageredMatch, onHelp, 
     }
   }, []);
 
-  function handleModeChange(m) {
-    setMode(m);
-  }
   return (
     <div className="lobby">
       <h2>{t("lobby.title")}</h2>
       {error && <div className="error">{error}</div>}
       {verifyNotice === "success" && <div className="notice verify-notice">{t("auth.verifySuccess")}</div>}
       {verifyNotice === "error" && <div className="error verify-notice">{t("auth.verifyError")}</div>}
-      <div className="bot-tier-row">
-        {VALID_TIERS.map((tier) => (
-          <button
-            key={tier}
-            className={"btn" + (selectedTier === tier ? " primary" : " ghost")}
-            onClick={() => { saveBotTier(tier); setSelectedTier(tier); onBot(tier); }}
-          >{t("bot." + tier)}</button>
-        ))}
+
+      {/* Hero CTA — Quick Play */}
+      <button className={"btn primary hero-cta" + (showOnboarding ? " onboarding-pulse" : "")} onClick={() => { dismissOnboarding(); onQuickMatch(); }}>
+        <span className="hero-icon">⚡</span>
+        <span className="hero-text">
+          <strong>{t("lobby.quickPlay")}</strong>
+          <small>{t("lobby.quickPlaySub")}</small>
+        </span>
+      </button>
+      {showOnboarding && <div className="onboarding-hint">{t("lobby.onboardingHint")}</div>}
+
+      {/* Secondary cards row */}
+      <div className="lobby-cards">
+        <button className="lobby-card" onClick={() => { dismissOnboarding(); setBotSheetOpen(true); }} aria-label={t("lobby.botCard") + " - " + t("lobby.botCardSub")}>
+          <span className="card-icon">🤖</span>
+          <strong>{t("lobby.botCard")}</strong>
+          <small>{t("lobby.botCardSub")}</small>
+        </button>
+        <button className="lobby-card" onClick={() => { dismissOnboarding(); setFriendSheetOpen(true); }} aria-label={t("lobby.friendCard") + " - " + t("lobby.friendCardSub")}>
+          <span className="card-icon">👥</span>
+          <strong>{t("lobby.friendCard")}</strong>
+          <small>{t("lobby.friendCardSub")}</small>
+        </button>
       </div>
-      <div className="divider">{t("common.or")}</div>
-      <button className="btn primary" onClick={onQuickMatch}>{t("queue.freeMatch")}</button>
+
+      {/* Mode toggle — compact segmented control */}
+      <div className="mode-toggle-compact" role="radiogroup" aria-label="Game mode">
+        <button className={mode === "classic" ? "active" : ""} role="radio" aria-checked={mode === "classic"} onClick={() => setMode("classic")}>
+          {t("mode.classic")}
+        </button>
+        <button className={mode === "advance" ? "active" : ""} role="radio" aria-checked={mode === "advance"} onClick={() => setMode("advance")}>
+          {t("mode.advance")}
+        </button>
+      </div>
+
+      {/* Wager section — only for logged-in users */}
       {authUser && balance !== null && (
-        <div style={{ margin: "10px 0", textAlign: "center" }}>
-          <div style={{ fontSize: "1.1em", fontWeight: "bold", marginBottom: 6 }}>🪙 {balance} {t("wallet.balance")}</div>
-          <label style={{ fontWeight: "bold", marginBottom: 4, display: "block", fontSize: "0.9em" }}>{t("queue.stakeSelect")}</label>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "center", marginBottom: 8 }}>
+        <div className="wager-strip">
+          <span className="wager-balance">🪙 {balance}</span>
+          <div className="wager-chips">
             {[10, 25, 50, 100].map((s) => (
-              <button
-                key={s}
-                className={"btn " + (selectedStake === s ? "steel" : "ghost")}
-                style={{ fontSize: "0.9em", padding: "4px 10px" }}
-                onClick={() => setSelectedStake(s)}
-                disabled={balance < s}
-              >
-                {s} pts
-              </button>
+              <button key={s} className={"chip" + (selectedStake === s ? " active" : "")} onClick={() => setSelectedStake(s)} disabled={balance < s}>{s}</button>
             ))}
           </div>
-          <button
-            className="btn steel"
-            onClick={() => onWageredMatch(selectedStake)}
-            disabled={balance < selectedStake}
-          >
-            {t("queue.wageredMatch")} ({selectedStake} pts)
+          <button className="btn steel compact" onClick={() => { dismissOnboarding(); onWageredMatch(selectedStake); }} disabled={balance < selectedStake}>
+            {t("queue.wageredMatch")}
           </button>
         </div>
       )}
-      <div style={{ height: 10 }} />
-      <div className="mode-pick">
-        <button className={"mode-opt" + (mode === "classic" ? " on" : "")} onClick={() => handleModeChange("classic")}>
-          <b>{t("mode.classic")}</b><span>{t("mode.classicDesc")}</span>
-        </button>
-        <button className={"mode-opt" + (mode === "advance" ? " on" : "")} onClick={() => handleModeChange("advance")}>
-          <b>{t("mode.advance")}</b><span>{t("mode.advanceDesc")}</span>
-        </button>
+
+      {/* Footer utilities */}
+      <div className="lobby-footer">
+        <button className="btn ghost compact" onClick={onHelp}>{t("help.open")}</button>
+        {!authUser && (
+          <button className="btn ghost compact" onClick={() => setAuthSheetOpen(true)}>{t("auth.signIn")}</button>
+        )}
       </div>
-      <button className="btn steel" onClick={() => onCreate(mode, roomStake)}>{t("lobby.createRoom")}</button>
-      {authUser && (
-        <div style={{ margin: "4px 0", textAlign: "center" }}>
-          <select value={roomStake} onChange={(e) => setRoomStake(Number(e.target.value))} style={{ padding: "4px 8px", fontSize: "0.9em" }}>
-            <option value={0}>{t("queue.stake0")}</option>
-            {[10, 25, 50, 100].map((s) => (
-              <option key={s} value={s} disabled={balance < s}>{s} pts</option>
-            ))}
-          </select>
+
+      {/* Bottom Sheet: Bot difficulty */}
+      <BottomSheet open={botSheetOpen} onClose={() => setBotSheetOpen(false)} title={t("bot.selectTier")}>
+        <div className="sheet-options">
+          {VALID_TIERS.map((tier) => (
+            <button key={tier} className="sheet-option" onClick={() => { saveBotTier(tier); setSelectedTier(tier); onBot(tier); setBotSheetOpen(false); }}>
+              <strong>{t("bot." + tier)}</strong>
+              <small>{t("bot." + tier + "Desc")}</small>
+            </button>
+          ))}
         </div>
-      )}
-      <div className="divider">{t("common.or")}</div>
-      <div className="field">
-        <label>{t("lobby.enterCodeLabel")}</label>
-        <input className="code-input" maxLength={5} placeholder="ABCDE"
-          value={code} onChange={(e) => setCode(e.target.value.toUpperCase())}
-          onKeyDown={(e) => e.key === "Enter" && code && onJoin(code)} />
-      </div>
-      <button className="btn steel" disabled={code.length < 4} onClick={() => onJoin(code)}>{t("lobby.joinBtn")}</button>
-      {!authUser && (
-        <>
-          <div className="divider">{t("common.or")}</div>
-          {authError && (
-            <div className="error">
-              {authError === "rateLimited" ? t("auth.errRateLimited") : t("auth.errFailed")}
-            </div>
-          )}
-          {hasPlatformAuth && (
-            <PasskeyButton clientId={clientId} onAuthSuccess={onEmailAuthSuccess} mode="login" />
-          )}
-          <EmailAuthForm onAuthSuccess={onEmailAuthSuccess} clientId={clientId} />
-        </>
-      )}
-      <button className="btn ghost help-link" onClick={onHelp}>{t("help.open")}</button>
+      </BottomSheet>
+
+      {/* Bottom Sheet: Friends / Room */}
+      <BottomSheet open={friendSheetOpen} onClose={() => setFriendSheetOpen(false)} title={t("lobby.friendTitle")}>
+        <button className="btn steel" onClick={() => { onCreate(mode, roomStake); setFriendSheetOpen(false); }}>{t("lobby.createRoom")}</button>
+        {authUser && (
+          <div style={{ margin: "8px 0", textAlign: "center" }}>
+            <select value={roomStake} onChange={(e) => setRoomStake(Number(e.target.value))} style={{ padding: "4px 8px", fontSize: "0.9em", background: "rgba(255,255,255,.08)", color: "#cfe8ff", border: "1px solid rgba(150,200,255,.2)", borderRadius: "6px" }}>
+              <option value={0}>{t("queue.stake0")}</option>
+              {[10, 25, 50, 100].map((s) => (
+                <option key={s} value={s} disabled={balance < s}>{s} pts</option>
+              ))}
+            </select>
+          </div>
+        )}
+        <div className="divider">{t("common.or")}</div>
+        <div className="field">
+          <label>{t("lobby.enterCodeLabel")}</label>
+          <input className="code-input" maxLength={5} placeholder="ABCDE"
+            value={code} onChange={(e) => setCode(e.target.value.toUpperCase())}
+            onKeyDown={(e) => { if (e.key === "Enter" && code) { onJoin(code); setFriendSheetOpen(false); } }} />
+        </div>
+        <button className="btn steel" disabled={code.length < 4} onClick={() => { onJoin(code); setFriendSheetOpen(false); }}>{t("lobby.joinBtn")}</button>
+      </BottomSheet>
+
+      {/* Bottom Sheet: Auth (for guests) */}
+      <BottomSheet open={authSheetOpen} onClose={() => setAuthSheetOpen(false)} title={t("auth.signInTitle")}>
+        {authError && (
+          <div className="error" style={{ marginBottom: 12 }}>
+            {authError === "rateLimited" ? t("auth.errRateLimited") : t("auth.errFailed")}
+          </div>
+        )}
+        {hasPlatformAuth && (
+          <PasskeyButton clientId={clientId} onAuthSuccess={(u) => { onEmailAuthSuccess(u); setAuthSheetOpen(false); }} mode="login" />
+        )}
+        <EmailAuthForm onAuthSuccess={(u) => { onEmailAuthSuccess(u); setAuthSheetOpen(false); }} clientId={clientId} />
+      </BottomSheet>
     </div>
   );
 }
@@ -1625,6 +1707,39 @@ function ProfileView({ userId, currentUserId, onBack, onSignOut }) {
   if (!data) return null;
 
   const avatarLetter = data.displayName ? data.displayName.slice(0, 1).toUpperCase() : "?";
+  const [editing, setEditing] = useState(false);
+  const [nameInput, setNameInput] = useState("");
+  const [nameSaving, setNameSaving] = useState(false);
+  const [nameNotice, setNameNotice] = useState("");
+
+  function startEdit() {
+    setNameInput(data.displayName || "");
+    setEditing(true);
+    setNameNotice("");
+  }
+
+  async function saveName() {
+    if (nameSaving || !nameInput.trim()) return;
+    setNameSaving(true);
+    try {
+      const res = await fetch("/api/profile/update-name", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: nameInput.trim() }),
+      });
+      const json = await res.json();
+      if (json.ok) {
+        setData({ ...data, displayName: json.displayName });
+        setEditing(false);
+        setNameNotice(t("profile.nameSaved"));
+        setTimeout(() => setNameNotice(""), 3000);
+      }
+    } catch (e) {
+      console.error("[profile] saveName failed:", e);
+    } finally {
+      setNameSaving(false);
+    }
+  }
 
   return (
     <div className="profile-view" role="main">
@@ -1635,7 +1750,36 @@ function ProfileView({ userId, currentUserId, onBack, onSignOut }) {
             : <span className="profile-avatar profile-avatar-fallback">{avatarLetter}</span>}
         </div>
         <div className="profile-meta">
-          <div className="profile-name">{data.displayName || "—"}</div>
+          {editing ? (
+            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              <input
+                type="text"
+                value={nameInput}
+                onChange={(e) => setNameInput(e.target.value)}
+                maxLength={40}
+                style={{ fontSize: 16, padding: "6px 10px", borderRadius: 8, border: "1px solid rgba(150,200,255,.3)", background: "rgba(255,255,255,.08)", color: "#fff", width: 160 }}
+                autoFocus
+                onKeyDown={(e) => e.key === "Enter" && saveName()}
+              />
+              <button className="btn steel" style={{ padding: "6px 12px", fontSize: 13, width: "auto" }} onClick={saveName} disabled={nameSaving}>
+                {t("profile.saveName")}
+              </button>
+            </div>
+          ) : (
+            <div className="profile-name">
+              {data.displayName || "—"}
+              {isOwn && (
+                <button
+                  onClick={startEdit}
+                  style={{ background: "none", border: "none", color: "#a9ccec", cursor: "pointer", fontSize: 13, marginLeft: 8, padding: "2px 6px" }}
+                  title={t("profile.editName")}
+                >
+                  ✏️
+                </button>
+              )}
+            </div>
+          )}
+          {nameNotice && <div style={{ fontSize: 12, color: "#7ff0aa", marginTop: 4 }}>{nameNotice}</div>}
           <div className="profile-since">{formatMemberSince(data.memberSince)}</div>
         </div>
       </div>

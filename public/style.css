@@ -79,7 +79,7 @@ h1, h2, h3, .title, .ttl { font-family: "Oswald", sans-serif; letter-spacing: 1p
 }
 
 /* keyboard focus ring (a11y) — only on keyboard nav, not mouse press */
-.btn:focus-visible, .mode-opt:focus-visible, .power-btn:focus-visible {
+.btn:focus-visible, .lobby-card:focus-visible, .power-btn:focus-visible, .sheet-option:focus-visible {
   outline: 2px solid var(--gold);
   outline-offset: 2px;
 }
@@ -253,19 +253,117 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
   100% { opacity:0; transform:scale(1); }
 }
 
-/* chọn chế độ khi tạo phòng */
-.mode-pick { display:flex; gap:10px; margin:6px 0 12px; }
-/* bot difficulty tier row in lobby */
-.bot-tier-row { display:flex; gap:8px; margin:0 0 8px; }
-.bot-tier-row .btn { flex:1; padding:10px 4px; font-size:14px; }
-.mode-opt {
-  flex:1; display:flex; flex-direction:column; gap:2px; align-items:flex-start;
-  padding:10px 12px; border-radius:10px; cursor:pointer; text-align:left;
-  background:rgba(8,30,58,.6); border:1px solid rgba(120,190,255,.25); color:#cfe8ff;
+/* chọn chế độ khi tạo phòng — Phase 09 redesign */
+/* Legacy .mode-pick / .bot-tier-row removed in Phase 09 — replaced by card layout + bottom sheets */
+
+/* ── Bottom Sheet ── */
+.bottom-sheet-overlay {
+  position: fixed; inset: 0; z-index: 900;
+  background: rgba(0,0,0,0.5);
+  opacity: 0; transition: opacity .25s;
+  pointer-events: none;
 }
-.mode-opt b { font-size:15px; }
-.mode-opt span { font-size:11px; opacity:.7; }
-.mode-opt.on { border-color:var(--gold); box-shadow:0 0 14px rgba(240,193,75,.4); background:rgba(240,193,75,.12); }
+.bottom-sheet-overlay.open { opacity: 1; pointer-events: auto; }
+.bottom-sheet-panel {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 901;
+  background: var(--navy2); border-radius: 20px 20px 0 0;
+  padding: 24px 20px 32px; max-height: 70vh; overflow-y: auto;
+  transform: translateY(100%); transition: transform .3s cubic-bezier(.34,1.4,.4,1);
+  border-top: 1px solid rgba(120,180,255,.15);
+}
+.bottom-sheet-overlay.open .bottom-sheet-panel { transform: translateY(0); }
+.bottom-sheet-title { font-family: "Oswald"; font-size: 18px; margin: 0 0 16px; letter-spacing: .5px; }
+.bottom-sheet-close { position: absolute; top: 16px; right: 16px; background: none; border: none; color: #a9ccec; font-size: 20px; cursor: pointer; padding: 4px 8px; }
+.bottom-sheet-close:hover { color: #fff; }
+
+/* ── Hero CTA ── */
+.hero-cta {
+  display: flex; align-items: center; gap: 12px;
+  padding: 18px 20px; margin-bottom: 12px; text-align: left;
+}
+.hero-cta .hero-icon { font-size: 28px; flex-shrink: 0; }
+.hero-cta .hero-text { display: flex; flex-direction: column; align-items: flex-start; }
+.hero-cta .hero-text strong { font-size: 18px; letter-spacing: 1px; }
+.hero-cta .hero-text small { font-size: 12px; opacity: .8; font-weight: 400; text-transform: none; letter-spacing: 0; color: #07203f; }
+
+/* Onboarding pulse */
+@keyframes onboarding-pulse {
+  0%, 100% { box-shadow: 0 8px 22px rgba(240,193,75,.28); }
+  50% { box-shadow: 0 8px 32px rgba(240,193,75,.55), 0 0 0 6px rgba(240,193,75,.15); }
+}
+.hero-cta.onboarding-pulse { animation: onboarding-pulse 2s ease-in-out infinite; }
+.onboarding-hint {
+  text-align: center; font-size: 12px; color: var(--gold); margin: -4px 0 12px;
+  animation: fadeIn .5s ease .3s both;
+}
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* ── Lobby Cards ── */
+.lobby-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+.lobby-card {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 16px 10px; border-radius: 14px; cursor: pointer;
+  background: rgba(8,30,58,.6); border: 1px solid rgba(120,190,255,.25);
+  color: #cfe8ff; font-family: "Oswald"; transition: transform .18s cubic-bezier(.34,1.5,.45,1), border-color .2s;
+}
+.lobby-card:hover { border-color: var(--gold); transform: translateY(-2px); }
+.lobby-card:active { transform: translateY(0); }
+.lobby-card .card-icon { font-size: 28px; }
+.lobby-card strong { font-size: 15px; letter-spacing: .5px; }
+.lobby-card small { font-size: 11px; opacity: .7; font-weight: 400; }
+
+/* ── Mode Toggle Compact ── */
+.mode-toggle-compact {
+  display: flex; gap: 0; border-radius: 8px; overflow: hidden;
+  border: 1px solid rgba(120,190,255,.2); margin-bottom: 14px;
+}
+.mode-toggle-compact button {
+  flex: 1; padding: 8px; background: transparent; border: none; color: #a9ccec;
+  font-family: "Oswald"; font-size: 13px; letter-spacing: .5px; cursor: pointer;
+  transition: background .2s, color .2s;
+}
+.mode-toggle-compact button.active {
+  background: rgba(240,193,75,.15); color: var(--gold); font-weight: 600;
+}
+
+/* ── Wager Strip ── */
+.wager-strip {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center;
+  padding: 10px 12px; border-radius: 10px; margin-bottom: 12px;
+  background: rgba(240,193,75,.06); border: 1px solid rgba(240,193,75,.2);
+}
+.wager-balance { font-weight: 700; font-size: 14px; }
+.wager-chips { display: flex; gap: 4px; }
+.chip {
+  padding: 4px 10px; border-radius: 6px; font-size: 12px; font-family: "Oswald";
+  background: rgba(255,255,255,.08); border: 1px solid rgba(150,200,255,.2);
+  color: #cfe8ff; cursor: pointer; transition: background .15s, border-color .15s;
+}
+.chip.active { background: rgba(240,193,75,.2); border-color: var(--gold); color: var(--gold); }
+.chip:disabled { opacity: .4; cursor: not-allowed; }
+
+/* ── Compact button variant ── */
+.btn.compact { padding: 10px 14px; font-size: 13px; }
+
+/* ── Sheet Options ── */
+.sheet-options { display: flex; flex-direction: column; gap: 10px; }
+.sheet-option {
+  display: flex; flex-direction: column; gap: 2px; padding: 14px 16px;
+  border-radius: 12px; cursor: pointer; text-align: left;
+  background: rgba(8,30,58,.6); border: 1px solid rgba(120,190,255,.2);
+  color: #cfe8ff; transition: border-color .2s, background .2s;
+}
+.sheet-option:hover { border-color: var(--gold); background: rgba(240,193,75,.08); }
+.sheet-option strong { font-size: 15px; font-family: "Oswald"; letter-spacing: .5px; }
+.sheet-option small { font-size: 12px; opacity: .7; }
+
+/* ── Lobby Footer ── */
+.lobby-footer { display: flex; gap: 8px; justify-content: center; margin-top: 8px; }
+
+/* Responsive: very small screens */
+@media (max-width: 320px) {
+  .lobby-cards { grid-template-columns: 1fr; }
+}
 
 /* ô power-up trên biển địch */
 .cell.powerup { cursor:pointer; }
@@ -434,21 +532,14 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 }
 
 /* spring-weighted hover lift on interactive cards */
-.mode-opt, .power-btn {
+.power-btn {
   transition: transform .18s cubic-bezier(.34,1.5,.45,1), box-shadow .2s ease, border-color .2s ease, background .2s ease;
 }
-.mode-opt:hover, .power-btn:not(:disabled):hover {
+.power-btn:not(:disabled):hover {
   transform: translateY(-2px);
   border-color: rgba(240,193,75,.5);
 }
-.mode-opt:active, .power-btn:not(:disabled):active { transform: translateY(0); }
-
-/* radial spotlight under the recommended/active mode card */
-.mode-opt.on {
-  background:
-    radial-gradient(120% 120% at 50% -10%, rgba(240,193,75,.22), transparent 60%),
-    rgba(240,193,75,.12);
-}
+.power-btn:not(:disabled):active { transform: translateY(0); }
 
 @media (max-width:560px){
   /* keep cell pitch fixed (drag math depends on it); just tighten layout */
@@ -883,7 +974,7 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
     transform: none;
     box-shadow: none;
   }
-  .mode-opt:hover, .power-btn:not(:disabled):hover {
+  .lobby-card:hover, .power-btn:not(:disabled):hover {
     transform: none;
   }
 }
