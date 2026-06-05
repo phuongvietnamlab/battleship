@@ -135,6 +135,7 @@ const I18N = {
     "profile.editName": "✏️ Edit name",
     "profile.saveName": "Save",
     "profile.nameSaved": "Name updated!",
+    "profile.nameError": "Failed to save name.",
     "profile.notFound": "Player not found. Return to lobby.",
     "queue.quickMatch": "⚡ Quick Match",
     "queue.titleCasual": "Quick Match",
@@ -311,6 +312,7 @@ const I18N = {
     "profile.editName": "✏️ Sửa tên",
     "profile.saveName": "Lưu",
     "profile.nameSaved": "Đã cập nhật tên!",
+    "profile.nameError": "Không lưu được tên.",
     "profile.notFound": "Không tìm thấy người chơi. Quay lại sảnh.",
     "queue.quickMatch": "⚡ Ghép trận nhanh",
     "queue.titleCasual": "Ghép trận nhanh",
@@ -1763,10 +1765,12 @@ function ProfileView({ userId, currentUserId, onBack, onSignOut }) {
   async function saveName() {
     if (nameSaving || !nameInput.trim()) return;
     setNameSaving(true);
+    setNameNotice("");
     try {
       const res = await fetch("/api/profile/update-name", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
         body: JSON.stringify({ name: nameInput.trim() }),
       });
       const json = await res.json();
@@ -1775,9 +1779,12 @@ function ProfileView({ userId, currentUserId, onBack, onSignOut }) {
         setEditing(false);
         setNameNotice(t("profile.nameSaved"));
         setTimeout(() => setNameNotice(""), 3000);
+      } else {
+        setNameNotice(json.code === "NOT_AUTHENTICATED" ? t("auth.errFailed") : (t("profile.nameError") || "Lỗi"));
       }
     } catch (e) {
       console.error("[profile] saveName failed:", e);
+      setNameNotice(t("profile.nameError") || "Lỗi kết nối");
     } finally {
       setNameSaving(false);
     }

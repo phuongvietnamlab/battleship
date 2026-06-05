@@ -164,9 +164,10 @@ function authRateLimit(req, res, next) {
 // ─── JSON body parsing for email auth routes ────────────────────────────────
 // Mounted once, before the auth-route block. Does NOT affect Socket.IO (which
 // does its own framing) or express.static (which never reaches a body parser).
-// The path restriction limits body parsing to /auth/* so static/socket handling
+// The path restriction limits body parsing to /auth/* and /api/* so static/socket handling
 // is untouched (T-02-37: untrusted POST body only parsed where routes expect it).
 app.use("/auth", express.json());
+app.use("/api", express.json());
 
 // ─── Auth routes ─────────────────────────────────────────────────────────────
 
