@@ -1436,20 +1436,10 @@ function ChatComposer({ open, onSend, onToggle }) {
 function PasskeyButton({ clientId, onAuthSuccess }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [isReturning, setIsReturning] = useState(false);
-  const [checked, setChecked] = useState(false);
-
-  // On mount: ask server if this clientId already has a passkey
-  useEffect(() => {
-    if (!clientId) { setChecked(true); return; }
-    fetch("/auth/webauthn/has-passkey?clientId=" + encodeURIComponent(clientId))
-      .then(r => r.json())
-      .then(data => {
-        setIsReturning(data.hasPasskey === true);
-        setChecked(true);
-      })
-      .catch(() => setChecked(true));
-  }, [clientId]);
+  // Default to login mode (discoverable credentials) — no server roundtrip needed.
+  // If login fails with NotAllowedError (no credential on device), switch to register.
+  const [isReturning, setIsReturning] = useState(true);
+  const [checked, setChecked] = useState(true);
 
   async function handleClick() {
     if (loading) return;
@@ -1463,7 +1453,11 @@ function PasskeyButton({ clientId, onAuthSuccess }) {
       }
     } catch (e) {
       if (e.name === "NotAllowedError" || e.name === "AbortError") {
-        // User cancelled biometric prompt — do nothing
+        // User cancelled OR no discoverable credential on device — switch to register mode
+        if (isReturning) {
+          setIsReturning(false);
+        }
+        // Don't show error — user can tap "Tạo Passkey" button now
       } else if (e.name === "InvalidStateError") {
         // Device already has passkey for this RP — switch to login
         setIsReturning(true);

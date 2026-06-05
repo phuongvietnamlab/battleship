@@ -323,13 +323,27 @@ app.get("/auth/webauthn/has-passkey", async (req, res) => {
   const clientId = req.query.clientId;
   if (!clientId) return res.json({ hasPasskey: false });
   try {
+    // Check via guest credential link
     const { rows } = await pool.query(
       "SELECT user_id FROM credentials WHERE type='guest' AND external_id=$1", [clientId]
     );
-    if (rows.length === 0) return res.json({ hasPasskey: false });
-    const userId = rows[0].user_id;
-    const creds = await getWebAuthnCredentials(userId);
-    res.json({ hasPasskey: creds.length > 0 });
+    if (rows.length > 0) {
+      const userId = rows[0].user_id;
+      const creds = await getWebAuthnCredentials(userId);
+      if (creds.length > 0) return res.json({ hasPasskey: true });
+    }
+    // Also check via passkey credential linked to same clientId
+    // (covers case where passkey was registered without prior guest credential)
+    const { rows: pRows } = await pool.query(
+      `SELECT wc.id FROM webauthn_credentials wc
+       JOIN credentials c ON c.user_id = wc.user_id
+       WHERE c.type = 'passkey' AND c.user_id IN (
+         SELECT user_id FROM credentials WHERE type = 'guest' AND external_id = $1
+       )
+       LIMIT 1`, [clientId]
+    );
+    if (pRows.length > 0) return res.json({ hasPasskey: true });
+    res.json({ hasPasskey: false });
   } catch (e) {
     res.json({ hasPasskey: false });
   }
@@ -471,6 +485,17 @@ app.post("/auth/webauthn/register-verify", authRateLimit, async (req, res) => {
       transports: credential.response?.transports || [],
       deviceName: deviceName || null,
     });
+
+    // Ensure guest credential exists linking clientId → userId so has-passkey lookup works
+    const linkClientId = req.session.webauthnPendingClientId || _pendingClientId || null;
+    if (linkClientId) {
+      try {
+        await pool.query(
+          "INSERT INTO credentials (user_id, type, external_id) VALUES ($1, 'guest', $2) ON CONFLICT (type, external_id) DO UPDATE SET user_id = $1",
+          [userId, linkClientId]
+        );
+      } catch (_) { /* non-fatal */ }
+    }
 
     // Clear challenge from session
     delete req.session.webauthnChallenge;
