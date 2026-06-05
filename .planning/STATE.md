@@ -104,6 +104,7 @@ Recent decisions affecting current work:
 ### Roadmap Evolution
 
 - Phase 7 added: Points economy — remove ranking/leaderboard, add wagerable points for matches and power-up purchases
+- Phase 8 added: Auth migration — replace Google/Facebook OAuth with WebAuthn Passkeys (biometric auth); keep email/password as fallback
 
 ### Pending Todos
 

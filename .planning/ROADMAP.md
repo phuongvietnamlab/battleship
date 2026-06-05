@@ -39,3 +39,27 @@
 Plans:
 
 - [ ] TBD (run /gsd-plan-phase 7 to break down)
+
+### Phase 8: Auth migration: replace OAuth with WebAuthn Passkeys
+
+**Goal:** Replace Google/Facebook OAuth with WebAuthn/Passkeys (biometric auth) as the primary sign-in method. Keep email/password as fallback for devices that don't support passkeys. Remove all OAuth dependencies and code. Guest-first flow unchanged.
+
+**Requirements**:
+- AUTHM-01: Remove Google OAuth strategy, routes, and `passport-google-oauth20` dependency
+- AUTHM-02: Remove Facebook OAuth strategy, routes, `passport-facebook` dependency, and data-deletion callback
+- AUTHM-03: Remove `passport` package entirely (no longer needed without OAuth)
+- AUTHM-04: WebAuthn registration — signed-in email user can register a passkey (biometric) for their account
+- AUTHM-05: WebAuthn authentication — user can sign in with passkey (Face ID / Touch ID / Windows Hello / fingerprint) in one tap
+- AUTHM-06: Guest → passkey account creation — guest can create a passkey-linked account directly (without email)
+- AUTHM-07: Email/password remains as fallback sign-in (existing code, no changes needed beyond OAuth removal cleanup)
+- AUTHM-08: UI updated — replace OAuth buttons with "Sign in with Passkey" primary button; email/password form secondary
+- AUTHM-09: Credential storage — new `webauthn_credentials` table (credential_id, public_key, user_id, counter, transports, created_at)
+- AUTHM-10: Session management unchanged — express-session + connect-pg-simple remains; passkey login stamps session same as email login
+
+**Depends on:** Phase 2 (reuses identity schema, session infra, email/password auth)
+**Plans:** 2 plans
+
+Plans:
+
+- [ ] Plan 01: Remove OAuth/Passport, add user-loading middleware, webauthn_credentials migration
+- [ ] Plan 02: Implement WebAuthn registration + authentication + passkey-first UI

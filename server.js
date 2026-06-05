@@ -9,7 +9,7 @@ const path = require("path");
 const crypto = require("crypto");
 const { Server } = require("socket.io");
 const store = require("./store"); // optional Redis snapshot; no-op without REDIS_URL
-const { pool, runMigrations, upsertGuestCredential, linkOrPromoteAccount, createEmailAccount, verifyEmailLogin, recordMatch, getWalletBalance, debitWallet, creditWallet, createWallet } = require("./db"); // Postgres: identity persistence + wallet
+const { pool, runMigrations, upsertGuestCredential, linkOrPromoteAccount, createEmailAccount, verifyEmailLogin, recordMatch, getWalletBalance, debitWallet, creditWallet, createWallet, getUserById } = require("./db"); // Postgres: identity persistence + wallet
 
 const app = express();
 const server = http.createServer(app);
@@ -62,15 +62,12 @@ app.get("/metrics", (req, res) => res.json(computeStats()));
 app.use(express.static(path.join(__dirname, "dist")));
 app.use(express.static(path.join(__dirname, "public")));
 
-// ─── Session + Passport middleware ──────────────────────────────────────────
+// ─── Session middleware ──────────────────────────────────────────────────────
 // SESSION_SECRET check is in the require.main boot block (below) so importing
 // server.js in tests does not trigger process.exit (WR-01 pattern).
 
 const expressSession = require("express-session");
 const pgSession = require("connect-pg-simple")(expressSession);
-const passport = require("passport");
-const { Strategy: GoogleStrategy } = require("passport-google-oauth20");
-const { Strategy: FacebookStrategy } = require("passport-facebook");
 
 app.set("trust proxy", 1); // cookie.secure:'auto' works correctly behind EC2/Render reverse proxy
 
@@ -89,89 +86,31 @@ const sessionMiddleware = expressSession({
   cookie: {
     httpOnly: true,
     secure: "auto",               // true on HTTPS, false on HTTP — works localhost + Render (A4)
-    sameSite: "lax",              // 'strict' breaks OAuth callback redirect (PITFALLS #5)
+    sameSite: "lax",              // protects against CSRF
     maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days rolling (D-04)
   },
 });
 
-app.use(sessionMiddleware);       // 1. session before passport
-app.use(passport.initialize());   // 2. passport init
-app.use(passport.session());      // 3. passport session (populates req.user)
+app.use(sessionMiddleware);       // session middleware
+
+// ─── User loading middleware ─────────────────────────────────────────────────
+// Reads user_id from session, queries user, attaches to req.user.
+app.use(async (req, res, next) => {
+  if (req.session && req.session.user_id) {
+    try {
+      req.user = await getUserById(req.session.user_id);
+    } catch (e) {
+      req.user = null;
+    }
+  } else {
+    req.user = null;
+  }
+  next();
+});
 
 // D-11: share SAME sessionMiddleware reference with Socket.IO so socket.request.session
 // is the same store as Express sessions. NEVER call session() a second time here.
 io.engine.use(sessionMiddleware);
-
-// ─── Passport Google Strategy ────────────────────────────────────────────────
-// state:true: Passport generates + validates a random nonce per flow (SEC-05, T-02-05).
-// passReqToCallback:true: verify callback receives req so it can read req.session.pendingClientId.
-// Guard: skip strategy registration in test environments where credentials are absent (WR-01).
-if (process.env.GOOGLE_CLIENT_ID) passport.use(new GoogleStrategy(
-  {
-    clientID:          process.env.GOOGLE_CLIENT_ID,
-    clientSecret:      process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL:       process.env.GOOGLE_CALLBACK_URL,
-    scope:             ["openid", "profile"],
-    state:             true,  // SEC-05: cryptographic nonce per flow
-    passReqToCallback: true,  // allow verify callback to read req.session.pendingClientId
-  },
-  async (req, accessToken, refreshToken, profile, done) => {
-    // NEVER persist the access token — only users.id is stored via serializeUser (T-02-08 / PITFALLS #6)
-    const sub       = profile.id;          // stable Google identifier (not email — PITFALLS anti-pattern)
-    const name      = profile.displayName;
-    const avatarUrl = profile.photos?.[0]?.value ?? null;
-    const pendingClientId = req.session.pendingClientId ?? null;
-    try {
-      const user = await linkOrPromoteAccount("google", sub, name, avatarUrl, pendingClientId);
-      return done(null, user);
-    } catch (err) {
-      return done(err);
-    }
-  }
-));
-
-// ─── Passport Facebook Strategy ──────────────────────────────────────────────
-// state:true: per-flow nonce (SEC-05/T-02-21). passReqToCallback:true: reads pendingClientId.
-// profileFields: request id, displayName, photos — email intentionally NOT requested as
-// identity key (D-16/D-20: dedup on (type='facebook', external_id=profile.id); email may
-// be absent and must never be the dedup key — T-02-23).
-// Guard: skip in test environments where credentials are absent (mirrors Google WR-01).
-if (process.env.FACEBOOK_CLIENT_ID) passport.use(new FacebookStrategy(
-  {
-    clientID:          process.env.FACEBOOK_CLIENT_ID,
-    clientSecret:      process.env.FACEBOOK_CLIENT_SECRET,
-    callbackURL:       process.env.FACEBOOK_CALLBACK_URL,
-    profileFields:     ["id", "displayName", "photos"],
-    scope:             ["public_profile"],
-    state:             true,  // SEC-05/T-02-21: cryptographic nonce per flow
-    passReqToCallback: true,  // allow verify callback to read req.session.pendingClientId
-  },
-  async (req, accessToken, refreshToken, profile, done) => {
-    // NEVER persist the access token — only users.id stored via serializeUser (T-02-24)
-    // Dedup key: profile.id (stable FB user id) — NOT email (D-16/D-20/T-02-23)
-    const externalId     = profile.id;
-    const name           = profile.displayName;
-    const avatarUrl      = profile.photos?.[0]?.value ?? null;
-    const pendingClientId = req.session.pendingClientId ?? null;
-    try {
-      const user = await linkOrPromoteAccount("facebook", externalId, name, avatarUrl, pendingClientId);
-      return done(null, user);
-    } catch (err) {
-      return done(err);
-    }
-  }
-));
-
-// Passport serialization: store only users.id in session (not the full user object)
-passport.serializeUser((user, done) => done(null, user.id));
-passport.deserializeUser(async (id, done) => {
-  try {
-    const { rows } = await pool.query(
-      "SELECT id, display_name, avatar_url FROM users WHERE id=$1", [id]
-    );
-    done(null, rows[0] ?? false);
-  } catch (e) { done(e); }
-});
 
 const PORT = process.env.PORT || 4000;
 
@@ -216,7 +155,6 @@ const joinQueueLimiter = new RateLimiterMemory({ points: 5, duration: 60 }); // 
 const buyPowerupLimiter = new RateLimiterMemory({ points: 3, duration: 60 }); // 3 attempts/min
 
 // ─── Auth rate limiter ───────────────────────────────────────────────────────
-// Extends existing RateLimiterMemory pattern (lines above) to OAuth endpoints.
 // 10 auth attempts/min per IP — protects against auth-route brute-force (T-02-09).
 const authLimiter = new RateLimiterMemory({ points: 10, duration: 60 });
 function authRateLimit(req, res, next) {
@@ -232,180 +170,11 @@ app.use("/auth", express.json());
 
 // ─── Auth routes ─────────────────────────────────────────────────────────────
 
-// Initiate Google OAuth — save guest clientId so callback can link the account.
-// Explicit req.session.save before redirect ensures pendingClientId persists in
-// the store before the browser follows the Location header (PITFALLS #1 / Open Q3).
-app.get("/auth/google", authRateLimit, (req, res, next) => {
-  if (req.query.clientId) {
-    req.session.pendingClientId = req.query.clientId;
-    req.session.save((err) => {
-      if (err) return res.redirect("/?authError=1");
-      passport.authenticate("google")(req, res, next);
-    });
-  } else {
-    passport.authenticate("google")(req, res, next);
-  }
-});
-
-// Declare the success handler as a named function so Plan 03 can extend its body
-// (add user_id stamp + session save) without re-parsing an inline arrow chain.
-// Passport 0.6+ calls req.session.regenerate() automatically at req.logIn() —
-// this named handler runs AFTER that regeneration (SEC-05 / T-02-06).
-// Stamp user_id BEFORE session.save; redirect fires ONLY inside the save callback
-// so connect-pg-simple persists the user_id column for sign-out-all (T-02-20).
-function onGoogleCallbackSuccess(req, res) {
-  req.session.user_id = req.user.id;
-  req.session.save((err) => {
-    if (err) {
-      console.error("[auth] session save failed after login:", err.message);
-      return res.redirect("/?authError=1");
-    }
-    res.redirect("/");
-  });
-}
-
-app.get("/auth/google/callback",
-  authRateLimit,
-  passport.authenticate("google", { failureRedirect: "/?authError=1" }),
-  onGoogleCallbackSuccess
-);
-
-// ─── Facebook auth routes ─────────────────────────────────────────────────────
-// Mirrors the Google routes exactly (T-02-25: authRateLimit on both routes;
-// T-02-21: state nonce validated by FacebookStrategy; T-02-22: session.regenerate
-// automatic via Passport 0.6+; T-02-26: onFacebookCallbackSuccess stamps user_id).
-
-// Initiate Facebook OAuth — save guest clientId so callback can link the account.
-// Explicit req.session.save before redirect ensures pendingClientId persists in
-// the store before the browser follows the Location header (PITFALLS #1 / Open Q3).
-app.get("/auth/facebook", authRateLimit, (req, res, next) => {
-  if (req.query.clientId) {
-    req.session.pendingClientId = req.query.clientId;
-    req.session.save((err) => {
-      if (err) return res.redirect("/?authError=1");
-      passport.authenticate("facebook")(req, res, next);
-    });
-  } else {
-    passport.authenticate("facebook")(req, res, next);
-  }
-});
-
-// Named success handler mirrors onGoogleCallbackSuccess (Plan 03's pattern):
-// stamps req.session.user_id BEFORE req.session.save so the indexed DELETE works
-// for sign-out-all (T-02-26). res.redirect fires ONLY inside the save callback.
-function onFacebookCallbackSuccess(req, res) {
-  req.session.user_id = req.user.id;
-  req.session.save((err) => {
-    if (err) {
-      console.error("[auth] session save failed after facebook login:", err.message);
-      return res.redirect("/?authError=1");
-    }
-    res.redirect("/");
-  });
-}
-
-app.get("/auth/facebook/callback",
-  authRateLimit,
-  passport.authenticate("facebook", { failureRedirect: "/?authError=1" }),
-  onFacebookCallbackSuccess
-);
-
-// ─── Facebook Data Deletion Callback ─────────────────────────────────────────
-// Facebook requires apps to provide a "Data Deletion Request Callback URL".
-// When a user removes the app from their Facebook settings, Facebook POSTs a
-// signed_request to this endpoint. We verify the HMAC-SHA256 signature using
-// FACEBOOK_CLIENT_SECRET, decode the payload to get the Facebook user ID,
-// then delete all associated data from our database.
-// Returns JSON { url, confirmation_code } per Facebook's spec.
-// Ref: https://developers.facebook.com/docs/development/create-an-app/app-dashboard/data-deletion-callback
-
-app.post("/auth/facebook/data-deletion", async (req, res) => {
-  const signedRequest = req.body?.signed_request;
-  if (!signedRequest) {
-    return res.status(400).json({ error: "Missing signed_request" });
-  }
-
-  const appSecret = process.env.FACEBOOK_CLIENT_SECRET;
-  if (!appSecret) {
-    console.error("[fb-deletion] FACEBOOK_CLIENT_SECRET not configured");
-    return res.status(500).json({ error: "Server misconfiguration" });
-  }
-
-  // Parse and verify signed_request (base64url-encoded HMAC-SHA256 signature + payload)
-  const parts = signedRequest.split(".");
-  if (parts.length !== 2) {
-    return res.status(400).json({ error: "Invalid signed_request format" });
-  }
-
-  const [encodedSig, encodedPayload] = parts;
-
-  // base64url → standard base64
-  const sig = Buffer.from(encodedSig.replace(/-/g, "+").replace(/_/g, "/"), "base64");
-  const expectedSig = crypto.createHmac("sha256", appSecret).update(encodedPayload).digest();
-
-  if (!crypto.timingSafeEqual(sig, expectedSig)) {
-    return res.status(403).json({ error: "Invalid signature" });
-  }
-
-  let payload;
-  try {
-    payload = JSON.parse(Buffer.from(encodedPayload.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8"));
-  } catch (e) {
-    return res.status(400).json({ error: "Invalid payload" });
-  }
-
-  const fbUserId = payload.user_id;
-  if (!fbUserId) {
-    return res.status(400).json({ error: "Missing user_id in payload" });
-  }
-
-  // Generate a unique confirmation code for status tracking
-  const confirmationCode = crypto.randomBytes(16).toString("hex");
-
-  // Delete user data associated with this Facebook account
-  try {
-    const { rows } = await pool.query(
-      "SELECT user_id FROM credentials WHERE type='facebook' AND external_id=$1",
-      [String(fbUserId)]
-    );
-
-    if (rows.length > 0) {
-      const userId = rows[0].user_id;
-
-      // Delete in dependency order (child tables first)
-      await pool.query("DELETE FROM transactions WHERE user_id=$1", [userId]);
-      await pool.query("DELETE FROM wallets WHERE user_id=$1", [userId]);
-      await pool.query("DELETE FROM auth_tokens WHERE user_id=$1", [userId]);
-      await pool.query("DELETE FROM session WHERE user_id=$1", [userId]);
-      await pool.query("DELETE FROM matches WHERE winner_id=$1 OR loser_id=$1", [userId]);
-      await pool.query("DELETE FROM credentials WHERE user_id=$1", [userId]);
-      // Finally delete the user row
-      await pool.query("DELETE FROM users WHERE id=$1", [userId]);
-
-      console.log(`[fb-deletion] Deleted data for FB user ${fbUserId} (internal user_id=${userId}), code=${confirmationCode}`);
-    } else {
-      // User not found — still return success (data may already be gone or never existed)
-      console.log(`[fb-deletion] No data found for FB user ${fbUserId}, code=${confirmationCode}`);
-    }
-  } catch (e) {
-    console.error("[fb-deletion] DB error:", e.message);
-    return res.status(500).json({ error: "Deletion failed" });
-  }
-
-  // Facebook expects: { url: "status check page", confirmation_code: "unique code" }
-  const baseUrl = process.env.APP_BASE_URL || "https://battleshiponline.xyz";
-  res.json({
-    url: `${baseUrl}/deletion-status.html?code=${confirmationCode}`,
-    confirmation_code: confirmationCode,
-  });
-});
-
 // POST /auth/signout — destroy current session (this device only).
-// req.logout must take a callback (Passport 0.6+ async; Pitfall 3 / T-02-15).
 app.post("/auth/signout", (req, res) => {
-  req.logout((err) => {
+  req.session.destroy((err) => {
     if (err) return res.status(500).json({ ok: false, code: "AUTH_FAILED" });
-    req.session.destroy(() => res.json({ ok: true }));
+    res.json({ ok: true });
   });
 });
 
@@ -449,21 +218,16 @@ app.get("/api/wallet", (req, res) => {
 // POST /auth/signup — create an email/password account and log in.
 // POST /auth/login  — sign in an existing email account.
 //
-// Session fixation defense (SEC-05 / T-02-33 / D-05):
-// Email login has NO Passport OAuth strategy auto-calling req.session.regenerate().
-// We call it manually — BEFORE req.login() — in this EXACT order:
+// Session fixation defense (SEC-05):
+// We call req.session.regenerate() manually — BEFORE stamping user_id:
 //   1. req.session.regenerate(cb)   — generate a fresh session id (prevents fixation)
-//   2. req.login(user, cb)          — populate req.user + serialize to session
-//   3. req.session.user_id = id     — stamp indexed column (Plan 03 sign-out-all)
-//   4. req.session.save(cb)         — flush to store before responding
-// Stamping user_id after req.login but before save mirrors onGoogleCallbackSuccess
-// (T-02-36) so DELETE FROM session WHERE user_id=$1 (sign-out-all) revokes email
-// sessions too.
+//   2. req.session.user_id = id     — stamp indexed column (sign-out-all)
+//   3. req.session.save(cb)         — flush to store before responding
 //
 // Rate limiting (T-02-34 / D-17): authRateLimit (10/60s per IP) on both routes.
 // Enumeration defense (T-02-35): login returns uniform 401 AUTH_FAILED for any
 // bad credential — never reveals which field was wrong.
-// SQL injection (T-02-37): all DB work via Plan 06 parameterized helpers.
+// SQL injection (T-02-37): all DB work via parameterized helpers.
 // Log safety (T-02-38): req.body is never logged; response returns only {id,displayName,avatarUrl}.
 
 app.post("/auth/signup", authRateLimit, async (req, res) => {
@@ -477,20 +241,15 @@ app.post("/auth/signup", authRateLimit, async (req, res) => {
     if (result && result.error === "EMAIL_IN_USE") {
       return res.status(409).json({ ok: false, code: "EMAIL_IN_USE" });
     }
-    // Establish authenticated session: regenerate -> login -> stamp -> save (SEC-05)
     const user = result;
-    // Capture email for verification send (normalized external_id from createEmailAccount)
-    const signupEmail = (typeof email === "string" ? email : "").trim().toLowerCase();
+    // Establish authenticated session: regenerate -> stamp user_id -> save (SEC-05)
     req.session.regenerate((err) => {
       if (err) return res.status(500).json({ ok: false });
-      req.login(user, (err2) => {
-        if (err2) return res.status(500).json({ ok: false });
-        req.session.user_id = user.id;
-        req.session.save(() => {
-          res.json({
-            ok: true,
-            user: { id: user.id, displayName: user.display_name, avatarUrl: user.avatar_url },
-          });
+      req.session.user_id = user.id;
+      req.session.save(() => {
+        res.json({
+          ok: true,
+          user: { id: user.id, displayName: user.display_name, avatarUrl: user.avatar_url },
         });
       });
     });
@@ -517,18 +276,15 @@ app.post("/auth/login", authRateLimit, async (req, res) => {
         );
       } catch (_) { /* non-fatal: guest-link failure must not block login */ }
     }
-    // Establish authenticated session: regenerate -> login -> stamp -> save (SEC-05)
     const user = result;
+    // Establish authenticated session: regenerate -> stamp user_id -> save (SEC-05)
     req.session.regenerate((err) => {
       if (err) return res.status(500).json({ ok: false });
-      req.login(user, (err2) => {
-        if (err2) return res.status(500).json({ ok: false });
-        req.session.user_id = user.id;
-        req.session.save(() => res.json({
-          ok: true,
-          user: { id: user.id, displayName: user.display_name, avatarUrl: user.avatar_url },
-        }));
-      });
+      req.session.user_id = user.id;
+      req.session.save(() => res.json({
+        ok: true,
+        user: { id: user.id, displayName: user.display_name, avatarUrl: user.avatar_url },
+      }));
     });
   } catch (e) {
     console.error("[auth] login failed:", e.message);
@@ -536,6 +292,211 @@ app.post("/auth/login", authRateLimit, async (req, res) => {
   }
 });
 
+// ─── WebAuthn (Passkey) routes ───────────────────────────────────────────────
+const { generateRegistrationOptions, verifyRegistrationResponse,
+        generateAuthenticationOptions, verifyAuthenticationResponse } = require("@simplewebauthn/server");
+const { getWebAuthnCredentials, getWebAuthnCredentialById,
+        saveWebAuthnCredential, updateWebAuthnCounter } = require("./db");
+
+// RP config from env — WebAuthn Relying Party identity
+const RP_NAME = process.env.RP_NAME || "Battleship Online";
+const RP_ID = process.env.RP_ID || (process.env.SITE_ORIGIN ? new URL(process.env.SITE_ORIGIN).hostname : "localhost");
+const RP_ORIGIN = process.env.RP_ORIGIN || process.env.SITE_ORIGIN || "http://localhost:4000";
+
+// POST /auth/webauthn/register-options — generate registration challenge.
+// Requires authenticated user (to add passkey to existing account) OR a guest clientId (to create passkey-only account).
+app.post("/auth/webauthn/register-options", authRateLimit, async (req, res) => {
+  try {
+    let userId = req.user?.id;
+    let user = req.user;
+    const { clientId: bodyClientId, deviceName } = req.body || {};
+
+    // If not signed in, create a new account from guest (passkey-only account creation)
+    if (!userId) {
+      const pendingClientId = bodyClientId || req.session?.pendingClientId || null;
+      // Create a new user and link guest credential
+      const newUser = await linkOrPromoteAccount("passkey", "pending-" + Date.now(), null, null, pendingClientId);
+      userId = newUser.id;
+      user = newUser;
+      // Establish session immediately so register-verify knows who we are
+      req.session.regenerate((err) => {
+        if (err) return res.status(500).json({ ok: false });
+        req.session.user_id = userId;
+        req.session.pendingPasskeyUserId = userId;
+        req.session.save(() => {});
+      });
+      // Wait a tick for session save
+      await new Promise(r => setTimeout(r, 50));
+    }
+
+    // Get existing credentials to exclude (prevent re-registration)
+    const existingCreds = await getWebAuthnCredentials(userId);
+    const excludeCredentials = existingCreds.map(c => ({
+      id: c.id,
+      transports: c.transports || [],
+    }));
+
+    const options = await generateRegistrationOptions({
+      rpName: RP_NAME,
+      rpID: RP_ID,
+      userName: user?.display_name || `user-${userId}`,
+      userID: Buffer.from(String(userId)),
+      userDisplayName: user?.display_name || `Player ${userId}`,
+      attestationType: "none",
+      excludeCredentials,
+      authenticatorSelection: {
+        authenticatorAttachment: "platform",   // prefer built-in (Face ID, Touch ID, Windows Hello)
+        userVerification: "required",
+        residentKey: "preferred",
+      },
+    });
+
+    // Store challenge in session for verification
+    req.session.webauthnChallenge = options.challenge;
+    req.session.webauthnUserId = userId;
+    req.session.save(() => {
+      res.json({ ok: true, options });
+    });
+  } catch (e) {
+    console.error("[webauthn] register-options failed:", e.message);
+    res.status(500).json({ ok: false, code: "WEBAUTHN_FAILED" });
+  }
+});
+
+// POST /auth/webauthn/register-verify — verify registration attestation and save credential.
+app.post("/auth/webauthn/register-verify", authRateLimit, async (req, res) => {
+  try {
+    const expectedChallenge = req.session?.webauthnChallenge;
+    const userId = req.session?.webauthnUserId || req.session?.user_id;
+    if (!expectedChallenge || !userId) {
+      return res.status(400).json({ ok: false, code: "WEBAUTHN_FAILED" });
+    }
+
+    const { credential, deviceName } = req.body || {};
+    if (!credential) {
+      return res.status(400).json({ ok: false, code: "WEBAUTHN_FAILED" });
+    }
+
+    const verification = await verifyRegistrationResponse({
+      response: credential,
+      expectedChallenge,
+      expectedOrigin: RP_ORIGIN,
+      expectedRPID: RP_ID,
+    });
+
+    if (!verification.verified || !verification.registrationInfo) {
+      return res.status(400).json({ ok: false, code: "WEBAUTHN_FAILED" });
+    }
+
+    const { credential: regCredential, credentialDeviceType, credentialBackedUp } = verification.registrationInfo;
+
+    // Save credential to DB
+    await saveWebAuthnCredential({
+      id: regCredential.id,
+      userId,
+      publicKey: Buffer.from(regCredential.publicKey),
+      counter: regCredential.counter,
+      transports: credential.response?.transports || [],
+      deviceName: deviceName || null,
+    });
+
+    // Clear challenge from session
+    delete req.session.webauthnChallenge;
+    delete req.session.webauthnUserId;
+    delete req.session.pendingPasskeyUserId;
+
+    // Ensure session is authenticated
+    req.session.user_id = userId;
+    req.session.save(() => {
+      res.json({ ok: true, credentialId: regCredential.id });
+    });
+  } catch (e) {
+    console.error("[webauthn] register-verify failed:", e.message);
+    res.status(500).json({ ok: false, code: "WEBAUTHN_FAILED" });
+  }
+});
+
+// POST /auth/webauthn/login-options — generate authentication challenge (for sign-in).
+app.post("/auth/webauthn/login-options", authRateLimit, async (req, res) => {
+  try {
+    const options = await generateAuthenticationOptions({
+      rpID: RP_ID,
+      userVerification: "required",
+      // Empty allowCredentials = discoverable credential (resident key) mode
+      // The authenticator decides which credential to use
+    });
+
+    // Store challenge in session
+    req.session.webauthnChallenge = options.challenge;
+    req.session.save(() => {
+      res.json({ ok: true, options });
+    });
+  } catch (e) {
+    console.error("[webauthn] login-options failed:", e.message);
+    res.status(500).json({ ok: false, code: "WEBAUTHN_FAILED" });
+  }
+});
+
+// POST /auth/webauthn/login-verify — verify authentication assertion and establish session.
+app.post("/auth/webauthn/login-verify", authRateLimit, async (req, res) => {
+  try {
+    const expectedChallenge = req.session?.webauthnChallenge;
+    if (!expectedChallenge) {
+      return res.status(400).json({ ok: false, code: "WEBAUTHN_FAILED" });
+    }
+
+    const { credential } = req.body || {};
+    if (!credential || !credential.id) {
+      return res.status(400).json({ ok: false, code: "WEBAUTHN_FAILED" });
+    }
+
+    // Look up stored credential
+    const storedCred = await getWebAuthnCredentialById(credential.id);
+    if (!storedCred) {
+      return res.status(401).json({ ok: false, code: "CREDENTIAL_NOT_FOUND" });
+    }
+
+    const verification = await verifyAuthenticationResponse({
+      response: credential,
+      expectedChallenge,
+      expectedOrigin: RP_ORIGIN,
+      expectedRPID: RP_ID,
+      credential: {
+        id: storedCred.id,
+        publicKey: storedCred.public_key,
+        counter: storedCred.counter,
+        transports: storedCred.transports || [],
+      },
+    });
+
+    if (!verification.verified) {
+      return res.status(401).json({ ok: false, code: "WEBAUTHN_FAILED" });
+    }
+
+    // Update counter for replay protection
+    await updateWebAuthnCounter(storedCred.id, verification.authenticationInfo.newCounter);
+
+    // Clear challenge
+    delete req.session.webauthnChallenge;
+
+    // Establish authenticated session (SEC-05: regenerate before stamping)
+    const userId = storedCred.user_id;
+    req.session.regenerate((err) => {
+      if (err) return res.status(500).json({ ok: false });
+      req.session.user_id = userId;
+      req.session.save(async () => {
+        const user = await getUserById(userId);
+        res.json({
+          ok: true,
+          user: user ? { id: user.id, displayName: user.display_name, avatarUrl: user.avatar_url } : { id: userId },
+        });
+      });
+    });
+  } catch (e) {
+    console.error("[webauthn] login-verify failed:", e.message);
+    res.status(500).json({ ok: false, code: "WEBAUTHN_FAILED" });
+  }
+});
 
 // Profile read path — zero-state scaffold (D-08/D-10); Phase 3 adds real stats.
 // T-02-16: parseInt + Number.isInteger guard (400 INVALID_ID) before parameterized $1 query.
@@ -1373,7 +1334,7 @@ io.on("connection", (socket) => {
   // D-11: read userId from the shared session (io.engine.use(sessionMiddleware) wired above).
   // socket.request.session is populated because Socket.IO runs the same session middleware.
   // null = guest; integer = authenticated account.
-  const userId = socket.request.session?.passport?.user ?? null;
+  const userId = socket.request.session?.user_id ?? null;
   socket.data.userId = userId;
   console.log("[auth] socket connected, clientId:", socket.data.clientId, "userId:", userId);
 

@@ -1,6 +1,7 @@
 import React from "react";
 import * as ReactDOM from "react-dom/client";
 import { io } from "socket.io-client";
+import { startRegistration, startAuthentication } from "@simplewebauthn/browser";
 const { useState, useEffect, useRef, useCallback } = React;
 
 const BOARD = 11;
@@ -88,8 +89,11 @@ const I18N = {
     "err.BAD_PLACEMENT": "Invalid ship placement", "err.NOT_YOUR_TURN": "Not your turn yet", "err.BAD_CELL": "Invalid cell", "err.NO_POWERUP": "No power-up",
     "err.NO_REVEAL": "No cells left to reveal", "err.MINE_ON_SHIP": "Can't place a mine on a ship", "err.CELL_SHOT": "This cell was already shot",
     "err.MINE_EXISTS": "There's already a mine here", "err.NO_CELLS": "No cells left to shoot",
-    "auth.signInGoogle": "Sign in with Google",
-    "auth.signInFacebook": "Sign in with Facebook",
+    "auth.signInPasskey": "Sign in with Passkey",
+    "auth.createPasskey": "Create account with Passkey",
+    "auth.addPasskey": "Add Passkey",
+    "auth.passkeyRegistered": "Passkey registered!",
+    "auth.errPasskeyFailed": "Passkey authentication failed. Please try again.",
     "auth.errFailed": "Sign-in failed. Please try again.",
     "auth.errExpired": "Your session has expired. Please sign in again.",
     "auth.errRateLimited": "Too many sign-in attempts. Please wait a moment.",
@@ -244,8 +248,11 @@ const I18N = {
     "err.BAD_PLACEMENT": "Sắp xếp thuyền không hợp lệ", "err.NOT_YOUR_TURN": "Chưa tới lượt bạn", "err.BAD_CELL": "Ô không hợp lệ", "err.NO_POWERUP": "Không có power-up",
     "err.NO_REVEAL": "Không còn ô để lộ", "err.MINE_ON_SHIP": "Không đặt mìn lên thuyền", "err.CELL_SHOT": "Ô này đã bị bắn",
     "err.MINE_EXISTS": "Đã có mìn ở đây", "err.NO_CELLS": "Hết ô để bắn",
-    "auth.signInGoogle": "Đăng nhập bằng Google",
-    "auth.signInFacebook": "Đăng nhập bằng Facebook",
+    "auth.signInPasskey": "Đăng nhập bằng Passkey",
+    "auth.createPasskey": "Tạo tài khoản bằng Passkey",
+    "auth.addPasskey": "Thêm Passkey",
+    "auth.passkeyRegistered": "Đã đăng ký Passkey!",
+    "auth.errPasskeyFailed": "Xác thực Passkey thất bại. Vui lòng thử lại.",
     "auth.errFailed": "Đăng nhập thất bại. Vui lòng thử lại.",
     "auth.errExpired": "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.",
     "auth.errRateLimited": "Quá nhiều lần thử. Vui lòng chờ một chút.",
@@ -787,6 +794,18 @@ function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onWageredMatch, onHelp, 
   const [selectedTier, setSelectedTier] = useState(loadBotTier);
   const [selectedStake, setSelectedStake] = useState(10);
   const [roomStake, setRoomStake] = useState(0);
+  const [hasPlatformAuth, setHasPlatformAuth] = useState(false);
+
+  // Feature-detect WebAuthn platform authenticator (Face ID, Touch ID, Windows Hello)
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.PublicKeyCredential &&
+        typeof window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable === "function") {
+      window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()
+        .then(available => setHasPlatformAuth(available))
+        .catch(() => {});
+    }
+  }, []);
+
   function handleModeChange(m) {
     setMode(m);
   }
@@ -870,10 +889,14 @@ function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onWageredMatch, onHelp, 
             </div>
           )}
                     <>
-              <GoogleSignInButton clientId={clientId} disabled={signInDisabled} onDisable={onSignInDisable} />
-              <div style={{ height: 8 }} />
-              <FacebookSignInButton clientId={clientId} disabled={signInDisabled} onDisable={onSignInDisable} />
-              <div style={{ height: 8 }} />
+              {hasPlatformAuth && (
+                <>
+                  <PasskeyButton clientId={clientId} onAuthSuccess={onEmailAuthSuccess} mode="login" />
+                  <div style={{ height: 4 }} />
+                  <PasskeyButton clientId={clientId} onAuthSuccess={onEmailAuthSuccess} mode="register" />
+                  <div style={{ height: 8 }} />
+                </>
+              )}
               <EmailAuthForm onAuthSuccess={onEmailAuthSuccess} clientId={clientId} />
             </>
         </>
@@ -1315,60 +1338,109 @@ function ChatComposer({ open, onSend, onToggle }) {
   );
 }
 
-// ---------- GoogleSignInButton ----------
-// Renders the "Sign in with Google" button for guests.
-// onClick sets disabled (in-flight redirect guard) and navigates to /auth/google.
-// clientId is passed as a query param so the server can link the guest identity (AUTH-03).
-function GoogleSignInButton({ clientId, disabled, onDisable }) {
-  function handleSignIn() {
-    if (disabled) return;
-    onDisable();
-    window.location.href = "/auth/google?clientId=" + encodeURIComponent(clientId || "");
-  }
-  return (
-    <button
-      className="btn google-signin"
-      aria-label={t("auth.signInGoogle")}
-      disabled={disabled}
-      onClick={handleSignIn}
-    >
-      {/* Google G logo — inline SVG 18x18, standard Google mark */}
-      <svg className="google-logo" width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-        <g>
-          <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z" fill="#4285F4"/>
-          <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z" fill="#34A853"/>
-          <path d="M3.964 10.71c-.18-.54-.282-1.117-.282-1.71s.102-1.17.282-1.71V4.958H.957C.347 6.173 0 7.548 0 9s.347 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
-          <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
-        </g>
-      </svg>
-      <span>{t("auth.signInGoogle")}</span>
-    </button>
-  );
-}
+// ---------- PasskeyButton ----------
+// Renders the "Sign in with Passkey" button for guests.
+// Uses WebAuthn/FIDO2 to authenticate via biometrics (Face ID, Touch ID, Windows Hello).
+// Feature-detected: only shown when platform authenticator is available.
+function PasskeyButton({ clientId, onAuthSuccess, mode }) {
+  const [loading, setLoading] = useState(false);
 
-// ---------- FacebookSignInButton ----------
-// Renders the "Sign in with Facebook" button for guests.
-// onClick sets disabled (in-flight redirect guard) and navigates to /auth/facebook.
-// clientId is passed as a query param so the server can link the guest identity (D-06/D-07).
-function FacebookSignInButton({ clientId, disabled, onDisable }) {
-  function handleSignIn() {
-    if (disabled) return;
-    onDisable();
-    window.location.href = "/auth/facebook?clientId=" + encodeURIComponent(clientId || "");
+  async function handlePasskeyLogin() {
+    if (loading) return;
+    setLoading(true);
+    try {
+      // 1. Get authentication options from server
+      const optRes = await fetch("/auth/webauthn/login-options", { method: "POST", headers: { "Content-Type": "application/json" } });
+      const optData = await optRes.json();
+      if (!optData.ok) throw new Error("Failed to get options");
+
+      // 2. Trigger biometric prompt
+      const assertion = await startAuthentication({ optionsJSON: optData.options });
+
+      // 3. Verify with server
+      const verRes = await fetch("/auth/webauthn/login-verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ credential: assertion }),
+      });
+      const verData = await verRes.json();
+      if (!verData.ok) throw new Error(verData.code || "WEBAUTHN_FAILED");
+
+      // 4. Success
+      if (onAuthSuccess) onAuthSuccess(verData.user);
+    } catch (e) {
+      // If no credential found, user may not have a passkey yet — silent fail
+      if (e.name === "NotAllowedError") {
+        // User cancelled biometric prompt — do nothing
+      } else {
+        console.error("[passkey] login failed:", e.message || e);
+      }
+    } finally {
+      setLoading(false);
+    }
   }
+
+  async function handlePasskeyRegister() {
+    if (loading) return;
+    setLoading(true);
+    try {
+      // 1. Get registration options from server (with clientId for guest linking)
+      const optRes = await fetch("/auth/webauthn/register-options", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId }),
+      });
+      const optData = await optRes.json();
+      if (!optData.ok) throw new Error("Failed to get options");
+
+      // 2. Trigger biometric prompt for registration
+      const attestation = await startRegistration({ optionsJSON: optData.options });
+
+      // 3. Verify with server
+      const verRes = await fetch("/auth/webauthn/register-verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ credential: attestation }),
+      });
+      const verData = await verRes.json();
+      if (!verData.ok) throw new Error(verData.code || "WEBAUTHN_FAILED");
+
+      // 4. Success — fetch user info
+      const meRes = await fetch("/api/me");
+      const meData = await meRes.json();
+      if (meData.user && onAuthSuccess) onAuthSuccess(meData.user);
+    } catch (e) {
+      if (e.name === "NotAllowedError") {
+        // User cancelled — do nothing
+      } else {
+        console.error("[passkey] register failed:", e.message || e);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (mode === "register") {
+    return (
+      <button
+        className="btn passkey-signin"
+        disabled={loading}
+        onClick={handlePasskeyRegister}
+      >
+        <span className="passkey-icon" aria-hidden="true">🔐</span>
+        <span>{t("auth.createPasskey")}</span>
+      </button>
+    );
+  }
+
   return (
     <button
-      className="btn facebook-signin"
-      aria-label={t("auth.signInFacebook")}
-      disabled={disabled}
-      onClick={handleSignIn}
+      className="btn passkey-signin"
+      disabled={loading}
+      onClick={handlePasskeyLogin}
     >
-      {/* Facebook "f" logo — inline SVG 18x18, brand mark */}
-      <svg className="facebook-logo" width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-        <rect width="18" height="18" rx="3" fill="#1877f2"/>
-        <path d="M12.5 9H10.5V15H8V9H6.5V7H8V5.5C8 4.1 8.9 3 10.5 3H12.5V5H11C10.7 5 10.5 5.2 10.5 5.5V7H12.5L12.5 9Z" fill="#ffffff"/>
-      </svg>
-      <span>{t("auth.signInFacebook")}</span>
+      <span className="passkey-icon" aria-hidden="true">🔐</span>
+      <span>{t("auth.signInPasskey")}</span>
     </button>
   );
 }

@@ -655,6 +655,58 @@ async function createWallet(userId, client) {
   );
 }
 
+// ─── getUserById ──────────────────────────────────────────────────────────────
+// Simple user lookup by ID — used by the user-loading middleware.
+// Returns {id, display_name, avatar_url} or null.
+
+async function getUserById(id) {
+  if (!id) return null;
+  try {
+    const { rows } = await pool.query(
+      "SELECT id, display_name, avatar_url FROM users WHERE id=$1", [id]
+    );
+    return rows[0] || null;
+  } catch (e) {
+    console.error("[db] getUserById failed:", e.message);
+    return null;
+  }
+}
+
+// ─── WebAuthn credential functions (Phase 8) ─────────────────────────────────
+
+async function getWebAuthnCredentials(userId) {
+  if (!userId) return [];
+  const { rows } = await pool.query(
+    "SELECT id, public_key, counter, transports FROM webauthn_credentials WHERE user_id=$1",
+    [userId]
+  );
+  return rows;
+}
+
+async function getWebAuthnCredentialById(credentialId) {
+  if (!credentialId) return null;
+  const { rows } = await pool.query(
+    "SELECT id, user_id, public_key, counter, transports FROM webauthn_credentials WHERE id=$1",
+    [credentialId]
+  );
+  return rows[0] || null;
+}
+
+async function saveWebAuthnCredential({ id, userId, publicKey, counter, transports, deviceName }) {
+  await pool.query(
+    `INSERT INTO webauthn_credentials (id, user_id, public_key, counter, transports, device_name)
+     VALUES ($1, $2, $3, $4, $5, $6)`,
+    [id, userId, publicKey, counter, transports || [], deviceName || null]
+  );
+}
+
+async function updateWebAuthnCounter(credentialId, newCounter) {
+  await pool.query(
+    "UPDATE webauthn_credentials SET counter=$1 WHERE id=$2",
+    [newCounter, credentialId]
+  );
+}
+
 module.exports = {
   pool,
   runMigrations,
@@ -672,4 +724,9 @@ module.exports = {
   debitWallet,
   creditWallet,
   createWallet,
+  getUserById,
+  getWebAuthnCredentials,
+  getWebAuthnCredentialById,
+  saveWebAuthnCredential,
+  updateWebAuthnCounter,
 };
