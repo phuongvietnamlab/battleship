@@ -101,3 +101,26 @@ Plans:
 Plans:
 
 - [ ] TBD (run /gsd-plan-phase 10 to break down)
+
+### Phase 11: Linked email for passkey accounts: allow passkey users to link email and set password for cross-device login
+
+**Goal:** Allow users who signed up via passkey (biometric only, no email) to link an email address and optionally set a password from their profile page. This enables cross-device login — if they registered on mobile with Face ID, they can later sign in on desktop via email/password while retaining the same account, stats, and history.
+
+**Requirements**:
+
+- LINK-01: Profile page shows "Link Email" section for passkey-only accounts (accounts with no email linked)
+- LINK-02: User can enter an email address; server validates format and uniqueness (not already linked to another account)
+- LINK-03: Email is linked immediately upon submission (no verification step — email sending not implemented yet)
+- LINK-04: After email is linked, user can set a password for the account (bcrypt hashed, same as existing email/password accounts)
+- LINK-05: Once email+password are set, user can sign in via email/password on any device and access the same account (shared user_id)
+- LINK-06: Profile page shows linked email and allows changing password if one is set
+- LINK-07: If user already has an email (signed up via email/password originally), "Link Email" section is hidden; show current email instead
+- LINK-08: Database: reuse existing `users.email`, `users.password_hash` columns — no new tables needed
+- LINK-09: API routes: POST /api/account/link-email (link immediately), POST /api/account/set-password (set/change password)
+
+**Depends on:** Phase 8 (WebAuthn passkey auth), Phase 10 (passkey fix)
+**Plans:** 1 plan
+
+Plans:
+
+- [ ] Plan 01: Link-email backend routes + ProfileView UI

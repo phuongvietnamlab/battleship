@@ -106,6 +106,7 @@ Recent decisions affecting current work:
 - Phase 7 added: Points economy — remove ranking/leaderboard, add wagerable points for matches and power-up purchases
 - Phase 8 added: Auth migration — replace Google/Facebook OAuth with WebAuthn Passkeys (biometric auth); keep email/password as fallback
 - Phase 9 added: Lobby UI redesign — simplify home screen UX, card-based layout, progressive disclosure, mobile-first one-screen lobby
+- Phase 11 added: Linked email for passkey accounts — allow passkey users to link email + set password from profile for cross-device login
 
 ### Pending Todos
 
