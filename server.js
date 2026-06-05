@@ -142,7 +142,7 @@ if (process.env.FACEBOOK_CLIENT_ID) passport.use(new FacebookStrategy(
     clientSecret:      process.env.FACEBOOK_CLIENT_SECRET,
     callbackURL:       process.env.FACEBOOK_CALLBACK_URL,
     profileFields:     ["id", "displayName", "photos"],
-    scope:             ["email"],
+    scope:             ["public_profile"],
     state:             true,  // SEC-05/T-02-21: cryptographic nonce per flow
     passReqToCallback: true,  // allow verify callback to read req.session.pendingClientId
   },
