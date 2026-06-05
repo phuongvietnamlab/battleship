@@ -89,7 +89,7 @@ const I18N = {
     "err.BAD_PLACEMENT": "Invalid ship placement", "err.NOT_YOUR_TURN": "Not your turn yet", "err.BAD_CELL": "Invalid cell", "err.NO_POWERUP": "No power-up",
     "err.NO_REVEAL": "No cells left to reveal", "err.MINE_ON_SHIP": "Can't place a mine on a ship", "err.CELL_SHOT": "This cell was already shot",
     "err.MINE_EXISTS": "There's already a mine here", "err.NO_CELLS": "No cells left to shoot",
-    "auth.signInPasskey": "Sign in with Passkey",
+    "auth.signInPasskey": "🔐 Sign in with Passkey",
     "auth.createPasskey": "Create account with Passkey",
     "auth.addPasskey": "Add Passkey",
     "auth.passkeyRegistered": "Passkey registered!",
@@ -248,7 +248,7 @@ const I18N = {
     "err.BAD_PLACEMENT": "Sắp xếp thuyền không hợp lệ", "err.NOT_YOUR_TURN": "Chưa tới lượt bạn", "err.BAD_CELL": "Ô không hợp lệ", "err.NO_POWERUP": "Không có power-up",
     "err.NO_REVEAL": "Không còn ô để lộ", "err.MINE_ON_SHIP": "Không đặt mìn lên thuyền", "err.CELL_SHOT": "Ô này đã bị bắn",
     "err.MINE_EXISTS": "Đã có mìn ở đây", "err.NO_CELLS": "Hết ô để bắn",
-    "auth.signInPasskey": "Đăng nhập bằng Passkey",
+    "auth.signInPasskey": "🔐 Đăng nhập bằng Passkey",
     "auth.createPasskey": "Tạo tài khoản bằng Passkey",
     "auth.addPasskey": "Thêm Passkey",
     "auth.passkeyRegistered": "Đã đăng ký Passkey!",
@@ -796,13 +796,28 @@ function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onWageredMatch, onHelp, 
   const [roomStake, setRoomStake] = useState(0);
   const [hasPlatformAuth, setHasPlatformAuth] = useState(false);
 
-  // Feature-detect WebAuthn platform authenticator (Face ID, Touch ID, Windows Hello)
+  // Feature-detect WebAuthn support (passkeys).
+  // Show the button if the browser supports WebAuthn at all — even without a
+  // platform authenticator, the browser may offer a phone-as-authenticator or
+  // security key flow. Only hide on truly unsupported browsers.
   useEffect(() => {
-    if (typeof window !== "undefined" && window.PublicKeyCredential &&
-        typeof window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable === "function") {
-      window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()
-        .then(available => setHasPlatformAuth(available))
-        .catch(() => {});
+    if (typeof window !== "undefined" && window.PublicKeyCredential) {
+      // First try the strict check (platform authenticator available)
+      if (typeof window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable === "function") {
+        window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()
+          .then(available => setHasPlatformAuth(available))
+          .catch(() => setHasPlatformAuth(true)); // API exists but errored — show button anyway
+      } else {
+        // PublicKeyCredential exists but no platform check method — still show button
+        setHasPlatformAuth(true);
+      }
+      // Fallback: if the strict check says false, still show if conditional mediation is available
+      // (means passkeys are supported even if no local authenticator is configured)
+      if (typeof window.PublicKeyCredential.isConditionalMediationAvailable === "function") {
+        window.PublicKeyCredential.isConditionalMediationAvailable()
+          .then(available => { if (available) setHasPlatformAuth(true); })
+          .catch(() => {});
+      }
     }
   }, []);
 
@@ -888,17 +903,10 @@ function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onWageredMatch, onHelp, 
               {authError === "rateLimited" ? t("auth.errRateLimited") : t("auth.errFailed")}
             </div>
           )}
-                    <>
-              {hasPlatformAuth && (
-                <>
-                  <PasskeyButton clientId={clientId} onAuthSuccess={onEmailAuthSuccess} mode="login" />
-                  <div style={{ height: 4 }} />
-                  <PasskeyButton clientId={clientId} onAuthSuccess={onEmailAuthSuccess} mode="register" />
-                  <div style={{ height: 8 }} />
-                </>
-              )}
-              <EmailAuthForm onAuthSuccess={onEmailAuthSuccess} clientId={clientId} />
-            </>
+          {hasPlatformAuth && (
+            <PasskeyButton clientId={clientId} onAuthSuccess={onEmailAuthSuccess} mode="login" />
+          )}
+          <EmailAuthForm onAuthSuccess={onEmailAuthSuccess} clientId={clientId} />
         </>
       )}
       <button className="btn ghost help-link" onClick={onHelp}>{t("help.open")}</button>
@@ -1420,18 +1428,7 @@ function PasskeyButton({ clientId, onAuthSuccess, mode }) {
     }
   }
 
-  if (mode === "register") {
-    return (
-      <button
-        className="btn passkey-signin"
-        disabled={loading}
-        onClick={handlePasskeyRegister}
-      >
-        <span className="passkey-icon" aria-hidden="true">🔐</span>
-        <span>{t("auth.createPasskey")}</span>
-      </button>
-    );
-  }
+  // handlePasskeyRegister kept for future use (e.g. "Add Passkey" in profile)
 
   return (
     <button
@@ -1439,8 +1436,7 @@ function PasskeyButton({ clientId, onAuthSuccess, mode }) {
       disabled={loading}
       onClick={handlePasskeyLogin}
     >
-      <span className="passkey-icon" aria-hidden="true">🔐</span>
-      <span>{t("auth.signInPasskey")}</span>
+      {t("auth.signInPasskey")}
     </button>
   );
 }
