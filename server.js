@@ -9,7 +9,7 @@ const path = require("path");
 const crypto = require("crypto");
 const { Server } = require("socket.io");
 const store = require("./store"); // optional Redis snapshot; no-op without REDIS_URL
-const { pool, runMigrations, upsertGuestCredential, linkOrPromoteAccount, createEmailAccount, verifyEmailLogin, recordMatch, getWalletBalance, debitWallet, creditWallet, createWallet, getUserById, setEmailPassword, linkEmailToUser } = require("./db"); // Postgres: identity persistence + wallet
+const { pool, runMigrations, upsertGuestCredential, linkOrPromoteAccount, createEmailAccount, verifyEmailLogin, recordMatch, getMatchHistory, getUserStats, getWalletBalance, debitWallet, creditWallet, createWallet, getUserById, setEmailPassword, linkEmailToUser } = require("./db"); // Postgres: identity persistence + wallet
 
 const app = express();
 const server = http.createServer(app);
@@ -212,6 +212,24 @@ app.get("/api/wallet", (req, res) => {
       console.error("[wallet] balance fetch failed:", e.message);
       res.status(500).json({ error: "SERVER_ERROR" });
     });
+});
+
+// ─── Match History endpoint (Phase 13) ───────────────────────────────────────
+app.get("/api/matches", async (req, res) => {
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ error: "NOT_AUTHENTICATED" });
+  const page = Math.max(1, parseInt(req.query.page) || 1);
+  const limit = Math.min(50, Math.max(1, parseInt(req.query.limit) || 20));
+  const result = ["all", "win", "loss"].includes(req.query.result) ? req.query.result : "all";
+  const mode = ["all", "classic", "advance"].includes(req.query.mode) ? req.query.mode : "all";
+  const wager = ["all", "has", "none"].includes(req.query.wager) ? req.query.wager : "all";
+  try {
+    const data = await getMatchHistory(userId, { result, mode, wager }, page, limit);
+    res.json(data);
+  } catch (e) {
+    console.error("[api] /api/matches error:", e.message);
+    res.status(500).json({ error: "SERVER_ERROR" });
+  }
 });
 
 // ─── Email auth routes ───────────────────────────────────────────────────────
@@ -686,13 +704,15 @@ app.get("/api/profile/:userId", async (req, res) => {
       );
       hasPassword = creds.length > 0;
     }
+    let stats = { wins: 0, losses: 0, gamesPlayed: 0, winRate: 0 };
+    try { stats = await getUserStats(userId); } catch (e) { /* graceful degradation — keep zeros */ }
     res.json({
       id: u.id,
       displayName: u.display_name,
       avatarUrl: u.avatar_url,
       memberSince: u.created_at,
       isLinkedAccount: u.guest_migrated_at !== null,
-      stats: { wins: 0, losses: 0, gamesPlayed: 0 },  // D-10: Phase 3 fills real numbers
+      stats,
       ...(isOwnProfile ? { email: u.email || null, hasPassword } : {}),
     });
   } catch (e) {

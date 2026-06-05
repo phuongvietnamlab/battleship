@@ -762,6 +762,81 @@ async function updateWebAuthnCounter(credentialId, newCounter) {
   );
 }
 
+// ─── Match History (Phase 13) ─────────────────────────────────────────────────
+async function getMatchHistory(userId, { result = "all", mode = "all", wager = "all" } = {}, page = 1, limit = 20) {
+  if (!process.env.DATABASE_URL && !process.env.PGHOST && !process.env.PGDATABASE) {
+    return { matches: [], total: 0, page, hasMore: false };
+  }
+  limit = Math.min(50, Math.max(1, limit));
+  page = Math.max(1, page);
+  const offset = (page - 1) * limit;
+
+  const countRes = await pool.query(
+    `SELECT COUNT(*) AS total FROM matches m
+     WHERE (m.winner_id = $1 OR m.loser_id = $1)
+       AND ($2 = 'all' OR ($2 = 'win' AND m.winner_id = $1) OR ($2 = 'loss' AND m.loser_id = $1))
+       AND ($3 = 'all' OR m.mode = $3)
+       AND ($4 = 'all' OR ($4 = 'has' AND m.stake > 0) OR ($4 = 'none' AND m.stake = 0))`,
+    [userId, result, mode, wager]
+  );
+  const total = parseInt(countRes.rows[0].total, 10);
+
+  const dataRes = await pool.query(
+    `SELECT
+       m.id,
+       CASE WHEN m.winner_id = $1 THEN 'win' ELSE 'loss' END AS result,
+       CASE WHEN m.winner_id = $1 THEN m.loser_id ELSE m.winner_id END AS opponent_id,
+       u.display_name AS opponent_name,
+       u.avatar_url AS opponent_avatar,
+       m.stake,
+       CASE WHEN m.winner_id = $1 THEN COALESCE(FLOOR(m.stake * 2 * 0.9), 0)
+            ELSE -m.stake END AS points_delta,
+       m.mode,
+       m.reason,
+       m.started_at,
+       m.ended_at
+     FROM matches m
+     JOIN users u ON u.id = CASE WHEN m.winner_id = $1 THEN m.loser_id ELSE m.winner_id END
+     WHERE (m.winner_id = $1 OR m.loser_id = $1)
+       AND ($2 = 'all' OR ($2 = 'win' AND m.winner_id = $1) OR ($2 = 'loss' AND m.loser_id = $1))
+       AND ($3 = 'all' OR m.mode = $3)
+       AND ($4 = 'all' OR ($4 = 'has' AND m.stake > 0) OR ($4 = 'none' AND m.stake = 0))
+     ORDER BY m.ended_at DESC
+     LIMIT $5 OFFSET $6`,
+    [userId, result, mode, wager, limit, offset]
+  );
+
+  const matches = dataRes.rows.map(r => ({
+    id: r.id,
+    result: r.result,
+    opponent: { id: r.opponent_id, displayName: r.opponent_name, avatarUrl: r.opponent_avatar },
+    stake: r.stake,
+    pointsDelta: parseInt(r.points_delta, 10),
+    mode: r.mode,
+    reason: r.reason,
+    startedAt: r.started_at,
+    endedAt: r.ended_at,
+  }));
+
+  return { matches, total, page, hasMore: offset + matches.length < total };
+}
+
+async function getUserStats(userId) {
+  if (!process.env.DATABASE_URL && !process.env.PGHOST && !process.env.PGDATABASE) {
+    return { wins: 0, losses: 0, gamesPlayed: 0, winRate: 0 };
+  }
+  const { rows } = await pool.query(
+    `SELECT COUNT(*) AS total, COUNT(*) FILTER (WHERE winner_id = $1) AS wins
+     FROM matches WHERE winner_id = $1 OR loser_id = $1`,
+    [userId]
+  );
+  const total = parseInt(rows[0].total, 10);
+  const wins = parseInt(rows[0].wins, 10);
+  const losses = total - wins;
+  const winRate = total > 0 ? Math.round((wins / total) * 100) : 0;
+  return { wins, losses, gamesPlayed: total, winRate };
+}
+
 module.exports = {
   pool,
   runMigrations,
@@ -776,6 +851,8 @@ module.exports = {
   setEmailPassword,
   linkEmailToUser,
   recordMatch,
+  getMatchHistory,
+  getUserStats,
   getWalletBalance,
   debitWallet,
   creditWallet,

@@ -69,6 +69,10 @@ const I18N = {
     "help.chatTitle": "💬 Chat", "help.chatBody": "Tap 💬 to send a quick emoji or message — it pops as a bubble over your avatar for a few seconds (no chat log).",
     "help.reconnectTitle": "📡 Reconnect", "help.reconnectBody": "If you disconnect or background the app, your seat is held for 3 minutes. Re-open to resume the match.",
     "footer": "Battleship Online · share the room code to invite friends",
+    "history.open": "📋 History", "history.title": "Match History", "history.empty": "No battles yet. ⚓", "history.back": "← Back",
+    "history.all": "All", "history.win": "Won", "history.loss": "Lost", "history.wager": "Wagered", "history.free": "Free",
+    "history.classic": "Classic", "history.advance": "Advance", "history.pts": "pts", "history.total": "{n} matches",
+    "stats.winRate": "{n}% wins", "stats.totalGames": "{n} games",
     "log.oppJoined": "Opponent joined the room.", "log.oppReady": "Opponent is ready.", "log.oppOffline": "Opponent disconnected, waiting to reconnect...", "log.oppReconnect": "Opponent reconnected.",
     "log.youFirst": "You go first. Open fire!", "log.oppFirst": "Opponent goes first.", "log.botFirst": "Bot goes first.",
     "log.youTimeout": "You ran out of time — turn passes to the opponent.", "log.oppTimeout": "Opponent ran out of time — your turn.",
@@ -256,6 +260,10 @@ const I18N = {
     "help.chatTitle": "💬 Trò chuyện", "help.chatBody": "Bấm 💬 để gửi emoji hoặc tin nhắn nhanh — nó hiện thành bong bóng trên avatar bạn vài giây (không có khung chat).",
     "help.reconnectTitle": "📡 Kết nối lại", "help.reconnectBody": "Nếu mất kết nối hoặc thoát nền app, ghế của bạn được giữ 3 phút. Mở lại để chơi tiếp.",
     "footer": "Battleship Online · chia sẻ mã phòng để mời bạn bè",
+    "history.open": "📋 Lịch sử", "history.title": "Lịch sử trận đấu", "history.empty": "Chưa có trận đấu nào. ⚓", "history.back": "← Quay lại",
+    "history.all": "Tất cả", "history.win": "Thắng", "history.loss": "Thua", "history.wager": "Có cược", "history.free": "Không cược",
+    "history.classic": "Classic", "history.advance": "Advance", "history.pts": "đ", "history.total": "{n} trận",
+    "stats.winRate": "{n}% thắng", "stats.totalGames": "{n} trận",
     "log.oppJoined": "Đối thủ đã vào phòng.", "log.oppReady": "Đối thủ đã sẵn sàng.", "log.oppOffline": "Đối thủ tạm mất kết nối, đang chờ kết nối lại...", "log.oppReconnect": "Đối thủ đã kết nối lại.",
     "log.youFirst": "Bạn đi trước. Khai hỏa!", "log.oppFirst": "Đối thủ đi trước.", "log.botFirst": "Máy đi trước.",
     "log.youTimeout": "Bạn bỏ lượt (hết giờ) — chuyển lượt cho đối thủ.", "log.oppTimeout": "Đối thủ hết giờ — tới lượt bạn.",
@@ -874,7 +882,7 @@ function BottomSheet({ open, onClose, title, children }) {
 }
 
 // ---------- Lobby ----------
-function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onHelp, error, authUser, authError, verifyNotice, clientId, signInDisabled, onSignInDisable, onEmailAuthSuccess, balance }) {
+function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onHelp, onHistory, error, authUser, authError, verifyNotice, clientId, signInDisabled, onSignInDisable, onEmailAuthSuccess, balance }) {
   const [code, setCode] = useState("");
   const [mode, setMode] = useState("classic");
   const [selectedTier, setSelectedTier] = useState(loadBotTier);
@@ -955,6 +963,9 @@ function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onHelp, error, authUser,
       {/* Footer utilities */}
       <div className="lobby-footer">
         <button className="btn ghost compact" onClick={onHelp}>{t("help.open")}</button>
+        {authUser && (
+          <button className="btn ghost compact" onClick={onHistory}>{t("history.open")}</button>
+        )}
         {!authUser && (
           <button className="btn ghost compact" onClick={() => setAuthSheetOpen(true)}>{t("auth.signIn")}</button>
         )}
@@ -1297,11 +1308,11 @@ function PowerBar({ inv, aim, onPower, myTurn }) {
   );
 }
 // Player card: avatar + name + score, used on both sides of the scoreboard.
-function PlayerCard({ profile, fallbackName, score, active, isBot, side, bubble }) {
+function PlayerCard({ profile, fallbackName, score, active, isBot, side, bubble, onClick }) {
   const name = (profile && profile.name) || fallbackName;
   const photo = profile && profile.photo;
   return (
-    <div className={"pcard " + side + (active ? " active" : "")}>
+    <div className={"pcard " + side + (active ? " active" : "")} onClick={onClick} style={onClick ? {cursor:"pointer"} : undefined}>
       <div className="pc-avatar-wrap">
         {photo
           ? <img className="pc-avatar" src={photo} alt="" referrerPolicy="no-referrer" />
@@ -1335,6 +1346,25 @@ function TurnRing({ secs, frac, show, myTurn }) {
 }
 function Battle({ myTurn, vsBot, occ, incoming, myShots, onFire, log, sunkOpp, sunkMine, sunkEnemyCells, sunkMyCells, myScore, oppScore, oppLabel, myProfile, oppProfile, myBubble, oppBubble, flashEnemy, flashMine, mode, inv, powerups, revealedEnemy, aim, onPower, myMines, onPlaceMine, turnDeadline, turnDur, shake }) {
   const [tab, setTab] = useState("enemy"); // enemy | own (mobile)
+  const [oppStats, setOppStats] = useState(null); // { wins, losses, gamesPlayed, winRate } | null
+  const [oppStatsOpen, setOppStatsOpen] = useState(false);
+  const oppStatsCache = useRef(null);
+
+  // Fetch opponent stats on avatar click
+  function handleOppClick() {
+    if (vsBot || !oppProfile || !oppProfile.id) return;
+    if (oppStatsCache.current) {
+      setOppStats(oppStatsCache.current);
+      setOppStatsOpen(true);
+    } else {
+      fetch("/api/profile/" + oppProfile.id)
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { if (d && d.stats) { oppStatsCache.current = d.stats; setOppStats(d.stats); setOppStatsOpen(true); } })
+        .catch(() => {});
+    }
+    setTimeout(() => setOppStatsOpen(false), 4000);
+  }
+
   // đếm ngược lượt từ deadline server gửi (null = không giới hạn, vd đấu máy)
   const [secs, setSecs] = useState(null);
   const [frac, setFrac] = useState(1);
@@ -1363,7 +1393,15 @@ function Battle({ myTurn, vsBot, occ, incoming, myShots, onFire, log, sunkOpp, s
       <div className="scoreboard">
         <PlayerCard side="me" profile={myProfile} fallbackName={t("battle.you")} score={myScore} active={myTurn && turnDeadline != null} bubble={myBubble} />
         <TurnRing secs={secs} frac={frac} show={turnDeadline != null} myTurn={myTurn} />
-        <PlayerCard side="opp" profile={oppProfile} fallbackName={oppLabel} score={oppScore} active={!myTurn && turnDeadline != null} isBot={vsBot} bubble={oppBubble} />
+        <div style={{position:"relative"}}>
+          <PlayerCard side="opp" profile={oppProfile} fallbackName={oppLabel} score={oppScore} active={!myTurn && turnDeadline != null} isBot={vsBot} bubble={oppBubble} onClick={handleOppClick} />
+          {oppStatsOpen && oppStats && (
+            <div className="opp-stats-popup" onClick={() => setOppStatsOpen(false)}>
+              <div className="stat-row"><span className="stat-value">{oppStats.winRate}%</span> {LANG === "vi" ? "thắng" : "wins"}</div>
+              <div className="stat-row"><span className="stat-value">{oppStats.gamesPlayed}</span> {LANG === "vi" ? "trận" : "games"}</div>
+            </div>
+          )}
+        </div>
       </div>
       {mode === "advance" && (
         <PowerBar inv={inv} aim={aim} onPower={onPower} myTurn={myTurn} />
@@ -1681,6 +1719,132 @@ function AvatarMenu({ open, user, onViewProfile, onSignOut, onCancel, setViewPro
       <button className="avatar-menu-item" role="menuitem" onClick={() => { onSignOut(); onCancel(); }}>
         🚪 {t("auth.signOut")}
       </button>
+    </div>
+  );
+}
+
+// ---------- MatchHistory (Phase 13) ----------
+// Paginated, filterable match history screen for authenticated users.
+function MatchHistory({ authUser, onBack }) {
+  const [matches, setMatches] = useState([]);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [total, setTotal] = useState(0);
+  const [filters, setFilters] = useState({ result: "all", mode: "all", wager: "all" });
+  const sentinelRef = useRef(null);
+  const abortRef = useRef(null);
+
+  function formatMatchTime(isoStr) {
+    const d = new Date(isoStr);
+    const diffMs = Date.now() - d.getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+    const diffHr = Math.floor(diffMs / 3600000);
+    const diffDay = Math.floor(diffMs / 86400000);
+    if (diffMin < 60) return LANG === "vi" ? `${diffMin} phút trước` : `${diffMin}m ago`;
+    if (diffHr < 24) return LANG === "vi" ? `${diffHr} giờ trước` : `${diffHr}h ago`;
+    if (diffDay < 7) return LANG === "vi" ? `${diffDay} ngày trước` : `${diffDay}d ago`;
+    const dd = String(d.getDate()).padStart(2, "0");
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const hh = String(d.getHours()).padStart(2, "0");
+    const mi = String(d.getMinutes()).padStart(2, "0");
+    return `${dd}/${mm}/${d.getFullYear()} ${hh}:${mi}`;
+  }
+
+  const loadPage = useCallback(async (p, f) => {
+    if (abortRef.current) abortRef.current.abort();
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({ page: p, limit: 20, result: f.result, mode: f.mode, wager: f.wager });
+      const res = await fetch("/api/matches?" + params, { signal: ctrl.signal });
+      if (!res.ok) throw new Error("fetch failed");
+      const data = await res.json();
+      setMatches(prev => p === 1 ? data.matches : [...prev, ...data.matches]);
+      setTotal(data.total);
+      setHasMore(data.hasMore);
+    } catch (e) {
+      if (e.name !== "AbortError") console.error("[history] load failed:", e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Load on page/filter change
+  useEffect(() => { loadPage(page, filters); }, [page, filters, loadPage]);
+
+  // Reset on filter change
+  function updateFilter(key, value) {
+    setMatches([]);
+    setPage(1);
+    setFilters(prev => ({ ...prev, [key]: value }));
+  }
+
+  // IntersectionObserver for infinite scroll
+  useEffect(() => {
+    if (!sentinelRef.current || !hasMore || loading) return;
+    const obs = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting && hasMore && !loading) {
+        setPage(p => p + 1);
+      }
+    }, { threshold: 0.1 });
+    obs.observe(sentinelRef.current);
+    return () => obs.disconnect();
+  }, [hasMore, loading]);
+
+  const filterGroups = [
+    { key: "result", options: [{ value: "all", label: t("history.all") }, { value: "win", label: t("history.win") }, { value: "loss", label: t("history.loss") }] },
+    { key: "mode", options: [{ value: "all", label: t("history.all") }, { value: "classic", label: t("history.classic") }, { value: "advance", label: t("history.advance") }] },
+    { key: "wager", options: [{ value: "all", label: t("history.all") }, { value: "has", label: t("history.wager") }, { value: "none", label: t("history.free") }] },
+  ];
+
+  return (
+    <div className="history-container">
+      <div className="history-header">
+        <button className="btn ghost compact" onClick={onBack}>{t("history.back")}</button>
+        <h2 className="history-title">{t("history.title")}</h2>
+        <span className="history-total">{t("history.total", { n: total })}</span>
+      </div>
+      <div className="history-filters">
+        {filterGroups.map(g => (
+          <div key={g.key} className="history-filter-group">
+            {g.options.map(opt => (
+              <button
+                key={opt.value}
+                className={"history-pill" + (filters[g.key] === opt.value ? " active" : "")}
+                onClick={() => updateFilter(g.key, opt.value)}
+              >{opt.label}</button>
+            ))}
+          </div>
+        ))}
+      </div>
+      <div className="history-list">
+        {matches.map(m => (
+          <div key={m.id} className="match-card">
+            <div className="match-avatar">{m.opponent.displayName ? m.opponent.displayName.charAt(0).toUpperCase() : "?"}</div>
+            <div className="match-info">
+              <div className="match-opponent">{m.opponent.displayName || "Unknown"}</div>
+              <div className="match-meta">
+                <span className={"match-result " + m.result}>{m.result === "win" ? "✅" : "❌"} {m.result === "win" ? t("history.win") : t("history.loss")}</span>
+                <span className={"match-points " + (m.pointsDelta >= 0 ? "positive" : "negative")}>
+                  {m.pointsDelta > 0 ? "+" : ""}{m.pointsDelta} {t("history.pts")}
+                </span>
+                <span className="match-mode-chip">{m.mode}</span>
+              </div>
+            </div>
+            <div className="match-time">{formatMatchTime(m.endedAt)}</div>
+          </div>
+        ))}
+        <div ref={sentinelRef} className="history-sentinel" />
+        {loading && <div className="history-loading">⏳</div>}
+        {!loading && matches.length === 0 && (
+          <div className="history-empty">
+            <p>{t("history.empty")}</p>
+            <button className="btn ghost" onClick={onBack}>{t("history.back")}</button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -2927,7 +3091,7 @@ function App() {
 
       {notice && <div className="notice-toast">{notice}</div>}
 
-      {screen === "lobby" && <Lobby onCreate={createRoom} onJoin={joinRoom} onBot={handleBot} onQuickMatch={handleQuickMatch} onHelp={() => setHelpOpen(true)} error={error} authUser={authUser} authError={authError} verifyNotice={verifyNotice} clientId={clientId} signInDisabled={signInDisabled} onSignInDisable={() => setSignInDisabled(true)} onEmailAuthSuccess={setAuthUser} balance={balance} />}
+      {screen === "lobby" && <Lobby onCreate={createRoom} onJoin={joinRoom} onBot={handleBot} onQuickMatch={handleQuickMatch} onHelp={() => setHelpOpen(true)} onHistory={() => setScreen("history")} error={error} authUser={authUser} authError={authError} verifyNotice={verifyNotice} clientId={clientId} signInDisabled={signInDisabled} onSignInDisable={() => setSignInDisabled(true)} onEmailAuthSuccess={setAuthUser} balance={balance} />}
 
       {screen === "queue" && (
         <div className="lobby">
@@ -2970,6 +3134,10 @@ function App() {
           onBack={() => setScreen("lobby")}
           onSignOut={handleSignOut}
         />
+      )}
+
+      {screen === "history" && (
+        <MatchHistory authUser={authUser} onBack={() => setScreen("lobby")} />
       )}
 
       <HelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />
