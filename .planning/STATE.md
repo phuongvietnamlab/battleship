@@ -105,6 +105,7 @@ Recent decisions affecting current work:
 
 - Phase 7 added: Points economy — remove ranking/leaderboard, add wagerable points for matches and power-up purchases
 - Phase 8 added: Auth migration — replace Google/Facebook OAuth with WebAuthn Passkeys (biometric auth); keep email/password as fallback
+- Phase 9 added: Lobby UI redesign — simplify home screen UX, card-based layout, progressive disclosure, mobile-first one-screen lobby
 
 ### Pending Todos
 
@@ -139,9 +140,9 @@ Items acknowledged and deferred at milestone close on 2026-06-04:
 ## Session Continuity
 
 Last session: 2026-06-05T03:30:35.009Z
-Stopped at: Phase 7 context gathered
+Stopped at: Phase 9 planned
 Resume file: 
-.planning/phases/07-points-economy-remove-ranking-leaderboard-add-wagerable-poin/07-CONTEXT.md
+.planning/phases/09-lobby-ui-redesign-simplify-home-screen-ux-for-clarity-and-on/09-CONTEXT.md
 
 ## Operator Next Steps
 

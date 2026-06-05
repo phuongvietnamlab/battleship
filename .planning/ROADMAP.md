@@ -45,6 +45,7 @@ Plans:
 **Goal:** Replace Google/Facebook OAuth with WebAuthn/Passkeys (biometric auth) as the primary sign-in method. Keep email/password as fallback for devices that don't support passkeys. Remove all OAuth dependencies and code. Guest-first flow unchanged.
 
 **Requirements**:
+
 - AUTHM-01: Remove Google OAuth strategy, routes, and `passport-google-oauth20` dependency
 - AUTHM-02: Remove Facebook OAuth strategy, routes, `passport-facebook` dependency, and data-deletion callback
 - AUTHM-03: Remove `passport` package entirely (no longer needed without OAuth)
@@ -63,3 +64,28 @@ Plans:
 
 - [ ] Plan 01: Remove OAuth/Passport, add user-loading middleware, webauthn_credentials migration
 - [ ] Plan 02: Implement WebAuthn registration + authentication + passkey-first UI
+
+### Phase 9: Lobby UI redesign: simplify home screen UX for clarity and onboarding
+
+**Goal:** Redesign the lobby screen from a cluttered list of 10+ buttons into a clean, card-based layout with 1 hero CTA + 2 secondary cards + progressive disclosure via bottom sheets. Reduce cognitive load so a new player knows what to do within 2 seconds. Fit everything above the fold on mobile (no scroll needed).
+
+**Requirements**:
+- LOBBY-01: Single primary CTA "Chơi nhanh / Quick Play" — one tap to enter matchmaking queue (classic mode default)
+- LOBBY-02: Two compact secondary cards side-by-side: "Bot" (practice) and "Với bạn / Friends" (room code)
+- LOBBY-03: Bot card → bottom sheet with difficulty picker (Easy/Medium/Hard/Insane) + brief descriptions
+- LOBBY-04: Friends card → bottom sheet with "Create room" (shows code) and "Join room" (input field)
+- LOBBY-05: Mode toggle (Classic/Advance) moved to small toggle or sub-option, not a full section
+- LOBBY-06: Wager section only visible to signed-in users with balance > 0; compact chip-row design
+- LOBBY-07: Entire lobby fits on one mobile viewport (≤ 667px height) without scrolling
+- LOBBY-08: Progressive disclosure — details hidden behind bottom sheets instead of inline
+- LOBBY-09: First-time tooltip / pulse on "Chơi nhanh" button for new users (shown once, stored in localStorage)
+- LOBBY-10: Auth/sign-in moved to avatar menu or settings — not cluttering the main lobby
+- LOBBY-11: Responsive: cards stack vertically on very small screens (< 320px width)
+
+**Depends on:** Phase 7 (points API), Phase 8 (auth UI)
+**Plans:** 2 plans
+
+Plans:
+
+- [x] Plan 01: Card-based lobby layout + BottomSheet component
+- [x] Plan 02: Auth relocation, first-time onboarding tooltip, polish & cleanup
