@@ -1481,6 +1481,7 @@ function PasskeyButton({ clientId, onAuthSuccess }) {
     const optRes = await fetch("/auth/webauthn/login-options", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
     });
     const optData = await optRes.json();
     if (!optData.ok) throw new Error("login-options failed");
@@ -1490,6 +1491,7 @@ function PasskeyButton({ clientId, onAuthSuccess }) {
     const verRes = await fetch("/auth/webauthn/login-verify", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
       body: JSON.stringify({ credential: assertion }),
     });
     const verData = await verRes.json();
@@ -1502,6 +1504,7 @@ function PasskeyButton({ clientId, onAuthSuccess }) {
     const optRes = await fetch("/auth/webauthn/register-options", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
       body: JSON.stringify({ clientId }),
     });
     const optData = await optRes.json();
@@ -1520,6 +1523,7 @@ function PasskeyButton({ clientId, onAuthSuccess }) {
     const verRes = await fetch("/auth/webauthn/register-verify", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
       body: JSON.stringify({ credential: attestation }),
     });
     const verData = await verRes.json();
@@ -1943,20 +1947,24 @@ function App() {
   const addLog = useCallback((s) => setLog((l) => [s, ...l].slice(0, 40)), []);
   const showNotice = useCallback((s) => { setNotice(s); setTimeout(() => setNotice((n) => (n === s ? null : n)), 4000); }, []);
 
-  // Sign-out: destroy current session, revert UI to guest (optimistic)
+  // Sign-out: destroy current session, revert UI to guest.
+  // Await the server response so the Set-Cookie (clear) header is processed by the
+  // browser before any subsequent auth request — prevents stale-cookie race on mobile.
   function handleSignOut() {
-    fetch("/auth/signout", { method: "POST" })
+    fetch("/auth/signout", { method: "POST", credentials: "same-origin" })
       .catch(() => { /* non-fatal — UI already reverted */ });
     setAuthUser(null);
+    setBalance(null);
     setAvatarMenuOpen(false);
     setSignOutAllConfirm(false);
   }
 
   // Sign-out-all: after inline confirmation, delete all sessions for user_id
   function handleSignOutAllConfirm() {
-    fetch("/auth/signout-all", { method: "POST" })
+    fetch("/auth/signout-all", { method: "POST", credentials: "same-origin" })
       .catch(() => { /* non-fatal — UI already reverted */ });
     setAuthUser(null);
+    setBalance(null);
     setAvatarMenuOpen(false);
     setSignOutAllConfirm(false);
   }

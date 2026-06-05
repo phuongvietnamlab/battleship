@@ -171,9 +171,13 @@ app.use("/auth", express.json());
 // ─── Auth routes ─────────────────────────────────────────────────────────────
 
 // POST /auth/signout — destroy current session (this device only).
+// Clear cookie explicitly so the browser does not keep sending the dead session ID
+// on subsequent requests (fixes login-after-logout on mobile where the stale cookie
+// causes challenge lookup to fail — AUTHM-BUG-01).
 app.post("/auth/signout", (req, res) => {
   req.session.destroy((err) => {
     if (err) return res.status(500).json({ ok: false, code: "AUTH_FAILED" });
+    res.clearCookie("connect.sid", { path: "/" });
     res.json({ ok: true });
   });
 });
@@ -188,7 +192,10 @@ app.post("/auth/signout-all", async (req, res) => {
   if (!userId) return res.status(401).json({ ok: false, code: "NOT_AUTHENTICATED" });
   try {
     await pool.query("DELETE FROM session WHERE user_id = $1", [userId]);
-    req.session.destroy(() => res.json({ ok: true }));
+    req.session.destroy(() => {
+      res.clearCookie("connect.sid", { path: "/" });
+      res.json({ ok: true });
+    });
   } catch (e) {
     console.error("[auth] signout-all failed:", e.message);
     res.status(500).json({ ok: false });
