@@ -842,22 +842,29 @@ function EmailAuthForm({ onAuthSuccess, clientId: cid }) {
 // ---------- BottomSheet ----------
 function BottomSheet({ open, onClose, title, children }) {
   const panelRef = useRef(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   useEffect(() => {
     if (!open) return;
-    function handleKey(e) { if (e.key === "Escape") onClose(); }
+    function handleKey(e) { if (e.key === "Escape") onCloseRef.current(); }
     document.addEventListener("keydown", handleKey);
-    // Focus trap: focus first focusable element
-    setTimeout(() => {
+    // Focus trap: focus first focusable element (only on initial open)
+    const timer = setTimeout(() => {
       if (panelRef.current) {
-        const el = panelRef.current.querySelector("button, input, [tabindex]");
+        const el = panelRef.current.querySelector("input, button, [tabindex]");
         if (el) el.focus();
       }
     }, 100);
-    return () => document.removeEventListener("keydown", handleKey);
-  }, [open, onClose]);
+    return () => { document.removeEventListener("keydown", handleKey); clearTimeout(timer); };
+  }, [open]);
+  // Prevent overlay touch from closing sheet when tapping inside panel area on mobile
+  const handleOverlayClick = useCallback((e) => {
+    // Only close if the click is directly on the overlay, not bubbled from panel
+    if (e.target === e.currentTarget) onCloseRef.current();
+  }, []);
   return (
-    <div className={"bottom-sheet-overlay" + (open ? " open" : "")} onClick={onClose} role="presentation">
-      <div className="bottom-sheet-panel" ref={panelRef} role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}>
+    <div className={"bottom-sheet-overlay" + (open ? " open" : "")} onClick={handleOverlayClick} onTouchEnd={handleOverlayClick} role="presentation">
+      <div className="bottom-sheet-panel" ref={panelRef} role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()}>
         <div className="bottom-sheet-title">{title}</div>
         <button className="bottom-sheet-close" onClick={onClose} aria-label="Close">✕</button>
         {children}
@@ -982,7 +989,9 @@ function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onHelp, error, authUser,
           <label>{t("lobby.enterCodeLabel")}</label>
           <input className="code-input" maxLength={5} placeholder="ABCDE"
             value={code} onChange={(e) => setCode(e.target.value.toUpperCase())}
-            onKeyDown={(e) => { if (e.key === "Enter" && code) { onJoin(code); setFriendSheetOpen(false); } }} />
+            onKeyDown={(e) => { if (e.key === "Enter" && code) { onJoin(code); setFriendSheetOpen(false); } }}
+            autoComplete="off" autoCorrect="off" autoCapitalize="characters" spellCheck="false"
+            inputMode="text" enterKeyHint="go" />
         </div>
         <button className="btn steel" disabled={code.length < 4} onClick={() => { onJoin(code); setFriendSheetOpen(false); }}>{t("lobby.joinBtn")}</button>
       </BottomSheet>
@@ -1458,10 +1467,32 @@ function ChatComposer({ open, onSend, onToggle }) {
 function PasskeyButton({ clientId, onAuthSuccess }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  // Default to login mode (discoverable credentials) — no server roundtrip needed.
-  // If login fails with NotAllowedError (no credential on device), switch to register.
-  const [isReturning, setIsReturning] = useState(true);
-  const [checked, setChecked] = useState(true);
+  // Check server on mount to decide if this device has a passkey.
+  // If yes → show "Đăng nhập" (login). If no → show "Tạo Passkey" (register).
+  // This avoids the iOS native sign-in prompt on new devices that don't have a credential.
+  const [isReturning, setIsReturning] = useState(false);
+  const [checked, setChecked] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/auth/webauthn/has-passkey?clientId=${encodeURIComponent(clientId || "")}`);
+        const data = await res.json();
+        if (!cancelled) {
+          setIsReturning(!!data.hasPasskey);
+          setChecked(true);
+        }
+      } catch {
+        // On error, default to register mode (safer for new devices)
+        if (!cancelled) {
+          setIsReturning(false);
+          setChecked(true);
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [clientId]);
 
   async function handleClick() {
     if (loading) return;
