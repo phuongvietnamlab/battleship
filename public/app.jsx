@@ -1349,95 +1349,105 @@ function ChatComposer({ open, onSend, onToggle }) {
 // ---------- PasskeyButton ----------
 // Renders the "Sign in with Passkey" button for guests.
 // Uses WebAuthn/FIDO2 to authenticate via biometrics (Face ID, Touch ID, Windows Hello).
-// Feature-detected: only shown when platform authenticator is available.
+// Smart flow: tries login first, if no credential exists → falls back to register (create account).
 function PasskeyButton({ clientId, onAuthSuccess, mode }) {
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  async function handlePasskeyLogin() {
+  async function handleClick() {
     if (loading) return;
     setLoading(true);
+    setError("");
     try {
-      // 1. Get authentication options from server
-      const optRes = await fetch("/auth/webauthn/login-options", { method: "POST", headers: { "Content-Type": "application/json" } });
-      const optData = await optRes.json();
-      if (!optData.ok) throw new Error("Failed to get options");
+      // Try login first (user may already have a passkey)
+      const loginSuccess = await tryPasskeyLogin();
+      if (loginSuccess) return; // done
 
-      // 2. Trigger biometric prompt
+      // Login failed (no credential) → register a new passkey (create account + Face ID)
+      await doPasskeyRegister();
+    } catch (e) {
+      if (e.name === "NotAllowedError" || e.name === "AbortError") {
+        // User cancelled biometric prompt — do nothing
+      } else {
+        console.error("[passkey]", e.message || e);
+        setError(t("auth.errPasskeyFailed"));
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function tryPasskeyLogin() {
+    try {
+      const optRes = await fetch("/auth/webauthn/login-options", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const optData = await optRes.json();
+      if (!optData.ok) return false;
+
+      // This triggers Face ID / Touch ID / Windows Hello
       const assertion = await startAuthentication({ optionsJSON: optData.options });
 
-      // 3. Verify with server
       const verRes = await fetch("/auth/webauthn/login-verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ credential: assertion }),
       });
       const verData = await verRes.json();
-      if (!verData.ok) throw new Error(verData.code || "WEBAUTHN_FAILED");
+      if (!verData.ok) return false;
 
-      // 4. Success
       if (onAuthSuccess) onAuthSuccess(verData.user);
+      return true;
     } catch (e) {
-      // If no credential found, user may not have a passkey yet — silent fail
-      if (e.name === "NotAllowedError") {
-        // User cancelled biometric prompt — do nothing
-      } else {
-        console.error("[passkey] login failed:", e.message || e);
+      // NotAllowedError during login = no credential found or user cancelled
+      // In either case, fall through to register
+      if (e.name === "NotAllowedError" || e.message?.includes("No credentials")) {
+        return false;
       }
-    } finally {
-      setLoading(false);
+      throw e; // re-throw other errors
     }
   }
 
-  async function handlePasskeyRegister() {
-    if (loading) return;
-    setLoading(true);
-    try {
-      // 1. Get registration options from server (with clientId for guest linking)
-      const optRes = await fetch("/auth/webauthn/register-options", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clientId }),
-      });
-      const optData = await optRes.json();
-      if (!optData.ok) throw new Error("Failed to get options");
+  async function doPasskeyRegister() {
+    // 1. Get registration options (creates a new account linked to guest)
+    const optRes = await fetch("/auth/webauthn/register-options", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clientId }),
+    });
+    const optData = await optRes.json();
+    if (!optData.ok) throw new Error("Failed to get register options");
 
-      // 2. Trigger biometric prompt for registration
-      const attestation = await startRegistration({ optionsJSON: optData.options });
+    // 2. This triggers Face ID / Touch ID / Windows Hello to CREATE a passkey
+    const attestation = await startRegistration({ optionsJSON: optData.options });
 
-      // 3. Verify with server
-      const verRes = await fetch("/auth/webauthn/register-verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ credential: attestation }),
-      });
-      const verData = await verRes.json();
-      if (!verData.ok) throw new Error(verData.code || "WEBAUTHN_FAILED");
+    // 3. Verify with server
+    const verRes = await fetch("/auth/webauthn/register-verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ credential: attestation }),
+    });
+    const verData = await verRes.json();
+    if (!verData.ok) throw new Error(verData.code || "WEBAUTHN_FAILED");
 
-      // 4. Success — fetch user info
-      const meRes = await fetch("/api/me");
-      const meData = await meRes.json();
-      if (meData.user && onAuthSuccess) onAuthSuccess(meData.user);
-    } catch (e) {
-      if (e.name === "NotAllowedError") {
-        // User cancelled — do nothing
-      } else {
-        console.error("[passkey] register failed:", e.message || e);
-      }
-    } finally {
-      setLoading(false);
-    }
+    // 4. Success — fetch user info
+    const meRes = await fetch("/api/me");
+    const meData = await meRes.json();
+    if (meData.user && onAuthSuccess) onAuthSuccess(meData.user);
   }
-
-  // handlePasskeyRegister kept for future use (e.g. "Add Passkey" in profile)
 
   return (
-    <button
-      className="btn passkey-signin"
-      disabled={loading}
-      onClick={handlePasskeyLogin}
-    >
-      {t("auth.signInPasskey")}
-    </button>
+    <>
+      {error && <div className="error" style={{ marginBottom: 8 }}>{error}</div>}
+      <button
+        className="btn passkey-signin"
+        disabled={loading}
+        onClick={handleClick}
+      >
+        {loading ? "..." : t("auth.signInPasskey")}
+      </button>
+    </>
   );
 }
 
