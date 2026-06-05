@@ -169,5 +169,5 @@ Plans:
 
 Plans:
 
-- [ ] Plan 01: Backend API — getMatchHistory, getUserStats, GET /api/matches, upgrade /api/profile stats
-- [ ] Plan 02: Frontend — MatchHistory component, lobby button, filters, infinite scroll, opponent stats popup
+- [x] Plan 01: Backend API — getMatchHistory, getUserStats, GET /api/matches, upgrade /api/profile stats
+- [x] Plan 02: Frontend — MatchHistory component, lobby button, filters, infinite scroll, opponent stats popup
