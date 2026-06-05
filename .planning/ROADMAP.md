@@ -70,6 +70,7 @@ Plans:
 **Goal:** Redesign the lobby screen from a cluttered list of 10+ buttons into a clean, card-based layout with 1 hero CTA + 2 secondary cards + progressive disclosure via bottom sheets. Reduce cognitive load so a new player knows what to do within 2 seconds. Fit everything above the fold on mobile (no scroll needed).
 
 **Requirements**:
+
 - LOBBY-01: Single primary CTA "Chơi nhanh / Quick Play" — one tap to enter matchmaking queue (classic mode default)
 - LOBBY-02: Two compact secondary cards side-by-side: "Bot" (practice) and "Với bạn / Friends" (room code)
 - LOBBY-03: Bot card → bottom sheet with difficulty picker (Easy/Medium/Hard/Insane) + brief descriptions
@@ -89,3 +90,14 @@ Plans:
 
 - [x] Plan 01: Card-based lobby layout + BottomSheet component
 - [x] Plan 02: Auth relocation, first-time onboarding tooltip, polish & cleanup
+
+### Phase 10: Fix Passkey auth: rewrite WebAuthn registration and login flows
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 9
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 10 to break down)

@@ -1433,7 +1433,6 @@ function ChatComposer({ open, onSend, onToggle }) {
 }
 
 // ---------- PasskeyButton ----------
-// ---------- PasskeyButton ----------
 // Smart single button for passkey auth.
 // Uses localStorage flag to remember if user has registered a passkey on this device.
 // - First time (no flag): shows "Đăng ký Passkey" → register flow → Face ID creates passkey
@@ -1516,9 +1515,8 @@ function PasskeyButton({ clientId, onAuthSuccess }) {
     localStorage.setItem("hasPasskey", "1");
     setIsReturning(true);
 
-    const meRes = await fetch("/api/me");
-    const meData = await meRes.json();
-    if (meData.user && onAuthSuccess) onAuthSuccess(meData.user);
+    // Server returns user directly from register-verify
+    if (verData.user && onAuthSuccess) onAuthSuccess(verData.user);
   }
 
   function toggleMode() {

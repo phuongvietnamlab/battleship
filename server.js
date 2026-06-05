@@ -304,58 +304,46 @@ const RP_ID = process.env.RP_ID || (process.env.SITE_ORIGIN ? new URL(process.en
 const RP_ORIGIN = process.env.RP_ORIGIN || process.env.SITE_ORIGIN || "http://localhost:4000";
 
 // POST /auth/webauthn/register-options — generate registration challenge.
-// Requires authenticated user (to add passkey to existing account) OR a guest clientId (to create passkey-only account).
+// Does NOT create a user yet. Just generates challenge + stores clientId in session.
+// User creation happens in register-verify AFTER biometric confirmation.
 app.post("/auth/webauthn/register-options", authRateLimit, async (req, res) => {
   try {
-    let userId = req.user?.id;
-    let user = req.user;
-    const { clientId: bodyClientId, deviceName } = req.body || {};
+    const { clientId: bodyClientId } = req.body || {};
+    const pendingClientId = bodyClientId || req.session?.pendingClientId || null;
 
-    // If not signed in, create a new account from guest (passkey-only account creation)
-    if (!userId) {
-      const pendingClientId = bodyClientId || req.session?.pendingClientId || null;
-      // Generate a random display name for passkey-only accounts
-      const randomName = "Player-" + Math.random().toString(36).slice(2, 6).toUpperCase();
-      // Create a new user and link guest credential
-      const newUser = await linkOrPromoteAccount("passkey", "pending-" + Date.now(), randomName, null, pendingClientId);
-      userId = newUser.id;
-      user = newUser;
-      // Establish session immediately so register-verify knows who we are
-      req.session.regenerate((err) => {
-        if (err) return res.status(500).json({ ok: false });
-        req.session.user_id = userId;
-        req.session.pendingPasskeyUserId = userId;
-        req.session.save(() => {});
-      });
-      // Wait a tick for session save
-      await new Promise(r => setTimeout(r, 50));
+    // If user is already signed in, they're adding a passkey to existing account
+    const existingUserId = req.user?.id || null;
+
+    // For existing users: exclude their current credentials to prevent duplicate
+    let excludeCredentials = [];
+    if (existingUserId) {
+      const existingCreds = await getWebAuthnCredentials(existingUserId);
+      excludeCredentials = existingCreds.map(c => ({ id: c.id, transports: c.transports || [] }));
     }
 
-    // Get existing credentials to exclude (prevent re-registration)
-    const existingCreds = await getWebAuthnCredentials(userId);
-    const excludeCredentials = existingCreds.map(c => ({
-      id: c.id,
-      transports: c.transports || [],
-    }));
+    // Generate a temporary userID for registration (or use existing)
+    // For new users: use a placeholder that register-verify will resolve
+    const tempUserId = existingUserId || ("new-" + Date.now());
 
     const options = await generateRegistrationOptions({
       rpName: RP_NAME,
       rpID: RP_ID,
-      userName: user?.display_name || `user-${userId}`,
-      userID: Buffer.from(String(userId)),
-      userDisplayName: user?.display_name || `Player ${userId}`,
+      userName: req.user?.display_name || `player-${Date.now().toString(36)}`,
+      userID: Buffer.from(String(tempUserId)),
+      userDisplayName: req.user?.display_name || "New Player",
       attestationType: "none",
       excludeCredentials,
       authenticatorSelection: {
-        authenticatorAttachment: "platform",   // prefer built-in (Face ID, Touch ID, Windows Hello)
+        authenticatorAttachment: "platform",
         userVerification: "required",
         residentKey: "preferred",
       },
     });
 
-    // Store challenge in session for verification
+    // Store challenge + context in session (no user created yet!)
     req.session.webauthnChallenge = options.challenge;
-    req.session.webauthnUserId = userId;
+    req.session.webauthnPendingClientId = pendingClientId;
+    req.session.webauthnExistingUserId = existingUserId;
     req.session.save(() => {
       res.json({ ok: true, options });
     });
@@ -365,12 +353,12 @@ app.post("/auth/webauthn/register-options", authRateLimit, async (req, res) => {
   }
 });
 
-// POST /auth/webauthn/register-verify — verify registration attestation and save credential.
+// POST /auth/webauthn/register-verify — verify attestation, create user (if new), save credential, login.
+// This is called AFTER the user confirmed via Face ID / Touch ID / Windows Hello.
 app.post("/auth/webauthn/register-verify", authRateLimit, async (req, res) => {
   try {
     const expectedChallenge = req.session?.webauthnChallenge;
-    const userId = req.session?.webauthnUserId || req.session?.user_id;
-    if (!expectedChallenge || !userId) {
+    if (!expectedChallenge) {
       return res.status(400).json({ ok: false, code: "WEBAUTHN_FAILED" });
     }
 
@@ -390,9 +378,20 @@ app.post("/auth/webauthn/register-verify", authRateLimit, async (req, res) => {
       return res.status(400).json({ ok: false, code: "WEBAUTHN_FAILED" });
     }
 
-    const { credential: regCredential, credentialDeviceType, credentialBackedUp } = verification.registrationInfo;
+    const { credential: regCredential } = verification.registrationInfo;
 
-    // Save credential to DB
+    // Determine user ID: existing user adding passkey, or create new user
+    let userId = req.session.webauthnExistingUserId;
+
+    if (!userId) {
+      // Create new user NOW (after biometric confirmed — never before)
+      const pendingClientId = req.session.webauthnPendingClientId || null;
+      const randomName = "Player-" + Math.random().toString(36).slice(2, 6).toUpperCase();
+      const newUser = await linkOrPromoteAccount("passkey", regCredential.id, randomName, null, pendingClientId);
+      userId = newUser.id;
+    }
+
+    // Save WebAuthn credential to DB
     await saveWebAuthnCredential({
       id: regCredential.id,
       userId,
@@ -404,13 +403,21 @@ app.post("/auth/webauthn/register-verify", authRateLimit, async (req, res) => {
 
     // Clear challenge from session
     delete req.session.webauthnChallenge;
-    delete req.session.webauthnUserId;
-    delete req.session.pendingPasskeyUserId;
+    delete req.session.webauthnPendingClientId;
+    delete req.session.webauthnExistingUserId;
 
-    // Ensure session is authenticated
-    req.session.user_id = userId;
-    req.session.save(() => {
-      res.json({ ok: true, credentialId: regCredential.id });
+    // Establish authenticated session
+    req.session.regenerate((err) => {
+      if (err) return res.status(500).json({ ok: false });
+      req.session.user_id = userId;
+      req.session.save(async () => {
+        const user = await getUserById(userId);
+        res.json({
+          ok: true,
+          credentialId: regCredential.id,
+          user: user ? { id: user.id, displayName: user.display_name, avatarUrl: user.avatar_url } : { id: userId },
+        });
+      });
     });
   } catch (e) {
     console.error("[webauthn] register-verify failed:", e.message);
@@ -425,10 +432,8 @@ app.post("/auth/webauthn/login-options", authRateLimit, async (req, res) => {
       rpID: RP_ID,
       userVerification: "required",
       // Empty allowCredentials = discoverable credential (resident key) mode
-      // The authenticator decides which credential to use
     });
 
-    // Store challenge in session
     req.session.webauthnChallenge = options.challenge;
     req.session.save(() => {
       res.json({ ok: true, options });
