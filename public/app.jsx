@@ -1672,6 +1672,10 @@ function ProfileView({ userId, currentUserId, onBack, onSignOut }) {
   const [data, setData] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [notFound, setNotFound] = React.useState(false);
+  const [editing, setEditing] = useState(false);
+  const [nameInput, setNameInput] = useState("");
+  const [nameSaving, setNameSaving] = useState(false);
+  const [nameNotice, setNameNotice] = useState("");
 
   React.useEffect(() => {
     if (!userId) { setNotFound(true); setLoading(false); return; }
@@ -1749,10 +1753,6 @@ function ProfileView({ userId, currentUserId, onBack, onSignOut }) {
   if (!data) return null;
 
   const avatarLetter = data.displayName ? data.displayName.slice(0, 1).toUpperCase() : "?";
-  const [editing, setEditing] = useState(false);
-  const [nameInput, setNameInput] = useState("");
-  const [nameSaving, setNameSaving] = useState(false);
-  const [nameNotice, setNameNotice] = useState("");
 
   function startEdit() {
     setNameInput(data.displayName || "");
