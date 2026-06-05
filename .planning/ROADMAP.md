@@ -123,4 +123,4 @@ Plans:
 
 Plans:
 
-- [ ] Plan 01: Link-email backend routes + ProfileView UI
+- [x] Plan 01: Link-email backend routes + ProfileView UI
