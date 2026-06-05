@@ -116,7 +116,7 @@ async function upsertGuestCredential(clientId) {
 
 // ─── HTML escape helper ──────────────────────────────────────────────────────
 // Copied from server.js — flat-structure per CLAUDE.md, no shared barrel/util.
-// Prevents stored-XSS when names are rendered in profiles/leaderboards (T-02-01).
+// Prevents stored-XSS when names are rendered in profiles (T-02-01).
 
 function escapeHtml(s) {
   if (typeof s !== "string") return "";
@@ -456,7 +456,7 @@ async function markEmailVerified(userId) {
 // Never throws — all errors are caught, logged with [match] prefix, and swallowed
 // so a failing DB write can never block or break the end-game screen.
 
-async function recordMatch(winnerId, loserId, reason, mode, startedAt, ranked = false) {
+async function recordMatch(winnerId, loserId, reason, mode, startedAt) {
   // Graceful no-op guard: derive from poolConfig env vars (lines 22-32)
   if (!process.env.DATABASE_URL && !process.env.PGHOST && !process.env.PGDATABASE) {
     console.log("[match] DATABASE_URL not set — skipping match record");
@@ -486,160 +486,13 @@ async function recordMatch(winnerId, loserId, reason, mode, startedAt, ranked = 
       [winnerId, loserId, reason, mode || "classic", matchTs]
     );
 
-    // ─── Ranked rating write (RANK-01, D-03, D-06) ────────────────────────────
-    // Only runs when ranked===true AND both ids are non-null integers (D-03).
-    // All queries use the same `client` — never pool — so they share the transaction
-    // and a failure rolls back the matches INSERT above too (Pitfall 1, T-04-08).
-    if (ranked && winnerId != null && loserId != null) {
-      // Read current ratings; default to provisional values (1500/350/0.06/0) if no row
-      const DEFAULT_RATING = { rating: 1500, rd: 350, volatility: 0.06, games_played: 0 };
-
-      const { rows: wRows } = await client.query(
-        "SELECT rating, rd, volatility, games_played FROM ratings WHERE user_id = $1",
-        [winnerId]
-      );
-      const wBefore = wRows.length > 0 ? wRows[0] : { ...DEFAULT_RATING };
-
-      const { rows: lRows } = await client.query(
-        "SELECT rating, rd, volatility, games_played FROM ratings WHERE user_id = $1",
-        [loserId]
-      );
-      const lBefore = lRows.length > 0 ? lRows[0] : { ...DEFAULT_RATING };
-
-      // Compute new Glicko-2 ratings (pure function — elo.js, no I/O)
-      const updated = updateRatings(wBefore, lBefore);
-      const wAfter = updated.winner;
-      const lAfter = updated.loser;
-
-      console.log(
-        `[rating] ranked match: winner ${winnerId} ${Math.round(wBefore.rating)}→${Math.round(wAfter.rating)} loser ${loserId} ${Math.round(lBefore.rating)}→${Math.round(lAfter.rating)}`
-      );
-
-      // UPSERT both ratings rows (games_played incremented by 1)
-      await client.query(
-        `INSERT INTO ratings (user_id, rating, rd, volatility, games_played, updated_at)
-           VALUES ($1, $2, $3, $4, $5, now())
-           ON CONFLICT (user_id) DO UPDATE
-             SET rating = $2, rd = $3, volatility = $4, games_played = $5, updated_at = now()`,
-        [winnerId, wAfter.rating, wAfter.rd, wAfter.volatility, (wBefore.games_played || 0) + 1]
-      );
-      await client.query(
-        `INSERT INTO ratings (user_id, rating, rd, volatility, games_played, updated_at)
-           VALUES ($1, $2, $3, $4, $5, now())
-           ON CONFLICT (user_id) DO UPDATE
-             SET rating = $2, rd = $3, volatility = $4, games_played = $5, updated_at = now()`,
-        [loserId, lAfter.rating, lAfter.rd, lAfter.volatility, (lBefore.games_played || 0) + 1]
-      );
-
-      // Stamp the four rating snapshot columns on the matches row (D-06)
-      await client.query(
-        `UPDATE matches
-            SET winner_rating_before = $4,
-                winner_rating_after  = $5,
-                loser_rating_before  = $6,
-                loser_rating_after   = $7
-          WHERE winner_id = $1 AND loser_id = $2 AND started_at = $3`,
-        [
-          winnerId, loserId, matchTs,
-          wBefore.rating, wAfter.rating,
-          lBefore.rating, lAfter.rating,
-        ]
-      );
-    }
-
     await client.query("COMMIT");
-
-    // ─── Post-commit leaderboard refresh (RANK-04, D-09/Pitfall 4) ───────────
-    // Fire-and-forget AFTER COMMIT only; never awaited so it never blocks the
-    // end-game screen. Only fires in the ranked branch so unranked matches do
-    // not trigger unnecessary Postgres scans.
-    if (ranked && winnerId != null && loserId != null) {
-      refreshLeaderboardCache().catch(() => {});
-    }
   } catch (e) {
     await client.query("ROLLBACK");
     console.error("[match] recordMatch failed:", e.message);
-    // Swallow — never rethrow (D-07); unlike linkOrPromoteAccount which rethrows
-    // Rating-write failure rolls back the matches INSERT too (RANK-01 atomicity)
+    // Swallow — never rethrow (D-07)
   } finally {
     client.release();
-  }
-}
-
-// ─── Leaderboard helpers (RANK-03, RANK-04, D-08/D-09/D-10) ─────────────────
-//
-// Provisional filter: rd < 110 = established = shown; rd >= 110 = provisional = hidden (Pitfall 3).
-// Always filter in this direction — a reversed filter would leak new accounts (T-04-14).
-//
-// buildLeaderboard(client): private Postgres query — top 100 established players.
-// getLeaderboard(): Redis-then-Postgres fallback (RANK-04 ≤5 min TTL cache).
-// refreshLeaderboardCache(): unconditional Postgres read + cache write; fire-and-forget safe.
-
-async function buildLeaderboard(client) {
-  // All values $N-parameterized — none here (constants only), but use the pool client
-  // to share a connection slot. SELECT only non-sensitive public fields (T-04-12).
-  const { rows } = await client.query(`
-    SELECT r.user_id AS id,
-           u.display_name,
-           u.avatar_url,
-           r.rating,
-           r.rd,
-           r.games_played
-      FROM ratings r
-      JOIN users u ON u.id = r.user_id
-     WHERE r.rd < 110
-     ORDER BY r.rating DESC
-     LIMIT 100
-  `);
-  return rows;
-}
-
-async function getLeaderboard() {
-  // Lazy-require store.js to keep the dependency optional (mirrors test isolation).
-  const store = require("./store");
-
-  // Cache-first: try Redis before hitting Postgres (RANK-04).
-  // If Redis is unavailable or errors, fall through to the direct Postgres query.
-  try {
-    const cached = await store.getLeaderboardCache();
-    if (cached) {
-      return JSON.parse(cached);
-    }
-  } catch (e) {
-    // Redis error falls through to Postgres fallback — log but do not rethrow
-    console.error("[leaderboard] cache read error, falling back to Postgres:", e.message);
-  }
-
-  // Cache miss (or Redis down): query Postgres directly
-  const client = await pool.connect();
-  try {
-    const rows = await buildLeaderboard(client);
-    // Populate cache for next request (best-effort; store errors are swallowed inside)
-    store.setLeaderboardCache(JSON.stringify(rows)).catch(() => {});
-    return rows;
-  } finally {
-    client.release();
-  }
-}
-
-async function refreshLeaderboardCache() {
-  // Unconditional Postgres query + cache write.
-  // Called fire-and-forget from recordMatch post-COMMIT; errors are swallowed.
-  try {
-    const client = await pool.connect();
-    let rows;
-    try {
-      rows = await buildLeaderboard(client);
-    } finally {
-      client.release();
-    }
-    const store = require("./store");
-    await store.setLeaderboardCache(JSON.stringify(rows));
-    console.log("[leaderboard] cache refreshed — " + rows.length + " established players");
-    return rows;
-  } catch (e) {
-    console.error("[leaderboard] refreshLeaderboardCache failed:", e.message);
-    // Swallow — this is always fire-and-forget; never rethrow
   }
 }
 
@@ -683,24 +536,6 @@ async function setEmailPassword(userId, newPassword) {
     console.error("[db] setEmailPassword failed:", e.message);
     throw e;
   }
-}
-
-// ─── getPlayerRating (05-02) ─────────────────────────────────────────────────
-// Read rating + rd for a user from the ratings table.
-// Used by joinQueue ranked branch to seed the ELO window calculation.
-// Returns defaults { rating:1500, rd:350 } for guests (null userId) or missing rows.
-// Uses pool directly (no transaction) — read-only, no side-effects.
-async function getPlayerRating(userId) {
-  if (!userId) return { rating: 1500, rd: 350 };
-  const { rows } = await pool.query(
-    "SELECT rating, rd FROM ratings WHERE user_id = $1",
-    [userId]
-  );
-  // Postgres numeric/real columns are returned as strings by the pg driver.
-  // Coerce explicitly so rankedWindow/findPair arithmetic stays numeric (WR-06).
-  return rows.length > 0
-    ? { rating: Number(rows[0].rating), rd: Number(rows[0].rd) }
-    : { rating: 1500, rd: 350 };
 }
 
 // ─── Wallet helpers (Phase 7: Points Economy) ────────────────────────────────

@@ -11,8 +11,6 @@
 
 const REDIS_URL = process.env.REDIS_URL || "";
 const KEY = "battleship:rooms";
-const LEADERBOARD_KEY = "battleship:leaderboard";
-const LEADERBOARD_TTL = 300; // 5-minute TTL (RANK-04)
 
 let client = null;
 let ready = false;
@@ -63,28 +61,4 @@ async function loadSnapshot() {
   }
 }
 
-// ─── Leaderboard cache helpers (RANK-04, D-09) ───────────────────────────────
-// Best-effort: cache read/write errors must never crash or block the endpoint.
-// client is never exposed outside store.js (Pitfall 6).
-
-async function setLeaderboardCache(json) {
-  if (!ready) return; // guard: no-op when Redis unavailable
-  try {
-    await client.set(LEADERBOARD_KEY, json, { EX: LEADERBOARD_TTL });
-  } catch (e) {
-    console.error("[store] setLeaderboardCache failed:", e.message);
-    // swallow — never rethrow; cache miss is non-fatal
-  }
-}
-
-async function getLeaderboardCache() {
-  if (!ready) return null; // guard: return null sentinel when Redis unavailable
-  try {
-    return await client.get(LEADERBOARD_KEY); // raw string or null
-  } catch (e) {
-    console.error("[store] getLeaderboardCache failed:", e.message);
-    return null; // null sentinel on error — caller falls back to Postgres
-  }
-}
-
-module.exports = { init, isEnabled, saveSnapshot, loadSnapshot, getLeaderboardCache, setLeaderboardCache };
+module.exports = { init, isEnabled, saveSnapshot, loadSnapshot };

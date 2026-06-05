@@ -30,8 +30,6 @@ const I18N = {
     "lobby.title": "Sea Battle", "lobby.sub": "Play vs the bot, or create a room and send the code to a friend.",
     "lobby.playBot": "🤖 Play vs Bot", "lobby.createRoom": "⚓ Create new room", "lobby.enterCodeLabel": "Enter room code", "lobby.joinBtn": "Join room",
     "mode.classic": "Classic", "mode.advance": "Advance ⚡", "mode.classicDesc": "Classic, no power-ups", "mode.advanceDesc": "Collect & use power-ups",
-    "ranked.label": "Ranked", "ranked.desc": "Affects your rating", "ranked.guestHint": "Sign in to play ranked",
-    "err.RANKED_REQUIRES_ACCOUNT": "Ranked requires a signed-in account", "err.RANKED_REQUIRES_CLASSIC": "Ranked is classic-mode only",
     "ship.carrier": "Carrier", "ship.battleship": "Battleship", "ship.cruiser": "Cruiser", "ship.submarine": "Submarine", "ship.destroyer": "Destroyer",
     "pw.scatter": "Scatter Blast", "pw.cross": "Cross Missile", "pw.double": "Extra Turn", "pw.reveal": "Reveal Cell", "pw.mine": "Sea Mine",
     "board.yourFleet": "Your fleet",
@@ -131,21 +129,11 @@ const I18N = {
     "profile.back": "Back to lobby",
     "profile.challengeSoon": "Challenge (coming soon)",
     "profile.notFound": "Player not found. Return to lobby.",
-    "leaderboard.title": "Leaderboard",
-    "leaderboard.empty": "No ranked players yet",
-    "leaderboard.provisionalNote": "New players appear after placement matches",
-    "leaderboard.rating": "Rating",
-    "leaderboard.back": "Back to lobby",
-    "leaderboard.open": "Leaderboard",
     "queue.quickMatch": "⚡ Quick Match",
-    "queue.ranked": "🏆 Ranked Match",
     "queue.titleCasual": "Quick Match",
-    "queue.titleRanked": "Ranked Match",
     "queue.sub": "Searching for an opponent…",
     "queue.searching": "Searching…",
     "queue.elapsed": "Time waiting",
-    "queue.searchWindow": "Search window",
-    "queue.windowAny": "Any rating",
     "queue.cancel": "Leave Queue",
     "queue.botOfferBody": "No opponent yet. Play against the bot instead?",
     "queue.botOfferBtn": "🤖 Play vs Bot",
@@ -166,8 +154,6 @@ const I18N = {
     "lobby.title": "Trận hải chiến", "lobby.sub": "Chơi với máy, hoặc tạo phòng rồi gửi mã cho bạn bè.",
     "lobby.playBot": "🤖 Chơi với máy", "lobby.createRoom": "⚓ Tạo phòng mới", "lobby.enterCodeLabel": "Nhập mã phòng", "lobby.joinBtn": "Vào phòng",
     "mode.classic": "Cổ điển", "mode.advance": "Nâng cao ⚡", "mode.classicDesc": "Cổ điển, không power-up", "mode.advanceDesc": "Nhặt & dùng power-up",
-    "ranked.label": "Xếp hạng", "ranked.desc": "Ảnh hưởng xếp hạng của bạn", "ranked.guestHint": "Đăng nhập để chơi xếp hạng",
-    "err.RANKED_REQUIRES_ACCOUNT": "Xếp hạng yêu cầu tài khoản đã đăng nhập", "err.RANKED_REQUIRES_CLASSIC": "Xếp hạng chỉ dành cho chế độ classic",
     "ship.carrier": "Tàu sân bay", "ship.battleship": "Thiết giáp hạm", "ship.cruiser": "Tàu tuần dương", "ship.submarine": "Tàu ngầm", "ship.destroyer": "Khu trục hạm",
     "pw.scatter": "Nổ ngẫu nhiên", "pw.cross": "Tên lửa chữ thập", "pw.double": "Thêm lượt", "pw.reveal": "Lộ ô thuyền", "pw.mine": "Mìn nước",
     "board.yourFleet": "Hạm đội của bạn",
@@ -267,21 +253,11 @@ const I18N = {
     "profile.back": "Quay lại sảnh",
     "profile.challengeSoon": "Thách đấu (sắp có)",
     "profile.notFound": "Không tìm thấy người chơi. Quay lại sảnh.",
-    "leaderboard.title": "Bảng xếp hạng",
-    "leaderboard.empty": "Chưa có người chơi xếp hạng",
-    "leaderboard.provisionalNote": "Người chơi mới xuất hiện sau các trận định hạng",
-    "leaderboard.rating": "Điểm",
-    "leaderboard.back": "Quay lại sảnh",
-    "leaderboard.open": "Bảng xếp hạng",
     "queue.quickMatch": "⚡ Ghép trận nhanh",
-    "queue.ranked": "🏆 Trận xếp hạng",
     "queue.titleCasual": "Ghép trận nhanh",
-    "queue.titleRanked": "Trận xếp hạng",
     "queue.sub": "Đang tìm đối thủ…",
     "queue.searching": "Đang tìm…",
     "queue.elapsed": "Thời gian chờ",
-    "queue.searchWindow": "Khoảng điểm tìm kiếm",
-    "queue.windowAny": "Mọi điểm số",
     "queue.cancel": "Rời hàng chờ",
     "queue.botOfferBody": "Chưa tìm được đối thủ. Chơi với máy thay vào?",
     "queue.botOfferBtn": "🤖 Chơi với máy",
@@ -741,14 +717,11 @@ function EmailAuthForm({ onAuthSuccess, clientId: cid }) {
 // resetMode: boolean — true when PasswordResetForm should be shown in request mode
 // onForgotPassword: opens PasswordResetForm in request mode
 // onResetBack: closes PasswordResetForm and returns to normal login view
-function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onRankedMatch, onHelp, onLeaderboard, error, authUser, authError, verifyNotice, clientId, signInDisabled, onSignInDisable, onEmailAuthSuccess }) {
+function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onHelp, error, authUser, authError, verifyNotice, clientId, signInDisabled, onSignInDisable, onEmailAuthSuccess }) {
   const [code, setCode] = useState("");
   const [mode, setMode] = useState("classic");
-  const [ranked, setRanked] = useState(false);
   const [selectedTier, setSelectedTier] = useState(loadBotTier);
-  // D-05: ranked is classic-only — if ranked is enabled, force classic and disable advance
   function handleModeChange(m) {
-    if (ranked && m === "advance") return; // advance blocked while ranked
     setMode(m);
   }
   return (
@@ -768,38 +741,16 @@ function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onRankedMatch, onHelp, o
       </div>
       <div className="divider">{t("common.or")}</div>
       <button className="btn primary" onClick={onQuickMatch}>{t("queue.quickMatch")}</button>
-      <div style={{ height: 8 }} />
-      {authUser ? (
-        <button className="btn steel" onClick={onRankedMatch}>{t("queue.ranked")}</button>
-      ) : (
-        <button className="btn ghost" disabled aria-disabled="true">{t("queue.ranked")}</button>
-      )}
       <div style={{ height: 10 }} />
       <div className="mode-pick">
         <button className={"mode-opt" + (mode === "classic" ? " on" : "")} onClick={() => handleModeChange("classic")}>
           <b>{t("mode.classic")}</b><span>{t("mode.classicDesc")}</span>
         </button>
-        <button className={"mode-opt" + (mode === "advance" ? " on" : "") + (ranked ? " disabled" : "")} onClick={() => handleModeChange("advance")} disabled={ranked}>
+        <button className={"mode-opt" + (mode === "advance" ? " on" : "")} onClick={() => handleModeChange("advance")}>
           <b>{t("mode.advance")}</b><span>{t("mode.advanceDesc")}</span>
         </button>
       </div>
-      <div className="ranked-toggle" style={{ display: "flex", alignItems: "center", gap: 8, margin: "8px 0" }}>
-        <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: authUser ? "pointer" : "default", opacity: authUser ? 1 : 0.5 }}>
-          <input
-            type="checkbox"
-            checked={ranked}
-            disabled={!authUser}
-            onChange={(e) => {
-              const val = e.target.checked;
-              setRanked(val);
-              if (val) setMode("classic");
-            }}
-          />
-          <b>{t("ranked.label")}</b>
-          <span style={{ fontSize: "0.85em", color: "#888" }}>{t("ranked.desc")}</span>
-        </label>
-      </div>
-      <button className="btn steel" onClick={() => onCreate(mode, ranked)}>{t("lobby.createRoom")}</button>
+      <button className="btn steel" onClick={() => onCreate(mode)}>{t("lobby.createRoom")}</button>
       <div className="divider">{t("common.or")}</div>
       <div className="field">
         <label>{t("lobby.enterCodeLabel")}</label>
@@ -826,7 +777,6 @@ function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onRankedMatch, onHelp, o
         </>
       )}
       <button className="btn ghost help-link" onClick={onHelp}>{t("help.open")}</button>
-      <button className="btn ghost" style={{ marginTop: 4 }} onClick={onLeaderboard}>{t("leaderboard.open")}</button>
     </div>
   );
 }
@@ -1555,93 +1505,9 @@ function ProfileView({ userId, currentUserId, onBack, onSignOut }) {
   );
 }
 
-// ---------- LeaderboardView ----------
-// Fetches GET /api/leaderboard on mount and renders the top 100 established players
-// (rd < 110 only — provisional players are filtered server-side).
-// Display names are rendered as text (no dangerouslySetInnerHTML) — T-04-15.
-function LeaderboardView({ onBack }) {
-  const [rows, setRows] = React.useState(null);
-  const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState(false);
-
-  React.useEffect(() => {
-    setLoading(true);
-    setError(false);
-    fetch("/api/leaderboard")
-      .then((r) => {
-        if (!r.ok) { setError(true); setLoading(false); return null; }
-        return r.json();
-      })
-      .then((json) => {
-        if (json) { setRows(json); }
-        setLoading(false);
-      })
-      .catch(() => { setError(true); setLoading(false); });
-  }, []);
-
-  return (
-    <div className="profile-view" role="main">
-      <h2 style={{ textAlign: "center", marginBottom: 8 }}>{t("leaderboard.title")}</h2>
-      {loading && (
-        <div style={{ textAlign: "center", padding: "24px 0", color: "#888" }}>…</div>
-      )}
-      {error && !loading && (
-        <div className="error" style={{ textAlign: "center", marginBottom: 16 }}>
-          {t("leaderboard.empty")}
-        </div>
-      )}
-      {!loading && !error && rows && rows.length === 0 && (
-        <div style={{ textAlign: "center", color: "#888", padding: "24px 0" }}>
-          {t("leaderboard.empty")}
-        </div>
-      )}
-      {!loading && !error && rows && rows.length > 0 && (
-        <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 12 }}>
-          <thead>
-            <tr style={{ borderBottom: "1px solid #ddd", color: "#888", fontSize: "0.85em" }}>
-              <th style={{ textAlign: "left", padding: "4px 6px" }}>#</th>
-              <th style={{ textAlign: "left", padding: "4px 6px" }}>Player</th>
-              <th style={{ textAlign: "right", padding: "4px 6px" }}>{t("leaderboard.rating")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, idx) => {
-              const avatarLetter = row.display_name ? row.display_name.slice(0, 1).toUpperCase() : "?";
-              return (
-                <tr key={row.id} style={{ borderBottom: "1px solid #f0f0f0" }}>
-                  <td style={{ padding: "6px 6px", color: "#888", width: 32 }}>{idx + 1}</td>
-                  <td style={{ padding: "6px 6px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      {row.avatar_url
-                        ? <img src={row.avatar_url} alt="" referrerPolicy="no-referrer" style={{ width: 28, height: 28, borderRadius: "50%", objectFit: "cover" }} />
-                        : <span style={{ width: 28, height: 28, borderRadius: "50%", background: "#c0d4f0", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: "0.85em", fontWeight: 700 }}>{avatarLetter}</span>
-                      }
-                      {/* Render as text — never dangerouslySetInnerHTML (T-04-15) */}
-                      <span>{row.display_name || "—"}</span>
-                    </div>
-                  </td>
-                  <td style={{ padding: "6px 6px", textAlign: "right", fontWeight: 700 }}>{Math.round(Number(row.rating))}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      )}
-      {!loading && (
-        <p style={{ textAlign: "center", fontSize: "0.8em", color: "#999", marginTop: 8 }}>
-          {t("leaderboard.provisionalNote")}
-        </p>
-      )}
-      <div style={{ textAlign: "center", marginTop: 12 }}>
-        <button className="btn ghost" style={{ padding: "8px 20px" }} onClick={onBack}>{t("leaderboard.back")}</button>
-      </div>
-    </div>
-  );
-}
-
 // ---------- App ----------
 function App() {
-  const [screen, setScreen] = useState("lobby"); // lobby | room | placement | battle | profile | leaderboard | queue
+  const [screen, setScreen] = useState("lobby"); // lobby | room | placement | battle | profile | queue
   const [code, setCode] = useState(null);
   const [error, setError] = useState(null);
   const [oppPresent, setOppPresent] = useState(false);
@@ -1699,9 +1565,9 @@ function App() {
   const [myBubble, setMyBubble] = useState(null);   // {id, text} — speech bubble over my avatar
   const [oppBubble, setOppBubble] = useState(null); // {id, text} — over opponent avatar
   // Queue state (Phase 5 — 05-01)
-  const [queueType, setQueueType]               = useState(null);   // "casual" | "ranked" | null
+  const [queueType, setQueueType]               = useState(null);   // "free" | "wagered" | null
   const [queueSince, setQueueSince]             = useState(null);   // Date.now() when enqueued
-  const [queueWindow, setQueueWindow]           = useState(null);   // current ELO window width (ranked only)
+  const [queueWindow, setQueueWindow]           = useState(null);   // (legacy — unused, kept for state cleanup)
   const [botOfferVisible, setBotOfferVisible]   = useState(false);  // D-09 delayed bot prompt
   const [elapsedSec, setElapsedSec]             = useState(0);      // re-render tick for elapsed timer
   const myBubbleTimer = useRef(null);
@@ -1929,7 +1795,7 @@ function App() {
     // matchFound: server has paired this socket into a room — drop straight to placement (D-10).
     // Does NOT guard on s === "queue" — matchFound can arrive even if the player is on the lobby
     // (e.g. connection lag) and must always route to placement (Pitfall 4 from 05-RESEARCH.md).
-    socket.on("matchFound", ({ code: matchCode, ranked: isRanked }) => {
+    socket.on("matchFound", ({ code: matchCode }) => {
       setCode(matchCode);
       persistRoom(matchCode);
       setQueueType(null);
@@ -1941,14 +1807,10 @@ function App() {
       setElapsedSec(0);
       setScreen("placement");
     });
-    socket.on("queueStatus", ({ waitSec, windowWidth }) => {
-      if (windowWidth != null) setQueueWindow(windowWidth);
-      // waitSec from server is secondary — client derives elapsed from queueSince for accuracy
-    });
     // D-11: partner disconnected before game started — server re-queued this player at front.
     // Reset queue state and return to the queue wait screen so search resumes.
     socket.on("requeued", ({ type }) => {
-      setQueueType(type || "casual");
+      setQueueType(type || "free");
       setQueueSince(Date.now());
       setQueueWindow(null);
       setBotOfferVisible(false);
@@ -2003,11 +1865,11 @@ function App() {
     };
   }, [screen, queueSince]);
 
-  function createRoom(mode, ranked) {
+  function createRoom(mode) {
     setError(null);
     setMyScore(0); setOppScore(0); setOppProfile(null); // phòng mới: tỉ số về 0-0
     setVsBot(false); setMode(mode === "advance" ? "advance" : "classic");
-    socket.emit("createRoom", { clientId, mode, ranked: ranked === true }, (res) => {
+    socket.emit("createRoom", { clientId, mode }, (res) => {
       if (res.ok) { setCode(res.code); persistRoom(res.code); setScreen("room"); }
       else if (res.code) { setError(errText(res)); }
     });
@@ -2025,9 +1887,9 @@ function App() {
   }
   function handleQuickMatch() {
     setError(null);
-    socket.emit("joinQueue", { type: "casual", clientId, profile }, (res) => {
+    socket.emit("joinQueue", { type: "free", clientId, profile }, (res) => {
       if (res && res.ok) {
-        setQueueType("casual");
+        setQueueType("free");
         setQueueSince(Date.now());
         setElapsedSec(0);
         setScreen("queue");
@@ -2046,20 +1908,6 @@ function App() {
     if (queueTimerRef.current) { clearInterval(queueTimerRef.current); queueTimerRef.current = null; }
     setElapsedSec(0);
     setScreen("lobby");
-  }
-  function handleRankedMatch() {
-    setError(null);
-    socket.emit("joinQueue", { type: "ranked", clientId, profile }, (res) => {
-      if (res && res.ok) {
-        setQueueType("ranked");
-        setQueueSince(Date.now());
-        setQueueWindow(null);
-        setElapsedSec(0);
-        setScreen("queue");
-      } else {
-        setError(errText(res));
-      }
-    });
   }
   function confirmPlacement(ships) {
     if (vsBot) {
@@ -2504,28 +2352,16 @@ function App() {
 
       {notice && <div className="notice-toast">{notice}</div>}
 
-      {screen === "lobby" && <Lobby onCreate={createRoom} onJoin={joinRoom} onBot={handleBot} onQuickMatch={handleQuickMatch} onRankedMatch={handleRankedMatch} onHelp={() => setHelpOpen(true)} onLeaderboard={() => setScreen("leaderboard")} error={error} authUser={authUser} authError={authError} verifyNotice={verifyNotice} clientId={clientId} signInDisabled={signInDisabled} onSignInDisable={() => setSignInDisabled(true)} onEmailAuthSuccess={setAuthUser} />}
+      {screen === "lobby" && <Lobby onCreate={createRoom} onJoin={joinRoom} onBot={handleBot} onQuickMatch={handleQuickMatch} onHelp={() => setHelpOpen(true)} error={error} authUser={authUser} authError={authError} verifyNotice={verifyNotice} clientId={clientId} signInDisabled={signInDisabled} onSignInDisable={() => setSignInDisabled(true)} onEmailAuthSuccess={setAuthUser} />}
 
       {screen === "queue" && (
         <div className="lobby">
-          <h2>{queueType === "ranked" ? t("queue.titleRanked") : t("queue.titleCasual")}</h2>
+          <h2>{t("queue.titleCasual")}</h2>
           <p className="sub">{t("queue.sub")}</p>
           <div className="queue-timer">
             <span className="queue-elapsed" aria-live="polite" aria-atomic="true">{String(Math.floor(elapsedSec / 60)).padStart(2, "0")}:{String(elapsedSec % 60).padStart(2, "0")}</span>
             <span className="queue-label">{t("queue.elapsed")}</span>
           </div>
-          {queueType === "ranked" && (
-            <div className="queue-window">
-              <span className="queue-window-label">{t("queue.searchWindow")}</span>
-              <span className="queue-window-value">
-                {queueWindow == null
-                  ? "±150"
-                  : !isFinite(queueWindow)
-                    ? t("queue.windowAny")
-                    : "±" + queueWindow}
-              </span>
-            </div>
-          )}
           <div style={{ height: 12 }} />
           <span className="status-pill pill-wait">{t("queue.searching")}</span>
           <div style={{ height: 20 }} />
@@ -2556,10 +2392,6 @@ function App() {
           onBack={() => setScreen("lobby")}
           onSignOut={handleSignOut}
         />
-      )}
-
-      {screen === "leaderboard" && (
-        <LeaderboardView onBack={() => setScreen("lobby")} />
       )}
 
       <HelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />

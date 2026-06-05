@@ -8,8 +8,7 @@
     "build": "node build-game.mjs",
     "build:game": "node build-game.mjs",
     "postinstall": "node build-game.mjs",
-    "test": "vitest run",
-    "season-reset": "node scripts/season-reset.js"
+    "test": "vitest run"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

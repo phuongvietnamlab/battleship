@@ -55,10 +55,6 @@ app.get("/healthz", (req, res) => res.json({ ok: true, uptimeSec: Math.floor(pro
 // Lightweight ops snapshot: room/game/player counts + memory. JSON, no auth
 // (no secrets exposed). Useful to eyeball load and spot leaked rooms.
 app.get("/metrics", (req, res) => res.json(computeStats()));
-// NOTE: GET /api/leaderboard is defined after leaderboardRateLimit (below), so
-// that the in-process rate limiter and cache constants are available at route
-// registration time (no TDZ issue — const is not hoisted).
-
 // Built game bundle (run `npm run build:game`) served first, so the no-CDN
 // index.html + bundled app.js are used for local/web preview. Falls back to
 // public/ for any unbuilt asset.
@@ -198,63 +194,16 @@ const chatLimiter    = new RateLimiterMemory({ points: 5,  duration: 10 }); // 5
 const RL_ABUSE_THRESHOLD = 10;
 
 // ─── Matchmaking queue constants and maps (05-01) ────────────────────────────
-// RANKED_WINDOW_* constants are used by Plan 02's rankedWindow() function;
-// declared here so the module-level map and sweep share the same namespace.
-const RANKED_WINDOW_START      = 150;   // ±150 rating points at enqueue
-const RANKED_WINDOW_STEP       = 100;   // widen by 100 per step
-const RANKED_WINDOW_CAP        = 500;   // cap at ±500 before unbounded
-const RANKED_STEP_MS           = 10000; // step every 10 s
-const RANKED_PROVISIONAL_START = 300;   // wider start for RD >= 110 (P4 D-08)
 const BOT_OFFER_DELAY_MS       = 30000; // 30 s alone before bot prompt (D-09)
 const QUEUE_SWEEP_MS           = 5000;  // sweep timer cadence
 
 // mirrors rooms map — module-level, never per-request (clientId → QueueEntry)
 const queues = {
-  casual: new Map(),
-  ranked: new Map(),
+  free: new Map(),
+  wagered: new Map(),
 };
 
 const joinQueueLimiter = new RateLimiterMemory({ points: 5, duration: 60 }); // 5/min per clientId
-
-// ─── Leaderboard rate limiter ────────────────────────────────────────────────
-// In-process DoS guard for the public, unauthenticated GET /api/leaderboard
-// route (T-04-19, CR-02). 30 reads/min/IP — accommodates normal browser polling
-// while blocking request floods. Mirrors authRateLimit shape; no new dependency
-// (RateLimiterMemory is already required above). Works in RAM-only mode where
-// Redis cache amortization is absent, so this is the last line of defence.
-const leaderboardLimiter = new RateLimiterMemory({ points: 30, duration: 60 });
-function leaderboardRateLimit(req, res, next) {
-  leaderboardLimiter.consume(req.ip).then(next).catch(() => res.status(429).json({ code: "RATE_LIMITED" }));
-}
-
-// ─── In-process short-TTL leaderboard cache (RAM-only amortization, T-04-20) ──
-// When REDIS_URL is absent store.getLeaderboardCache() always returns null, so
-// every request would hit Postgres. This in-process cell amortizes reads within
-// a short TTL window without touching the Redis path (which remains unchanged).
-// TTL is well under the RANK-04 5-minute freshness budget (T-04-21).
-const LB_INPROC_TTL_MS = 10000; // 10 s — amortizes bursts, still fresh per RANK-04
-let lbCache = { at: 0, payload: null };
-
-// Top-100 leaderboard: Redis-cached (≤5 min TTL), Postgres fallback. Public,
-// no auth required. Returns only non-sensitive fields (T-04-12: no email/hashes).
-// DDoS mitigation: leaderboardRateLimit (T-04-19) + in-process cache (T-04-20)
-// protect Postgres from unauthenticated request floods in RAM-only mode.
-app.get("/api/leaderboard", leaderboardRateLimit, async (req, res) => {
-  // In-process cache hit — serve without calling getLeaderboard() (T-04-20).
-  // Guard-clause style: early return on fresh cache so the try/catch below is
-  // only reached when the cache is cold (first request or after TTL expiry).
-  if (lbCache.payload !== null && Date.now() - lbCache.at < LB_INPROC_TTL_MS) {
-    return res.json(lbCache.payload);
-  }
-  try {
-    const rows = await getLeaderboard();
-    lbCache = { at: Date.now(), payload: rows };
-    res.json(rows);
-  } catch (e) {
-    console.error("[leaderboard] endpoint error:", e.message);
-    res.status(500).json({ error: "LEADERBOARD_UNAVAILABLE" });
-  }
-});
 
 // ─── Auth rate limiter ───────────────────────────────────────────────────────
 // Extends existing RateLimiterMemory pattern (lines above) to OAuth endpoints.
@@ -588,8 +537,8 @@ function opponentOf(room, clientId) {
   return room.order.find((x) => x !== clientId);
 }
 
-// HTML-escape a string to prevent stored-XSS when names are rendered in future
-// leaderboards or profiles (SEC-04).
+// HTML-escape a string to prevent stored-XSS when names are rendered in
+// profiles or other user-facing contexts (SEC-04).
 function escapeHtml(s) {
   if (typeof s !== "string") return ""; // guard-clause: defend reusable primitive (WR-03)
   return s
@@ -604,7 +553,7 @@ function escapeHtml(s) {
 function sanitizeProfile(p) {
   if (!p || typeof p !== "object") return null;
   // Strip control chars, collapse whitespace, cap at 40, then HTML-escape so
-  // stored names cannot inject markup on future profiles/leaderboards (SEC-04).
+  // stored names cannot inject markup in profiles or other contexts (SEC-04).
   const name = typeof p.name === "string"
     ? escapeHtml(p.name.replace(/[\x00-\x1f\x7f]/g, "").replace(/\s+/g, " ").trim().slice(0, 40))
     : null;
@@ -653,7 +602,6 @@ function scheduleSeatRelease(room, code, clientId, ms) {
           lId: r2.players[clientId]?.userId ?? null,
           mode: r2.mode,
           startedAt: r2.startedAt,
-          ranked: r2.ranked,
         };
         r2.recorded = true; // synchronous dedup guard (D-06) — set BEFORE delete
       }
@@ -670,7 +618,7 @@ function scheduleSeatRelease(room, code, clientId, ms) {
     }
     // Fire-and-forget match record after opponentLeft emit (D-07)
     if (disconnectRecord) {
-      recordMatch(disconnectRecord.wId, disconnectRecord.lId, "disconnect", disconnectRecord.mode, disconnectRecord.startedAt, disconnectRecord.ranked).catch(() => {});
+      recordMatch(disconnectRecord.wId, disconnectRecord.lId, "disconnect", disconnectRecord.mode, disconnectRecord.startedAt).catch(() => {});
     }
   }, ms != null ? ms : GRACE_MS);
 }
@@ -708,7 +656,6 @@ function serializeRooms() {
       scores: r.scores || {},
       lastStarter: r.lastStarter || null,
       mode: r.mode || "classic",
-      ranked: !!r.ranked,
       recorded: !!r.recorded,
       powerups: r.powerups || {},
       mines,
@@ -757,7 +704,6 @@ function restoreRooms(snap) {
       scores: s.scores || {},
       lastStarter: s.lastStarter || null,
       mode: s.mode || "classic",
-      ranked: !!s.ranked,
       recorded: !!s.recorded,
       powerups: s.powerups || {},
       mines,
@@ -1001,7 +947,7 @@ function endGameForfeit(room, loserId, reason) {
     room.recorded = true; // synchronous dedup guard (D-06) — set BEFORE the promise
     const wId = room.players[winnerId]?.userId ?? null;
     const lId = room.players[loserId]?.userId ?? null;
-    recordMatch(wId, lId, reason, room.mode, room.startedAt, room.ranked).catch(() => {});
+    recordMatch(wId, lId, reason, room.mode, room.startedAt).catch(() => {});
   }
 }
 
@@ -1075,7 +1021,7 @@ function doShot(room, clientId, cells) {
       room.recorded = true; // synchronous dedup guard (D-06) — set BEFORE the promise
       const wId = room.players[clientId]?.userId ?? null;
       const lId = room.players[opp]?.userId ?? null;
-      recordMatch(wId, lId, "normal", room.mode, room.startedAt, room.ranked).catch(() => {});
+      recordMatch(wId, lId, "normal", room.mode, room.startedAt).catch(() => {});
     }
     return { ok: true, cells: results, collected, sunkCells, sunkCount, newSunk, win, anyHit, mineHit };
   }
@@ -1146,41 +1092,26 @@ function queueKeyFor(socket) {
 // Remove a queue key from BOTH queues atomically (QUEUE-03, T-5-10).
 // Safe to call when the key was never queued — no-op in that case.
 function removeFromQueues(queueKey) {
-  for (const type of ["casual", "ranked"]) {
+  for (const type of ["free", "wagered"]) {
     if (queues[type].delete(queueKey)) {
       console.log(`[queue] ${type} entry removed: ${queueKey}`);
     }
   }
 }
 
-// Compute the current ELO window width for a ranked queue entry (05-02).
-// Provisional players (rd >= 110) get a wider starting window.
-// Width widens by RANKED_WINDOW_STEP per RANKED_STEP_MS elapsed; becomes
-// Infinity (unbounded) once width >= RANKED_WINDOW_CAP so thin pools always pair.
-function rankedWindow(entry) {
-  const isProvisional = entry.rd >= 110;
-  const base = isProvisional ? RANKED_PROVISIONAL_START : RANKED_WINDOW_START;
-  const steps = Math.floor((Date.now() - entry.enqueuedAt) / RANKED_STEP_MS);
-  const width = base + steps * RANKED_WINDOW_STEP;
-  return width >= RANKED_WINDOW_CAP ? Infinity : width;
-}
-
-// Return the first two non-pairing entries from the given type's queue.
-// For casual, any two entries are a valid pair.
-// For ranked (05-02): pair only if |ratingA - ratingB| <= min window of the two entries.
-// Infinity windows always match (pool is thin / wait exceeded cap).
+// Return a valid pair from entries in the given queue type.
+// For free, any two entries pair (FIFO).
+// For wagered: pair only entries with the same stake level.
 function findPair(type, entries) {
   if (entries.length < 2) return null;
-  if (type === "ranked") {
-    for (let i = 0; i < entries.length - 1; i++) {
-      for (let j = i + 1; j < entries.length; j++) {
-        const a = entries[i];
-        const b = entries[j];
-        const window = Math.min(rankedWindow(a), rankedWindow(b));
-        if (Math.abs(a.rating - b.rating) <= window) {
-          return [a, b];
-        }
-      }
+  if (type === "wagered") {
+    // Match only entries with the same stake level
+    const byStake = {};
+    for (const e of entries) {
+      (byStake[e.stake] = byStake[e.stake] || []).push(e);
+    }
+    for (const group of Object.values(byStake)) {
+      if (group.length >= 2) return [group[0], group[1]];
     }
     return null;
   }
@@ -1226,34 +1157,13 @@ function tryPair(type) {
   });
 }
 
-// Emit queueStatus to each still-waiting ranked entry (D-08, T-5-08).
-// Payload: only recipient's own waitSec + windowWidth + aggregate queueSize.
-// No opponent identity or rating exposed (T-5-08).
-function emitQueueStatus() {
-  const size = queues.ranked.size;
-  for (const entry of queues.ranked.values()) {
-    if (entry.pairing) continue;
-    const sock = io.of("/").sockets.get(entry.socketId);
-    if (sock) {
-      sock.emit("queueStatus", {
-        waitSec: Math.floor((Date.now() - entry.enqueuedAt) / 1000),
-        windowWidth: rankedWindow(entry),
-        queueSize: size,
-      });
-    }
-  }
-}
-
 // Sweep both queues — called by the setInterval sweep and after each joinQueue.
 function tryPairAll() {
-  tryPair("casual");
-  tryPair("ranked");
-  emitQueueStatus();
+  tryPair("free");
+  tryPair("wagered");
 }
 
 // Build a matched room in the exact createRoom shape and seat both players.
-// Async because future plans call getPlayerRating() before seating; for casual
-// there is no await but the signature is async for consistency (Plan 02 extends this).
 async function createMatchedRoom(entryA, entryB, type) {
   // CR-01: re-validate BOTH sockets are still live before committing the room.
   // tryPair deleted these entries from the queue synchronously; if one socket
@@ -1271,10 +1181,9 @@ async function createMatchedRoom(entryA, entryB, type) {
     return;
   }
   const code = newCode();
-  const ranked = type === "ranked";
   rooms[code] = {
     code, players: {}, order: [], started: false, turn: null, scores: {},
-    lastStarter: null, mode: "classic", ranked,
+    lastStarter: null, mode: "classic",
     powerups: {}, turnTimer: null, turnDeadline: null,
     resolving: false, lastActivityAt: Date.now(),
     matchQueueType: type, // D-11: preserved for partner re-queue on pre-start disconnect
@@ -1286,10 +1195,6 @@ async function createMatchedRoom(entryA, entryB, type) {
       profile: entry.profile,
       userId: entry.userId ?? null,
       matchQueueType: type, // D-11: retained so disconnect handler can re-queue survivor
-      // WR-01: carry the queued rating/rd onto the seat so a D-11 re-queue can
-      // restore the survivor's real rating instead of resetting to 1500/350.
-      rating: entry.rating ?? 1500,
-      rd: entry.rd ?? 350,
     };
     rooms[code].order.push(entry.clientId);
     const sock = io.of("/").sockets.get(entry.socketId);
@@ -1306,8 +1211,8 @@ async function createMatchedRoom(entryA, entryB, type) {
   io.to(code).emit("opponentJoined");
   io.to(entryA.socketId).emit("oppProfile", entryB.profile || null);
   io.to(entryB.socketId).emit("oppProfile", entryA.profile || null);
-  io.to(entryA.socketId).emit("matchFound", { code, ranked });
-  io.to(entryB.socketId).emit("matchFound", { code, ranked });
+  io.to(entryA.socketId).emit("matchFound", { code });
+  io.to(entryB.socketId).emit("matchFound", { code });
   console.log(`[queue] matched ${type}: ${entryA.clientId} vs ${entryB.clientId} -> room ${code}`);
 }
 
@@ -1334,13 +1239,8 @@ io.on("connection", (socket) => {
     const clientId = (arg && arg.clientId) || socket.id;
     const code = newCode();
     const mode = (arg && arg.mode) === "advance" ? "advance" : "classic";
-    const ranked = !!(arg && arg.ranked === true);
-    // D-05: ranked requires classic mode — advance mode and ranked are incompatible
-    if (ranked && mode === "advance") return cb && cb({ ok: false, code: "RANKED_REQUIRES_CLASSIC" });
-    // D-02/D-03: ranked requires an authenticated account — read userId from session, never from arg (T-04-04)
-    if (ranked && socket.data.userId == null) return cb && cb({ ok: false, code: "RANKED_REQUIRES_ACCOUNT" });
     // room.recorded is the D-06 dedup flag set synchronously at end paths (Task 2 — endGameForfeit/doShot/scheduleSeatRelease/leaveRoom)
-    rooms[code] = { code, players: {}, order: [], started: false, turn: null, scores: {}, lastStarter: null, mode, ranked, powerups: {}, turnTimer: null, turnDeadline: null, resolving: false, lastActivityAt: Date.now() };
+    rooms[code] = { code, players: {}, order: [], started: false, turn: null, scores: {}, lastStarter: null, mode, powerups: {}, turnTimer: null, turnDeadline: null, resolving: false, lastActivityAt: Date.now() };
     rooms[code].players[clientId] = {
       sid: socket.id, ready: false, occ: null, hits: new Set(), online: true, timer: null, inv: newInv(), bonus: 0,
       profile: sanitizeProfile(arg && arg.profile),
@@ -1358,8 +1258,8 @@ io.on("connection", (socket) => {
   // ─── Queue handlers (05-01) ───────────────────────────────────────────────
 
   socket.on("joinQueue", async (arg, cb) => {
-    // Normalize type to allowlist — any non-"ranked" value coerces to casual (T-5-02)
-    const type = (arg && arg.type) === "ranked" ? "ranked" : "casual";
+    // Normalize type to allowlist — any non-"wagered" value coerces to free (T-5-02)
+    const type = (arg && arg.type) === "wagered" ? "wagered" : "free";
     const clientId = (arg && arg.clientId) || socket.id;
     socket.data.clientId = clientId;
     // Server-trusted queue key — never the forgeable arg.clientId (WR-02).
@@ -1378,29 +1278,15 @@ io.on("connection", (socket) => {
     // Guard: already in queue (T-5-04). Authoritative check against the queue
     // maps using the server-trusted key (WR-03) — not just socket.data, which a
     // fresh reconnect socket (Safari backgrounding) would have reset to null.
-    if (socket.data.queueType || queues.casual.has(queueKey) || queues.ranked.has(queueKey)) {
+    if (socket.data.queueType || queues.free.has(queueKey) || queues.wagered.has(queueKey)) {
       return cb && cb({ ok: false, code: "ALREADY_IN_QUEUE" });
-    }
-    // Guard: ranked requires an authenticated account (mirrors createRoom guard)
-    // Read userId from session ONLY (socket.data.userId), never from arg (T-5-06, P4 D-02)
-    if (type === "ranked" && socket.data.userId == null) return cb && cb({ ok: false, code: "RANKED_REQUIRES_ACCOUNT" });
-    // Ranked path: read authoritative rating from DB (T-5-07); casual uses defaults
-    let rating = 1500, rd = 350;
-    if (type === "ranked" && socket.data.userId != null) {
-      try {
-        ({ rating, rd } = await getPlayerRating(socket.data.userId));
-      } catch (e) {
-        console.error("[queue] rating read failed, using defaults:", e.message);
-        // graceful degradation: join still succeeds with default 1500/350 (T-5-09)
-      }
     }
     const entry = {
       socketId: socket.id,
       clientId,
       queueKey, // WR-02: server-trusted map key, retained for re-queue/cleanup
       userId: socket.data.userId ?? null,
-      rating,
-      rd,
+      stake: (arg && arg.stake) || 0, // wagered stake level (Phase 7)
       enqueuedAt: Date.now(),
       pairing: false,
       profile: sanitizeProfile(arg && arg.profile), // T-5-01
@@ -1422,7 +1308,7 @@ io.on("connection", (socket) => {
     const queueKey = socket.data.queueKey || queueKeyFor(socket);
     // WR-04: delete only an entry this socket actually owns (socketId match),
     // so a forged key cannot evict another player's entry.
-    for (const type of ["casual", "ranked"]) {
+    for (const type of ["free", "wagered"]) {
       const e = queues[type].get(queueKey);
       if (e && e.socketId === socket.id) queues[type].delete(queueKey);
     }
@@ -1470,8 +1356,6 @@ io.on("connection", (socket) => {
       return cb && cb({ ok: false, code: "ROOM_FULL" });
     }
     if (room.started) return cb && cb({ ok: false, code: "GAME_STARTED" });
-    // D-02/D-03: a guest cannot take the second seat in a ranked room (RANK-02)
-    if (room.ranked && socket.data.userId == null) return cb && cb({ ok: false, code: "RANKED_REQUIRES_ACCOUNT" });
     room.players[clientId] = {
       sid: socket.id, ready: false, occ: null, hits: new Set(), online: true, timer: null, inv: newInv(), bonus: 0,
       profile: sanitizeProfile(arg && arg.profile),
@@ -1801,7 +1685,7 @@ io.on("connection", (socket) => {
           room.recorded = true; // synchronous dedup guard (D-06) — set BEFORE promise
           const wId = room.players[winnerId]?.userId ?? null;
           const lId = room.players[clientId]?.userId ?? null;
-          recordMatch(wId, lId, "leave", room.mode, room.startedAt, room.ranked).catch(() => {});
+          recordMatch(wId, lId, "leave", room.mode, room.startedAt).catch(() => {});
         }
       }
       const p = room.players[clientId];
@@ -1852,12 +1736,7 @@ io.on("connection", (socket) => {
           socketId: oppPlayer.sid,
           clientId: oppId,
           userId: oppPlayer.userId ?? null,
-          // WR-01: restore the survivor's real rating/rd (carried onto the seat
-          // in createMatchedRoom). For a ranked re-queue, resetting to 1500/350
-          // would mismatch a high-rated player against ±150 of 1500 and still
-          // write the result to Glicko. Fall back to defaults only if absent.
-          rating: oppPlayer.rating ?? 1500,
-          rd: oppPlayer.rd ?? 350,
+          stake: oppPlayer.stake ?? 0,
           enqueuedAt: Date.now(), // fresh window — they are first in line
           pairing: false,
           profile: oppPlayer.profile || null,
@@ -1965,14 +1844,9 @@ module.exports = {
     app,  // exported for AUTH-06 route-level behavioral tests (Plan 07)
     serializeRooms,
     restoreRooms,
-    // CR-02 test helpers: allow tests to inspect/reset in-process leaderboard state
-    leaderboardLimiter,
-    getLbCache: () => lbCache,
-    resetLbCache: () => { lbCache = { at: 0, payload: null }; },
-    // Phase 5 queue exports (05-01 + 05-02 + 05-03)
+    // Phase 5 queue exports (05-01)
     queues,
     tryPair,
-    rankedWindow,
     removeFromQueues,
     createMatchedRoom,
     queueKeyFor,
