@@ -110,11 +110,6 @@ const I18N = {
     "auth.errAuthFailed": "Incorrect email or password.",
     "auth.viewProfile": "View profile",
     "auth.signOut": "Sign out",
-    "auth.signOutAll": "Sign out all devices",
-    "auth.signOutAllConfirmTitle": "Sign out everywhere?",
-    "auth.signOutAllConfirmBody": "You will be signed out on all devices, including this one.",
-    "auth.signOutAllConfirmBtn": "Sign out all devices",
-    "auth.keepSignedIn": "Keep me signed in",
     "auth.verifySuccess": "Email verified. Thanks!",
     "auth.verifyError": "That verification link is invalid or expired.",
     "auth.unverifiedHint": "Your email isn't verified yet — check your inbox.",
@@ -137,6 +132,21 @@ const I18N = {
     "profile.nameSaved": "Name updated!",
     "profile.nameError": "Failed to save name.",
     "profile.notFound": "Player not found. Return to lobby.",
+    "account.linkEmailTitle": "Link Email",
+    "account.linkEmailDesc": "Add an email to sign in on other devices",
+    "account.linkBtn": "Link",
+    "account.emailInUse": "Email already in use",
+    "account.invalidEmail": "Invalid email format",
+    "account.alreadyHasEmail": "Email already linked",
+    "account.linkError": "Could not link email",
+    "account.emailLinked": "Email linked",
+    "account.setPasswordDesc": "Set a password for email sign-in",
+    "account.passwordPlaceholder": "Password (min 8 chars)",
+    "account.setPasswordBtn": "Set Password",
+    "account.passwordTooShort": "Min 8 characters",
+    "account.passwordError": "Could not set password",
+    "account.allSet": "Email + password set! You can now sign in on any device.",
+    "account.currentEmail": "Email",
     "queue.quickMatch": "⚡ Quick Match",
     "queue.titleCasual": "Quick Match",
     "queue.sub": "Searching for an opponent…",
@@ -287,11 +297,6 @@ const I18N = {
     "auth.errAuthFailed": "Email hoặc mật khẩu không đúng.",
     "auth.viewProfile": "Xem hồ sơ",
     "auth.signOut": "Đăng xuất",
-    "auth.signOutAll": "Đăng xuất tất cả thiết bị",
-    "auth.signOutAllConfirmTitle": "Đăng xuất khỏi tất cả thiết bị?",
-    "auth.signOutAllConfirmBody": "Bạn sẽ bị đăng xuất khỏi tất cả thiết bị, kể cả thiết bị này.",
-    "auth.signOutAllConfirmBtn": "Đăng xuất tất cả",
-    "auth.keepSignedIn": "Giữ đăng nhập",
     "auth.verifySuccess": "Đã xác minh email. Cảm ơn bạn!",
     "auth.verifyError": "Liên kết xác minh không hợp lệ hoặc đã hết hạn.",
     "auth.unverifiedHint": "Email của bạn chưa được xác minh — vui lòng kiểm tra hộp thư.",
@@ -314,6 +319,21 @@ const I18N = {
     "profile.nameSaved": "Đã cập nhật tên!",
     "profile.nameError": "Không lưu được tên.",
     "profile.notFound": "Không tìm thấy người chơi. Quay lại sảnh.",
+    "account.linkEmailTitle": "Liên kết Email",
+    "account.linkEmailDesc": "Thêm email để đăng nhập trên thiết bị khác",
+    "account.linkBtn": "Liên kết",
+    "account.emailInUse": "Email đã được sử dụng",
+    "account.invalidEmail": "Email không hợp lệ",
+    "account.alreadyHasEmail": "Đã có email liên kết",
+    "account.linkError": "Không thể liên kết email",
+    "account.emailLinked": "Đã liên kết email",
+    "account.setPasswordDesc": "Đặt mật khẩu để đăng nhập bằng email",
+    "account.passwordPlaceholder": "Mật khẩu (tối thiểu 8 ký tự)",
+    "account.setPasswordBtn": "Đặt mật khẩu",
+    "account.passwordTooShort": "Tối thiểu 8 ký tự",
+    "account.passwordError": "Không thể đặt mật khẩu",
+    "account.allSet": "Email + mật khẩu đã sẵn sàng! Bạn có thể đăng nhập trên mọi thiết bị.",
+    "account.currentEmail": "Email",
     "queue.quickMatch": "⚡ Ghép trận nhanh",
     "queue.titleCasual": "Ghép trận nhanh",
     "queue.sub": "Đang tìm đối thủ…",
@@ -1591,8 +1611,7 @@ function ProfileChip({ user, onToggle, active }) {
 // ---------- AvatarMenu ----------
 // Dropdown menu for the signed-in user. Opens on chip click.
 // Closes on Escape, outside click, or item selection.
-// confirmMode shows an inline sign-out-all confirmation.
-function AvatarMenu({ open, user, onViewProfile, onSignOut, onSignOutAll, confirmMode, onConfirm, onCancel, setViewProfileId }) {
+function AvatarMenu({ open, user, onViewProfile, onSignOut, onCancel, setViewProfileId }) {
   const menuRef = useRef(null);
 
   // Close on outside click
@@ -1623,33 +1642,6 @@ function AvatarMenu({ open, user, onViewProfile, onSignOut, onSignOutAll, confir
 
   if (!open) return null;
 
-  if (confirmMode) {
-    return (
-      <div className="avatar-menu" ref={menuRef} role="menu">
-        <div role="alert" style={{ padding: "12px 16px" }}>
-          <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6, color: "#eaf2ff" }}>{t("auth.signOutAllConfirmTitle")}</div>
-          <div style={{ fontSize: 12, color: "#a9ccec", marginBottom: 12 }}>{t("auth.signOutAllConfirmBody")}</div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button
-              className="btn"
-              style={{ flex: 1, padding: "8px 0", fontSize: 12, background: "var(--hit)", color: "#fff", fontFamily: "Be Vietnam Pro", textTransform: "none", letterSpacing: 0, height: "auto", minHeight: 36 }}
-              onClick={onConfirm}
-            >
-              {t("auth.signOutAllConfirmBtn")}
-            </button>
-            <button
-              className="btn ghost"
-              style={{ flex: 1, padding: "8px 0", fontSize: 12, fontFamily: "Be Vietnam Pro", textTransform: "none", letterSpacing: 0, height: "auto", minHeight: 36 }}
-              onClick={onCancel}
-            >
-              {t("auth.keepSignedIn")}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="avatar-menu" ref={menuRef} role="menu">
       <button className="avatar-menu-item" role="menuitem" onClick={() => { onViewProfile(); onCancel(); }}>
@@ -1657,10 +1649,6 @@ function AvatarMenu({ open, user, onViewProfile, onSignOut, onSignOutAll, confir
       </button>
       <button className="avatar-menu-item" role="menuitem" onClick={() => { onSignOut(); onCancel(); }}>
         🚪 {t("auth.signOut")}
-      </button>
-      <div className="avatar-menu-sep" />
-      <button className="avatar-menu-item destructive" role="menuitem" onClick={onSignOutAll}>
-        ⚠️ {t("auth.signOutAll")}
       </button>
     </div>
   );
@@ -1678,6 +1666,14 @@ function ProfileView({ userId, currentUserId, onBack, onSignOut }) {
   const [nameInput, setNameInput] = useState("");
   const [nameSaving, setNameSaving] = useState(false);
   const [nameNotice, setNameNotice] = useState("");
+
+  // Link Email state (Phase 11: LINK-01)
+  const [linkEmail, setLinkEmail] = useState("");
+  const [linkEmailStatus, setLinkEmailStatus] = useState("idle");
+  const [linkEmailError, setLinkEmailError] = useState("");
+  const [passwordInput, setPasswordInput] = useState("");
+  const [passwordStatus, setPasswordStatus] = useState("idle");
+  const [passwordError, setPasswordError] = useState("");
 
   React.useEffect(() => {
     if (!userId) { setNotFound(true); setLoading(false); return; }
@@ -1697,6 +1693,8 @@ function ProfileView({ userId, currentUserId, onBack, onSignOut }) {
   }, [userId]);
 
   const isOwn = userId != null && currentUserId != null && String(userId) === String(currentUserId);
+  const isPasskeyOnly = isOwn && data && !data.email;
+  const hasEmail = isOwn && data && !!data.email;
 
   // Format memberSince date into {month} {year}
   function formatMemberSince(iso) {
@@ -1790,6 +1788,62 @@ function ProfileView({ userId, currentUserId, onBack, onSignOut }) {
     }
   }
 
+  async function handleLinkEmail() {
+    if (!linkEmail.trim()) return;
+    setLinkEmailStatus("saving");
+    setLinkEmailError("");
+    try {
+      const res = await fetch("/api/account/link-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ email: linkEmail.trim() }),
+      });
+      const json = await res.json();
+      if (json.ok) {
+        setLinkEmailStatus("done");
+        setData({ ...data, email: linkEmail.trim() });
+      } else {
+        setLinkEmailStatus("error");
+        setLinkEmailError(json.code === "EMAIL_IN_USE" ? t("account.emailInUse") :
+                          json.code === "INVALID_EMAIL" ? t("account.invalidEmail") :
+                          json.code === "ALREADY_HAS_EMAIL" ? t("account.alreadyHasEmail") :
+                          t("account.linkError"));
+      }
+    } catch (e) {
+      setLinkEmailStatus("error");
+      setLinkEmailError(t("account.linkError"));
+    }
+  }
+
+  async function handleSetPassword() {
+    if (!passwordInput || passwordInput.length < 8) {
+      setPasswordError(t("account.passwordTooShort"));
+      return;
+    }
+    setPasswordStatus("saving");
+    setPasswordError("");
+    try {
+      const res = await fetch("/api/account/set-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ password: passwordInput }),
+      });
+      const json = await res.json();
+      if (json.ok) {
+        setPasswordStatus("done");
+        setPasswordInput("");
+      } else {
+        setPasswordStatus("error");
+        setPasswordError(json.code === "WEAK_PASSWORD" ? t("account.passwordTooShort") : t("account.passwordError"));
+      }
+    } catch (e) {
+      setPasswordStatus("error");
+      setPasswordError(t("account.passwordError"));
+    }
+  }
+
   return (
     <div className="profile-view" role="main">
       <div className="profile-header">
@@ -1850,6 +1904,74 @@ function ProfileView({ userId, currentUserId, onBack, onSignOut }) {
 
       {allZero && (
         <div className="profile-no-games">{t("profile.noGamesYet")}</div>
+      )}
+
+      {/* Link Email section — Phase 11 */}
+      {isOwn && (
+        <div className="profile-link-email" style={{ margin: "20px 0", padding: "16px", background: "rgba(255,255,255,.05)", borderRadius: 12 }}>
+          {isPasskeyOnly && linkEmailStatus !== "done" && (
+            <>
+              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8, color: "#a9ccec" }}>
+                {t("account.linkEmailTitle")}
+              </div>
+              <div style={{ fontSize: 12, color: "rgba(255,255,255,.6)", marginBottom: 12 }}>
+                {t("account.linkEmailDesc")}
+              </div>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <input
+                  type="email"
+                  value={linkEmail}
+                  onChange={(e) => setLinkEmail(e.target.value)}
+                  placeholder="email@example.com"
+                  style={{ flex: 1, fontSize: 14, padding: "8px 12px", borderRadius: 8, border: "1px solid rgba(150,200,255,.3)", background: "rgba(255,255,255,.08)", color: "#fff" }}
+                  onKeyDown={(e) => e.key === "Enter" && handleLinkEmail()}
+                />
+                <button className="btn steel" style={{ padding: "8px 14px", fontSize: 13, width: "auto" }} onClick={handleLinkEmail} disabled={linkEmailStatus === "saving"}>
+                  {linkEmailStatus === "saving" ? "..." : t("account.linkBtn")}
+                </button>
+              </div>
+              {linkEmailError && <div style={{ fontSize: 12, color: "#ff6b6b", marginTop: 6 }}>{linkEmailError}</div>}
+            </>
+          )}
+
+          {(hasEmail || linkEmailStatus === "done") && passwordStatus !== "done" && (
+            <>
+              <div style={{ fontSize: 13, color: "#7ff0aa", marginBottom: 8 }}>
+                ✓ {t("account.emailLinked")}: {data.email}
+              </div>
+              <div style={{ fontSize: 12, color: "rgba(255,255,255,.6)", marginBottom: 10 }}>
+                {t("account.setPasswordDesc")}
+              </div>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <input
+                  type="password"
+                  value={passwordInput}
+                  onChange={(e) => setPasswordInput(e.target.value)}
+                  placeholder={t("account.passwordPlaceholder")}
+                  minLength={8}
+                  style={{ flex: 1, fontSize: 14, padding: "8px 12px", borderRadius: 8, border: "1px solid rgba(150,200,255,.3)", background: "rgba(255,255,255,.08)", color: "#fff" }}
+                  onKeyDown={(e) => e.key === "Enter" && handleSetPassword()}
+                />
+                <button className="btn steel" style={{ padding: "8px 14px", fontSize: 13, width: "auto" }} onClick={handleSetPassword} disabled={passwordStatus === "saving"}>
+                  {passwordStatus === "saving" ? "..." : t("account.setPasswordBtn")}
+                </button>
+              </div>
+              {passwordError && <div style={{ fontSize: 12, color: "#ff6b6b", marginTop: 6 }}>{passwordError}</div>}
+            </>
+          )}
+
+          {passwordStatus === "done" && (
+            <div style={{ fontSize: 13, color: "#7ff0aa" }}>
+              ✓ {t("account.allSet")}
+            </div>
+          )}
+
+          {hasEmail && linkEmailStatus === "idle" && passwordStatus === "idle" && (
+            <div style={{ fontSize: 13, color: "rgba(255,255,255,.7)" }}>
+              {t("account.currentEmail")}: {data.email}
+            </div>
+          )}
+        </div>
       )}
 
       <div className="profile-actions">
@@ -1919,7 +2041,6 @@ function App() {
   const [resetMode, setResetMode] = useState(false);    // true when "Forgot password?" clicked (request mode)
   // Avatar dropdown state (Plan 03)
   const [avatarMenuOpen, setAvatarMenuOpen] = useState(false);
-  const [signOutAllConfirm, setSignOutAllConfirm] = useState(false);
   // Profile screen state (Plan 04)
   const [viewProfileId, setViewProfileId] = useState(null); // opaque users.id to view
   const [profileData, setProfileData] = useState(null);     // loaded profile JSON
@@ -1982,17 +2103,6 @@ function App() {
       });
   }
 
-  // Sign-out-all: after inline confirmation, delete all sessions for user_id
-  function handleSignOutAllConfirm() {
-    fetch("/auth/signout-all", { method: "POST", credentials: "same-origin" })
-      .then(() => {
-        window.location.reload();
-      })
-      .catch(() => {
-        window.location.reload();
-      });
-  }
-
   function handleViewProfile(userId) {
     // Navigate to profile screen; userId defaults to own id when viewing self
     const id = userId != null ? userId : (authUser ? authUser.id : null);
@@ -2000,7 +2110,6 @@ function App() {
     setProfileData(null);  // clear any prior loaded profile
     setScreen("profile");
     setAvatarMenuOpen(false);
-    setSignOutAllConfirm(false);
   }
 
   // Auth hydration: fetch signed-in user on mount; handle ?authError, ?verified, ?verifyError, ?reset.
@@ -2746,7 +2855,7 @@ function App() {
             <>
               <ProfileChip
                 user={authUser}
-                onToggle={() => { setAvatarMenuOpen((v) => !v); if (avatarMenuOpen) setSignOutAllConfirm(false); }}
+                onToggle={() => { setAvatarMenuOpen((v) => !v); }}
                 active={avatarMenuOpen}
               />
               {balance !== null && <span className="topbar-balance" title="Points">💰 {balance}</span>}
@@ -2755,10 +2864,7 @@ function App() {
                 user={authUser}
                 onViewProfile={handleViewProfile}
                 onSignOut={handleSignOut}
-                onSignOutAll={() => setSignOutAllConfirm(true)}
-                confirmMode={signOutAllConfirm}
-                onConfirm={handleSignOutAllConfirm}
-                onCancel={() => { setSignOutAllConfirm(false); setAvatarMenuOpen(false); }}
+                onCancel={() => { setAvatarMenuOpen(false); }}
               />
             </>
           ) : (

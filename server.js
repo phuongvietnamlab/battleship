@@ -9,7 +9,7 @@ const path = require("path");
 const crypto = require("crypto");
 const { Server } = require("socket.io");
 const store = require("./store"); // optional Redis snapshot; no-op without REDIS_URL
-const { pool, runMigrations, upsertGuestCredential, linkOrPromoteAccount, createEmailAccount, verifyEmailLogin, recordMatch, getWalletBalance, debitWallet, creditWallet, createWallet, getUserById } = require("./db"); // Postgres: identity persistence + wallet
+const { pool, runMigrations, upsertGuestCredential, linkOrPromoteAccount, createEmailAccount, verifyEmailLogin, recordMatch, getWalletBalance, debitWallet, creditWallet, createWallet, getUserById, setEmailPassword, linkEmailToUser } = require("./db"); // Postgres: identity persistence + wallet
 
 const app = express();
 const server = http.createServer(app);
@@ -183,25 +183,17 @@ app.post("/auth/signout", (req, res) => {
   });
 });
 
-// POST /auth/signout-all — delete every session row for the user_id (server-side
-// revocation, AUTH-04 / D-03). Uses the indexed user_id column from 002_accounts.sql.
-// T-02-12: userId taken from req.user.id only — never from request body.
-// T-02-14: parameterized $1 — user_id is an integer from req.user.
-// T-02-13: single indexed DELETE is atomic; subsequent requests find no session.
-app.post("/auth/signout-all", async (req, res) => {
-  const userId = req.user?.id;
-  if (!userId) return res.status(401).json({ ok: false, code: "NOT_AUTHENTICATED" });
+// Single-device enforcement helper: delete all existing sessions for a user_id
+// so only the new session (about to be created) remains active. This ensures
+// only one device can be logged in at a time.
+async function invalidateOtherSessions(userId) {
   try {
     await pool.query("DELETE FROM session WHERE user_id = $1", [userId]);
-    req.session.destroy(() => {
-      res.clearCookie("connect.sid", { path: "/", httpOnly: true, secure: req.secure, sameSite: "lax" });
-      res.json({ ok: true });
-    });
   } catch (e) {
-    console.error("[auth] signout-all failed:", e.message);
-    res.status(500).json({ ok: false });
+    // Non-fatal: if this fails, old sessions will expire naturally
+    console.warn("[auth] invalidateOtherSessions failed:", e.message);
   }
-});
+}
 
 // Current session info — client SPA calls this on mount to hydrate auth state.
 // Returns {user:null} for guests; {user:{id,displayName,avatarUrl}} for signed-in.
@@ -250,6 +242,8 @@ app.post("/auth/signup", authRateLimit, async (req, res) => {
       return res.status(409).json({ ok: false, code: "EMAIL_IN_USE" });
     }
     const user = result;
+    // Single-device: invalidate any existing sessions before creating new one
+    await invalidateOtherSessions(user.id);
     // Establish authenticated session: regenerate -> stamp user_id -> save (SEC-05)
     req.session.regenerate((err) => {
       if (err) return res.status(500).json({ ok: false });
@@ -285,6 +279,8 @@ app.post("/auth/login", authRateLimit, async (req, res) => {
       } catch (_) { /* non-fatal: guest-link failure must not block login */ }
     }
     const user = result;
+    // Single-device: invalidate any existing sessions before creating new one
+    await invalidateOtherSessions(user.id);
     // Establish authenticated session: regenerate -> stamp user_id -> save (SEC-05)
     req.session.regenerate((err) => {
       if (err) return res.status(500).json({ ok: false });
@@ -504,6 +500,8 @@ app.post("/auth/webauthn/register-verify", authRateLimit, async (req, res) => {
     delete req.session.webauthnExistingUserId;
 
     // Establish authenticated session
+    // Single-device: invalidate any existing sessions before creating new one
+    await invalidateOtherSessions(userId);
     req.session.user_id = userId;
 
     // Explicitly save session before responding
@@ -644,6 +642,8 @@ app.post("/auth/webauthn/login-verify", authRateLimit, async (req, res) => {
 
     // Establish authenticated session.
     const userId = Number(storedCred.user_id);
+    // Single-device: invalidate any existing sessions before creating new one
+    await invalidateOtherSessions(userId);
     req.session.user_id = userId;
 
     // Explicitly save session before responding (same pattern as email login).
@@ -672,11 +672,12 @@ app.get("/api/profile/:userId", async (req, res) => {
   if (!Number.isInteger(userId)) return res.status(400).json({ error: "INVALID_ID" });
   try {
     const { rows } = await pool.query(
-      "SELECT id, display_name, avatar_url, created_at, guest_migrated_at FROM users WHERE id=$1",
+      "SELECT id, display_name, avatar_url, created_at, guest_migrated_at, email FROM users WHERE id=$1",
       [userId]
     );
     if (!rows[0]) return res.status(404).json({ error: "NOT_FOUND" });
     const u = rows[0];
+    const isOwnProfile = req.user && req.user.id === userId;
     res.json({
       id: u.id,
       displayName: u.display_name,
@@ -684,6 +685,7 @@ app.get("/api/profile/:userId", async (req, res) => {
       memberSince: u.created_at,
       isLinkedAccount: u.guest_migrated_at !== null,
       stats: { wins: 0, losses: 0, gamesPlayed: 0 },  // D-10: Phase 3 fills real numbers
+      ...(isOwnProfile && u.email ? { email: u.email } : {}),
     });
   } catch (e) {
     console.error("[auth] profile fetch failed:", e.message);
@@ -714,6 +716,40 @@ app.post("/api/profile/update-name", authRateLimit, async (req, res) => {
   } catch (e) {
     console.error("[profile] update-name failed:", e.message);
     res.status(500).json({ ok: false });
+  }
+});
+
+// POST /api/account/link-email — link email to passkey-only account (Phase 11: LINK-01/02/03)
+app.post("/api/account/link-email", authRateLimit, async (req, res) => {
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ ok: false, code: "NOT_AUTHENTICATED" });
+  try {
+    const { email } = req.body || {};
+    const result = await linkEmailToUser(userId, email);
+    if (result.error) {
+      return res.status(400).json({ ok: false, code: result.error });
+    }
+    res.json({ ok: true });
+  } catch (e) {
+    console.error("[account] link-email failed:", e.message);
+    res.status(500).json({ ok: false, code: "SERVER_ERROR" });
+  }
+});
+
+// POST /api/account/set-password — set/change password for linked email (Phase 11: LINK-04/05)
+app.post("/api/account/set-password", authRateLimit, async (req, res) => {
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ ok: false, code: "NOT_AUTHENTICATED" });
+  try {
+    const { password } = req.body || {};
+    const result = await setEmailPassword(userId, password);
+    if (result.error) {
+      return res.status(400).json({ ok: false, code: result.error });
+    }
+    res.json({ ok: true });
+  } catch (e) {
+    console.error("[account] set-password failed:", e.message);
+    res.status(500).json({ ok: false, code: "SERVER_ERROR" });
   }
 });
 

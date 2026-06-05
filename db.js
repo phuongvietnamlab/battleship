@@ -561,6 +561,61 @@ async function setEmailPassword(userId, newPassword) {
   }
 }
 
+// ─── linkEmailToUser ──────────────────────────────────────────────────────────
+// Links an email address to an existing user account (Phase 11: LINK-01/02/03).
+// Used by passkey-only accounts to enable cross-device email/password login.
+// Does NOT hash a password — that's a separate step via set-password.
+// Returns { ok: true } on success, or { error: 'INVALID_EMAIL' | 'EMAIL_IN_USE' | 'ALREADY_HAS_EMAIL' }.
+async function linkEmailToUser(userId, email) {
+  // Normalize email
+  const normalizedEmail = (typeof email === "string" ? email : "").trim().toLowerCase();
+
+  // Validate format
+  if (!normalizedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+    return { error: "INVALID_EMAIL" };
+  }
+
+  // Check uniqueness — same dedup as createEmailAccount (D-20)
+  const { rows: existing } = await pool.query(
+    "SELECT id FROM credentials WHERE type='email' AND external_id=$1",
+    [normalizedEmail]
+  );
+  if (existing.length > 0) {
+    return { error: "EMAIL_IN_USE" };
+  }
+
+  // Check user doesn't already have an email credential
+  const { rows: ownEmail } = await pool.query(
+    "SELECT id FROM credentials WHERE type='email' AND user_id=$1",
+    [userId]
+  );
+  if (ownEmail.length > 0) {
+    return { error: "ALREADY_HAS_EMAIL" };
+  }
+
+  // Link: insert email credential + update users.email (transaction)
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      "INSERT INTO credentials (user_id, type, external_id) VALUES ($1, 'email', $2)",
+      [userId, normalizedEmail]
+    );
+    await client.query(
+      "UPDATE users SET email=$1 WHERE id=$2",
+      [normalizedEmail, userId]
+    );
+    await client.query("COMMIT");
+    return { ok: true };
+  } catch (e) {
+    await client.query("ROLLBACK");
+    console.error("[db] linkEmailToUser failed:", e.message);
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
 // ─── Wallet helpers (Phase 7: Points Economy) ────────────────────────────────
 
 async function getWalletBalance(userId) {
@@ -719,6 +774,7 @@ module.exports = {
   consumeAuthToken,
   markEmailVerified,
   setEmailPassword,
+  linkEmailToUser,
   recordMatch,
   getWalletBalance,
   debitWallet,
