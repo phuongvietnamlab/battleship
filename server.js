@@ -6,6 +6,7 @@
 const express = require("express");
 const http = require("http");
 const path = require("path");
+const crypto = require("crypto");
 const { Server } = require("socket.io");
 const store = require("./store"); // optional Redis snapshot; no-op without REDIS_URL
 const { pool, runMigrations, upsertGuestCredential, linkOrPromoteAccount, createEmailAccount, verifyEmailLogin, recordMatch, getWalletBalance, debitWallet, creditWallet, createWallet } = require("./db"); // Postgres: identity persistence + wallet
@@ -308,6 +309,96 @@ app.get("/auth/facebook/callback",
   passport.authenticate("facebook", { failureRedirect: "/?authError=1" }),
   onFacebookCallbackSuccess
 );
+
+// ─── Facebook Data Deletion Callback ─────────────────────────────────────────
+// Facebook requires apps to provide a "Data Deletion Request Callback URL".
+// When a user removes the app from their Facebook settings, Facebook POSTs a
+// signed_request to this endpoint. We verify the HMAC-SHA256 signature using
+// FACEBOOK_CLIENT_SECRET, decode the payload to get the Facebook user ID,
+// then delete all associated data from our database.
+// Returns JSON { url, confirmation_code } per Facebook's spec.
+// Ref: https://developers.facebook.com/docs/development/create-an-app/app-dashboard/data-deletion-callback
+
+app.post("/auth/facebook/data-deletion", async (req, res) => {
+  const signedRequest = req.body?.signed_request;
+  if (!signedRequest) {
+    return res.status(400).json({ error: "Missing signed_request" });
+  }
+
+  const appSecret = process.env.FACEBOOK_CLIENT_SECRET;
+  if (!appSecret) {
+    console.error("[fb-deletion] FACEBOOK_CLIENT_SECRET not configured");
+    return res.status(500).json({ error: "Server misconfiguration" });
+  }
+
+  // Parse and verify signed_request (base64url-encoded HMAC-SHA256 signature + payload)
+  const parts = signedRequest.split(".");
+  if (parts.length !== 2) {
+    return res.status(400).json({ error: "Invalid signed_request format" });
+  }
+
+  const [encodedSig, encodedPayload] = parts;
+
+  // base64url → standard base64
+  const sig = Buffer.from(encodedSig.replace(/-/g, "+").replace(/_/g, "/"), "base64");
+  const expectedSig = crypto.createHmac("sha256", appSecret).update(encodedPayload).digest();
+
+  if (!crypto.timingSafeEqual(sig, expectedSig)) {
+    return res.status(403).json({ error: "Invalid signature" });
+  }
+
+  let payload;
+  try {
+    payload = JSON.parse(Buffer.from(encodedPayload.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8"));
+  } catch (e) {
+    return res.status(400).json({ error: "Invalid payload" });
+  }
+
+  const fbUserId = payload.user_id;
+  if (!fbUserId) {
+    return res.status(400).json({ error: "Missing user_id in payload" });
+  }
+
+  // Generate a unique confirmation code for status tracking
+  const confirmationCode = crypto.randomBytes(16).toString("hex");
+
+  // Delete user data associated with this Facebook account
+  try {
+    const { rows } = await pool.query(
+      "SELECT user_id FROM credentials WHERE type='facebook' AND external_id=$1",
+      [String(fbUserId)]
+    );
+
+    if (rows.length > 0) {
+      const userId = rows[0].user_id;
+
+      // Delete in dependency order (child tables first)
+      await pool.query("DELETE FROM transactions WHERE user_id=$1", [userId]);
+      await pool.query("DELETE FROM wallets WHERE user_id=$1", [userId]);
+      await pool.query("DELETE FROM auth_tokens WHERE user_id=$1", [userId]);
+      await pool.query("DELETE FROM session WHERE user_id=$1", [userId]);
+      await pool.query("DELETE FROM matches WHERE winner_id=$1 OR loser_id=$1", [userId]);
+      await pool.query("DELETE FROM credentials WHERE user_id=$1", [userId]);
+      // Finally delete the user row
+      await pool.query("DELETE FROM users WHERE id=$1", [userId]);
+
+      console.log(`[fb-deletion] Deleted data for FB user ${fbUserId} (internal user_id=${userId}), code=${confirmationCode}`);
+    } else {
+      // User not found — still return success (data may already be gone or never existed)
+      console.log(`[fb-deletion] No data found for FB user ${fbUserId}, code=${confirmationCode}`);
+    }
+  } catch (e) {
+    console.error("[fb-deletion] DB error:", e.message);
+    return res.status(500).json({ error: "Deletion failed" });
+  }
+
+  // Facebook expects: { url: "status check page", confirmation_code: "unique code" }
+  const baseUrl = process.env.APP_BASE_URL || "https://battleshiponline.xyz";
+  res.json({
+    url: `${baseUrl}/deletion-status.html?code=${confirmationCode}`,
+    confirmation_code: confirmationCode,
+  });
+});
 
 // POST /auth/signout — destroy current session (this device only).
 // req.logout must take a callback (Passport 0.6+ async; Pitfall 3 / T-02-15).
