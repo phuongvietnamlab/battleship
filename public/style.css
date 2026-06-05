@@ -149,20 +149,19 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 .btn:hover { filter: brightness(1.06); }
 .btn:disabled { opacity: .5; cursor: not-allowed; }
 .btn:disabled::after { display: none; }
-/* Passkey sign-in button — biometric auth, matches the gold primary button style */
+/* Passkey sign-in button — biometric auth */
 .btn.passkey-signin {
   background: linear-gradient(160deg, #a78bfa, #7c3aed); color: #ffffff;
   border: none; border-radius: 12px;
   font-family: "Oswald", sans-serif; font-size: 16px; font-weight: 600;
   letter-spacing: 1px; text-transform: uppercase;
-  padding: 15px; gap: 8px; width: 100%;
-  box-shadow: 0 8px 22px rgba(124,58,237,.28);
+  padding: 15px; gap: 8px; width: 100%; margin-bottom: 8px;
+  box-shadow: 0 6px 18px rgba(124,58,237,.25);
 }
 .btn.passkey-signin:hover { filter: brightness(1.08); }
 .btn.passkey-signin:disabled { opacity: .5; cursor: not-allowed; }
 .btn.passkey-signin::after { display: none; }
 .btn.passkey-signin:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
-.passkey-icon { font-size: 16px; flex-shrink: 0; }
 .divider { text-align: center; color: #5f81a8; margin: 20px 0; font-size: 12px; position: relative; }
 .divider::before, .divider::after { content:""; position:absolute; top:50%; width:38%; height:1px; background: rgba(150,200,255,.16); }
 .divider::before { left:0; } .divider::after { right:0; }
