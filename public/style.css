@@ -595,6 +595,13 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 .profile-chip.active { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(240,193,75,0.25); }
 @media (max-width:380px){ .profile-chip .pname { display:none; } .profile-chip { padding:3px; } }
 
+/* Balance badge — always visible in topbar when logged in */
+.topbar-balance {
+  font-size:13px; font-weight:700; color:#ffd700; white-space:nowrap;
+  background:rgba(255,215,0,0.1); border:1px solid rgba(255,215,0,0.25);
+  border-radius:12px; padding:3px 10px;
+}
+
 /* Avatar dropdown menu — anchored to .topbar-right, z-index 80 (above overlay:50, below notice-toast:200) */
 .avatar-menu {
   position:absolute; top:calc(100% + 8px); right:0; min-width:200px;
