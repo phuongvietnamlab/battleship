@@ -206,7 +206,13 @@ const queues = {
 // Phase 7: valid wager presets for the wagered queue and room-code games
 const VALID_STAKES = [10, 25, 50, 100];
 
+// Power-up purchase economy constants (Phase 7)
+const POWERUP_FIXED_FLOOR = 5;     // minimum price regardless of stake
+const POWERUP_STAKE_PCT = 0.15;    // 15% of stake when that exceeds the floor
+const POWERUP_CAP_PER_MATCH = 3;   // max 3 purchases per player per match
+
 const joinQueueLimiter = new RateLimiterMemory({ points: 5, duration: 60 }); // 5/min per clientId
+const buyPowerupLimiter = new RateLimiterMemory({ points: 3, duration: 60 }); // 3 attempts/min
 
 // ─── Auth rate limiter ───────────────────────────────────────────────────────
 // Extends existing RateLimiterMemory pattern (lines above) to OAuth endpoints.
@@ -673,6 +679,7 @@ function serializeRooms() {
       mines,
       players,
       stake: r.stake || 0, // Phase 7
+      purchases: r.purchases || {}, // Phase 7: power-up purchase counts
     };
   }
   return out;
@@ -723,6 +730,7 @@ function restoreRooms(snap) {
       turnTimer: null,
       turnDeadline: null,
       stake: s.stake || 0, // Phase 7
+      purchases: s.purchases || {}, // Phase 7: power-up purchase counts
     };
     for (const id of rooms[code].order) scheduleSeatRelease(rooms[code], code, id, RESTORE_GRACE_MS);
     if (rooms[code].started) armTurnTimer(rooms[code]);
@@ -893,6 +901,12 @@ function syncPayload(room, code, clientId) {
     powerups: powerupsForAttacker(room, clientId),
     myMines: (room.mines && room.mines[clientId]) ? [...room.mines[clientId]] : [],
     stake: room.stake || 0, // Phase 7
+    purchasesRemaining: room.started && room.mode === "advance" && room.players[clientId]?.userId
+      ? POWERUP_CAP_PER_MATCH - ((room.purchases && room.purchases[clientId]) || 0)
+      : 0,
+    powerupPrice: room.mode === "advance"
+      ? Math.max(POWERUP_FIXED_FLOOR, Math.round(POWERUP_STAKE_PCT * (room.stake || 0)))
+      : 0,
   };
 }
 
@@ -1605,7 +1619,8 @@ io.on("connection", (socket) => {
       }
       room.lastStarter = room.turn;
       room.powerups = {}; room.mines = {};
-      for (const id of ids) { room.players[id].inv = newInv(); room.players[id].bonus = 0; room.players[id].skipNext = false; room.players[id].timeouts = 0; }
+      room.purchases = {};
+      for (const id of ids) { room.players[id].inv = newInv(); room.players[id].bonus = 0; room.players[id].skipNext = false; room.players[id].timeouts = 0; room.purchases[id] = 0; }
       for (const id of ids) {
         emitToClient(room, id, "gameStart", { yourTurn: room.turn === id, mode: room.mode || "classic" });
         emitInv(room, id);
@@ -1767,6 +1782,81 @@ io.on("connection", (socket) => {
     cb && cb({ ok: true });
   });
 
+  // ─── Power-up purchase handler (Phase 7, Plan 04) ─────────────────────────
+  socket.on("buyPowerup", async (arg, cb) => {
+    const clientId = socket.data.clientId;
+    const code = socket.data.code;
+    const room = rooms[code];
+
+    // Guard: must be in an active game
+    if (!room || !clientId || !room.players[clientId] || !room.started || room.resolving) {
+      return cb && cb({ ok: false, code: "NOT_IN_GAME" });
+    }
+
+    // Guard: advance mode only
+    if (room.mode !== "advance") {
+      return cb && cb({ ok: false, code: "NOT_ADVANCE_MODE" });
+    }
+
+    // Guard: must be signed in (guests have no wallet)
+    const userId = room.players[clientId].userId;
+    if (!userId) {
+      return cb && cb({ ok: false, code: "GUEST_NO_WALLET" });
+    }
+
+    // Guard: valid power-up type
+    const type = arg && arg.type;
+    if (!POWERS.includes(type)) {
+      return cb && cb({ ok: false, code: "INVALID_TYPE" });
+    }
+
+    // Guard: purchase cap
+    room.purchases = room.purchases || {};
+    room.purchases[clientId] = room.purchases[clientId] || 0;
+    if (room.purchases[clientId] >= POWERUP_CAP_PER_MATCH) {
+      return cb && cb({ ok: false, code: "PURCHASE_CAP_REACHED" });
+    }
+
+    // Rate limit
+    try {
+      await buyPowerupLimiter.consume(socket.id);
+    } catch (e) {
+      return cb && cb({ ok: false, code: "RATE_LIMITED" });
+    }
+
+    // Calculate price: max(FIXED_FLOOR, round(STAKE_PCT * stake))
+    const stake = room.stake || 0;
+    const price = Math.max(POWERUP_FIXED_FLOOR, Math.round(POWERUP_STAKE_PCT * stake));
+
+    // Debit wallet
+    const referenceId = `powerup_${code}_${clientId}_${room.purchases[clientId]}`;
+    const result = await debitWallet(userId, price, "powerup_purchase", referenceId);
+    if (!result.ok) {
+      return cb && cb({ ok: false, code: result.code || "INSUFFICIENT_BALANCE" });
+    }
+
+    // Grant power-up
+    const me = room.players[clientId];
+    me.inv = me.inv || newInv();
+    me.inv[type] = (me.inv[type] || 0) + 1;
+    room.purchases[clientId]++;
+
+    // Emit inventory update to buyer
+    emitInv(room, clientId);
+
+    // Emit balance update to buyer
+    socket.emit("balanceUpdate", { balance: result.balance });
+
+    // Notify opponent (no type revealed)
+    const oppId = opponentOf(room, clientId);
+    if (oppId) {
+      emitToClient(room, oppId, "oppBoughtPowerup", {});
+    }
+
+    // Success callback
+    cb && cb({ ok: true, type, price, newBalance: result.balance, remaining: POWERUP_CAP_PER_MATCH - room.purchases[clientId] });
+  });
+
   socket.on("rematch", () => {
     const code = socket.data.code;
     const room = rooms[code];
@@ -1780,7 +1870,7 @@ io.on("connection", (socket) => {
       room.players[id].skipNext = false;
       room.players[id].timeouts = 0;
     }
-    room.powerups = {}; room.mines = {};
+    room.powerups = {}; room.mines = {}; room.purchases = {};
     room.started = false;
     room.recorded = false; // CR-01: clear dedup flag so the rematch game records its own match (MATCH-01)
     room.startedAt = null; // re-captured at battle start in placeShips allReady
@@ -2014,6 +2104,7 @@ module.exports = {
     createMatchedRoom,
     queueKeyFor,
     VALID_STAKES, // Phase 7
+    POWERUP_FIXED_FLOOR, POWERUP_STAKE_PCT, POWERUP_CAP_PER_MATCH, // Phase 7: purchase economy
     // CR-01/WR-05 test helpers: override the socket-liveness predicate so unit
     // tests can simulate live/dead sockets without a running Socket.IO server.
     setSocketIsLive: (fn) => { socketIsLive = fn; },
