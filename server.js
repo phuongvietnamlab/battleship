@@ -605,7 +605,7 @@ app.post("/auth/webauthn/login-verify", authRateLimit, async (req, res) => {
 
     if (!verification.verified) {
       console.error("[webauthn] login-verify: signature verification returned false");
-      return res.status(401).json({ ok: false, code: "WEBAUTHN_FAILED", debug: "signature_invalid" });
+      return res.status(401).json({ ok: false, code: "WEBAUTHN_FAILED" });
     }
 
     // Update counter for replay protection
@@ -630,8 +630,7 @@ app.post("/auth/webauthn/login-verify", authRateLimit, async (req, res) => {
     });
   } catch (e) {
     console.error("[webauthn] login-verify failed:", e.message);
-    // Return debug info temporarily to diagnose mobile auth issue
-    res.status(500).json({ ok: false, code: "WEBAUTHN_FAILED", debug: e.message });
+    res.status(500).json({ ok: false, code: "WEBAUTHN_FAILED" });
   }
 });
 

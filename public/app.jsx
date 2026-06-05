@@ -1468,9 +1468,12 @@ function PasskeyButton({ clientId, onAuthSuccess }) {
         // Device already has passkey for this RP — switch to login
         setIsReturning(true);
         try { await doLogin(); } catch (_) {}
+      } else if (e.name === "SyntaxError" || (e.message && e.message.includes("did not match"))) {
+        // iOS Safari: WebAuthn freebie exhausted in SPA — reload to reset
+        window.location.reload();
       } else {
         console.error("[passkey]", e.message || e);
-        setError(e.message || t("auth.errPasskeyFailed"));
+        setError(t("auth.errPasskeyFailed"));
       }
     } finally {
       setLoading(false);
@@ -1495,7 +1498,7 @@ function PasskeyButton({ clientId, onAuthSuccess }) {
       body: JSON.stringify({ credential: assertion, challengeToken: optData.challengeToken }),
     });
     const verData = await verRes.json();
-    if (!verData.ok) throw new Error(verData.debug || verData.code || "WEBAUTHN_FAILED");
+    if (!verData.ok) throw new Error(verData.code || "WEBAUTHN_FAILED");
 
     if (onAuthSuccess) onAuthSuccess(verData.user);
   }
@@ -1953,25 +1956,28 @@ function App() {
   const showNotice = useCallback((s) => { setNotice(s); setTimeout(() => setNotice((n) => (n === s ? null : n)), 4000); }, []);
 
   // Sign-out: destroy current session, revert UI to guest.
-  // Await the server response so the Set-Cookie (clear) header is processed by the
-  // browser before any subsequent auth request — prevents stale-cookie race on mobile.
+  // Force page reload after signout so Safari's WebAuthn "freebie" counter resets —
+  // without reload, iOS Safari blocks navigator.credentials.get() on the second call
+  // in SPAs (see: simplewebauthn.dev/docs/advanced/browser-quirks).
   function handleSignOut() {
     fetch("/auth/signout", { method: "POST", credentials: "same-origin" })
-      .catch(() => { /* non-fatal — UI already reverted */ });
-    setAuthUser(null);
-    setBalance(null);
-    setAvatarMenuOpen(false);
-    setSignOutAllConfirm(false);
+      .then(() => {
+        window.location.reload();
+      })
+      .catch(() => {
+        window.location.reload();
+      });
   }
 
   // Sign-out-all: after inline confirmation, delete all sessions for user_id
   function handleSignOutAllConfirm() {
     fetch("/auth/signout-all", { method: "POST", credentials: "same-origin" })
-      .catch(() => { /* non-fatal — UI already reverted */ });
-    setAuthUser(null);
-    setBalance(null);
-    setAvatarMenuOpen(false);
-    setSignOutAllConfirm(false);
+      .then(() => {
+        window.location.reload();
+      })
+      .catch(() => {
+        window.location.reload();
+      });
   }
 
   function handleViewProfile(userId) {
