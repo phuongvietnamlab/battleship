@@ -91,8 +91,6 @@ const I18N = {
     "err.MINE_EXISTS": "There's already a mine here", "err.NO_CELLS": "No cells left to shoot",
     "auth.signInPasskey": "🔐 Sign in with Passkey",
     "auth.createPasskey": "🔐 Create Passkey",
-    "auth.switchToRegister": "Don't have a passkey? Create one",
-    "auth.switchToLogin": "Already have a passkey? Sign in",
     "auth.addPasskey": "Add Passkey",
     "auth.passkeyRegistered": "Passkey registered!",
     "auth.errPasskeyFailed": "Passkey authentication failed. Please try again.",
@@ -269,8 +267,6 @@ const I18N = {
     "err.MINE_EXISTS": "Đã có mìn ở đây", "err.NO_CELLS": "Hết ô để bắn",
     "auth.signInPasskey": "🔐 Đăng nhập Passkey",
     "auth.createPasskey": "🔐 Tạo Passkey",
-    "auth.switchToRegister": "Chưa có Passkey? Tạo mới",
-    "auth.switchToLogin": "Đã có Passkey? Đăng nhập",
     "auth.addPasskey": "Thêm Passkey",
     "auth.passkeyRegistered": "Đã đăng ký Passkey!",
     "auth.errPasskeyFailed": "Xác thực Passkey thất bại. Vui lòng thử lại.",
@@ -1434,15 +1430,26 @@ function ChatComposer({ open, onSend, onToggle }) {
 
 // ---------- PasskeyButton ----------
 // Smart single button for passkey auth.
-// Uses localStorage flag to remember if user has registered a passkey on this device.
-// - First time (no flag): shows "Đăng ký Passkey" → register flow → Face ID creates passkey
-// - Returning (flag set): shows "Đăng nhập Passkey" → login flow → Face ID authenticates
-// Small toggle link below lets user switch between modes manually.
+// Checks SERVER (not localStorage) if this device's clientId already has a passkey.
+// If yes → shows "Đăng nhập" (login flow). If no → shows "Tạo Passkey" (register flow).
+// Once registered, button permanently switches to login mode for this device.
 function PasskeyButton({ clientId, onAuthSuccess }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const hasPasskeyFlag = typeof localStorage !== "undefined" && localStorage.getItem("hasPasskey") === "1";
-  const [isReturning, setIsReturning] = useState(hasPasskeyFlag);
+  const [isReturning, setIsReturning] = useState(false);
+  const [checked, setChecked] = useState(false);
+
+  // On mount: ask server if this clientId already has a passkey
+  useEffect(() => {
+    if (!clientId) { setChecked(true); return; }
+    fetch("/auth/webauthn/has-passkey?clientId=" + encodeURIComponent(clientId))
+      .then(r => r.json())
+      .then(data => {
+        setIsReturning(data.hasPasskey === true);
+        setChecked(true);
+      })
+      .catch(() => setChecked(true));
+  }, [clientId]);
 
   async function handleClick() {
     if (loading) return;
@@ -1458,9 +1465,8 @@ function PasskeyButton({ clientId, onAuthSuccess }) {
       if (e.name === "NotAllowedError" || e.name === "AbortError") {
         // User cancelled biometric prompt — do nothing
       } else if (e.name === "InvalidStateError") {
-        // Credential already exists → switch to login mode and retry
+        // Device already has passkey for this RP — switch to login
         setIsReturning(true);
-        localStorage.setItem("hasPasskey", "1");
         try { await doLogin(); } catch (_) {}
       } else {
         console.error("[passkey]", e.message || e);
@@ -1499,7 +1505,15 @@ function PasskeyButton({ clientId, onAuthSuccess }) {
       body: JSON.stringify({ clientId }),
     });
     const optData = await optRes.json();
-    if (!optData.ok) throw new Error("register-options failed");
+    if (!optData.ok) {
+      if (optData.code === "ALREADY_HAS_PASSKEY") {
+        // Server confirms passkey exists → switch to login
+        setIsReturning(true);
+        await doLogin();
+        return;
+      }
+      throw new Error("register-options failed");
+    }
 
     const attestation = await startRegistration({ optionsJSON: optData.options });
 
@@ -1511,18 +1525,12 @@ function PasskeyButton({ clientId, onAuthSuccess }) {
     const verData = await verRes.json();
     if (!verData.ok) throw new Error(verData.code || "WEBAUTHN_FAILED");
 
-    // Mark device as having a passkey
-    localStorage.setItem("hasPasskey", "1");
+    // Now this device has a passkey — switch to login mode permanently
     setIsReturning(true);
-
-    // Server returns user directly from register-verify
     if (verData.user && onAuthSuccess) onAuthSuccess(verData.user);
   }
 
-  function toggleMode() {
-    setIsReturning(!isReturning);
-    setError("");
-  }
+  if (!checked) return null; // don't render until server check is done
 
   return (
     <div style={{ marginBottom: 8 }}>
@@ -1533,13 +1541,6 @@ function PasskeyButton({ clientId, onAuthSuccess }) {
         onClick={handleClick}
       >
         {loading ? "..." : (isReturning ? t("auth.signInPasskey") : t("auth.createPasskey"))}
-      </button>
-      <button
-        type="button"
-        onClick={toggleMode}
-        style={{ display: "block", margin: "6px auto 0", fontSize: 12, color: "#a9ccec", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}
-      >
-        {isReturning ? t("auth.switchToRegister") : t("auth.switchToLogin")}
       </button>
     </div>
   );

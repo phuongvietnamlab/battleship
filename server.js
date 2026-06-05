@@ -303,9 +303,29 @@ const RP_NAME = process.env.RP_NAME || "Battleship Online";
 const RP_ID = process.env.RP_ID || (process.env.SITE_ORIGIN ? new URL(process.env.SITE_ORIGIN).hostname : "localhost");
 const RP_ORIGIN = process.env.RP_ORIGIN || process.env.SITE_ORIGIN || "http://localhost:4000";
 
+// GET /auth/webauthn/has-passkey?clientId=xxx — check if this guest already has a passkey account.
+// Returns { hasPasskey: true/false }. Used by client to decide which button to show.
+app.get("/auth/webauthn/has-passkey", async (req, res) => {
+  const clientId = req.query.clientId;
+  if (!clientId) return res.json({ hasPasskey: false });
+  try {
+    const { rows } = await pool.query(
+      "SELECT user_id FROM credentials WHERE type='guest' AND external_id=$1", [clientId]
+    );
+    if (rows.length === 0) return res.json({ hasPasskey: false });
+    const userId = rows[0].user_id;
+    const creds = await getWebAuthnCredentials(userId);
+    res.json({ hasPasskey: creds.length > 0 });
+  } catch (e) {
+    res.json({ hasPasskey: false });
+  }
+});
+
 // POST /auth/webauthn/register-options — generate registration challenge.
 // Does NOT create a user yet. Just generates challenge + stores clientId in session.
 // User creation happens in register-verify AFTER biometric confirmation.
+// GUARD: if the guest clientId is already linked to an account with a passkey, reject
+// and tell the client to use login instead (prevents duplicate account creation).
 app.post("/auth/webauthn/register-options", authRateLimit, async (req, res) => {
   try {
     const { clientId: bodyClientId } = req.body || {};
@@ -314,6 +334,21 @@ app.post("/auth/webauthn/register-options", authRateLimit, async (req, res) => {
     // If user is already signed in, they're adding a passkey to existing account
     const existingUserId = req.user?.id || null;
 
+    // GUARD: check if this guest clientId already has a linked account with passkeys
+    if (!existingUserId && pendingClientId) {
+      const { rows: guestCred } = await pool.query(
+        "SELECT user_id FROM credentials WHERE type='guest' AND external_id=$1", [pendingClientId]
+      );
+      if (guestCred.length > 0) {
+        const guestUserId = guestCred[0].user_id;
+        // Check if this user already has webauthn credentials
+        const existingPasskeys = await getWebAuthnCredentials(guestUserId);
+        if (existingPasskeys.length > 0) {
+          return res.status(409).json({ ok: false, code: "ALREADY_HAS_PASSKEY" });
+        }
+      }
+    }
+
     // For existing users: exclude their current credentials to prevent duplicate
     let excludeCredentials = [];
     if (existingUserId) {
@@ -321,8 +356,6 @@ app.post("/auth/webauthn/register-options", authRateLimit, async (req, res) => {
       excludeCredentials = existingCreds.map(c => ({ id: c.id, transports: c.transports || [] }));
     }
 
-    // Generate a temporary userID for registration (or use existing)
-    // For new users: use a placeholder that register-verify will resolve
     const tempUserId = existingUserId || ("new-" + Date.now());
 
     const options = await generateRegistrationOptions({
