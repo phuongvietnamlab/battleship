@@ -671,14 +671,14 @@ describe.skipIf(!hasDatabaseUrl)(
   }
 );
 
-// ─── Suite 4: AUTH-04 signout / signout-all (requires DB) ────────────────────
+// ─── Suite 4: AUTH-04 signout / single-device enforcement (requires DB) ──────
 // Tests the session row revocation paths. Uses direct SQL (not HTTP) to simulate
 // the server-side operations — no running server needed (D-03 pattern).
-// Cleanup prefix: test-su- (signout) and test-sa- (signout-all) so afterAll
+// Cleanup prefix: test-su- (signout) and test-sa- (single-device) so afterAll
 // self-cleans on live-DB runs without touching other test rows.
 
 describe.skipIf(!hasDatabaseUrl)(
-  "AUTH-04 signout + signout-all session revocation (requires DB)",
+  "AUTH-04 signout + single-device session revocation (requires DB)",
   () => {
     let pool;
     let db;
@@ -724,7 +724,7 @@ describe.skipIf(!hasDatabaseUrl)(
       expect(after.length).toBe(0);
     });
 
-    it("signout-all deletes all session rows for user_id", async () => {
+    it("single-device login invalidates all existing sessions for user_id", async () => {
       const userId = 9999902;
       const otherUserId = 9999903;
       const expire = new Date(Date.now() + 86400 * 1000);
@@ -734,7 +734,8 @@ describe.skipIf(!hasDatabaseUrl)(
       const sid2 = "test-sa-2-" + ts;
       const sidOther = "test-sa-other-" + ts;
 
-      // Seed two session rows for the target user, plus one for a different user
+      // Seed two session rows for the target user (simulating two devices logged in),
+      // plus one for a different user
       await pool.query(
         "INSERT INTO session (sid, sess, expire, user_id) VALUES ($1, $2, $3, $4)",
         [sid1, JSON.stringify({ passport: { user: userId } }), expire, userId]
@@ -748,17 +749,17 @@ describe.skipIf(!hasDatabaseUrl)(
         [sidOther, JSON.stringify({ passport: { user: otherUserId } }), expire, otherUserId]
       );
 
-      // Run the signout-all DELETE (the indexed column path, D-03 / T-02-13)
+      // Simulate single-device enforcement: DELETE all sessions before creating new one
       await pool.query("DELETE FROM session WHERE user_id = $1", [userId]);
 
-      // Assert zero rows remain for the target user_id
+      // Assert zero rows remain for the target user_id (old sessions invalidated)
       const { rows: userRows } = await pool.query(
         "SELECT sid FROM session WHERE user_id = $1",
         [userId]
       );
       expect(userRows.length).toBe(0);
 
-      // Assert the other user's session is untouched (T-02-12 isolation)
+      // Assert the other user's session is untouched (isolation)
       const { rows: otherRows } = await pool.query(
         "SELECT sid FROM session WHERE sid = $1",
         [sidOther]
