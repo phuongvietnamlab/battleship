@@ -1834,6 +1834,7 @@ function ProfileView({ userId, currentUserId, onBack, onSignOut }) {
       if (json.ok) {
         setPasswordStatus("done");
         setPasswordInput("");
+        setData({ ...data, hasPassword: true });
       } else {
         setPasswordStatus("error");
         setPasswordError(json.code === "WEAK_PASSWORD" ? t("account.passwordTooShort") : t("account.passwordError"));
@@ -1934,7 +1935,7 @@ function ProfileView({ userId, currentUserId, onBack, onSignOut }) {
             </>
           )}
 
-          {(hasEmail || linkEmailStatus === "done") && passwordStatus !== "done" && (
+          {(hasEmail || linkEmailStatus === "done") && passwordStatus !== "done" && !data.hasPassword && (
             <>
               <div style={{ fontSize: 13, color: "#7ff0aa", marginBottom: 8 }}>
                 ✓ {t("account.emailLinked")}: {data.email}

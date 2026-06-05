@@ -678,6 +678,14 @@ app.get("/api/profile/:userId", async (req, res) => {
     if (!rows[0]) return res.status(404).json({ error: "NOT_FOUND" });
     const u = rows[0];
     const isOwnProfile = req.user && req.user.id === userId;
+    let hasPassword = false;
+    if (isOwnProfile) {
+      const { rows: creds } = await pool.query(
+        "SELECT id FROM credentials WHERE user_id=$1 AND type='email' AND password_hash IS NOT NULL",
+        [userId]
+      );
+      hasPassword = creds.length > 0;
+    }
     res.json({
       id: u.id,
       displayName: u.display_name,
@@ -685,7 +693,7 @@ app.get("/api/profile/:userId", async (req, res) => {
       memberSince: u.created_at,
       isLinkedAccount: u.guest_migrated_at !== null,
       stats: { wins: 0, losses: 0, gamesPlayed: 0 },  // D-10: Phase 3 fills real numbers
-      ...(isOwnProfile && u.email ? { email: u.email } : {}),
+      ...(isOwnProfile ? { email: u.email || null, hasPassword } : {}),
     });
   } catch (e) {
     console.error("[auth] profile fetch failed:", e.message);
