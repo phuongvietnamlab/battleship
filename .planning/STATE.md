@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: Awaiting next milestone
-stopped_at: Phase 6 context gathered
-last_updated: "2026-06-04T07:32:43.813Z"
+stopped_at: Phase 7 context gathered
+last_updated: "2026-06-05T03:30:35.017Z"
 last_activity: 2026-06-04 — Milestone v1.0 completed and archived
 progress:
-  total_phases: 6
+  total_phases: 7
   completed_phases: 6
   total_plans: 27
   completed_plans: 27
-  percent: 100
+  percent: 86
 ---
 
 # Project State
@@ -101,6 +101,10 @@ Recent decisions affecting current work:
 - [Phase ?]: rankedWindow uses Infinity sentinel when width >= RANKED_WINDOW_CAP — thin pools always eventually pair
 - [Phase ?]: getPlayerRating in joinQueue: try/catch falls back to 1500/350 on DB failure (graceful degradation T-5-09)
 
+### Roadmap Evolution
+
+- Phase 7 added: Points economy — remove ranking/leaderboard, add wagerable points for matches and power-up purchases
+
 ### Pending Todos
 
 None yet.
@@ -133,10 +137,10 @@ Items acknowledged and deferred at milestone close on 2026-06-04:
 
 ## Session Continuity
 
-Last session: 2026-06-04T02:21:23.452Z
-Stopped at: Phase 6 context gathered
+Last session: 2026-06-05T03:30:35.009Z
+Stopped at: Phase 7 context gathered
 Resume file: 
-.planning/phases/06-bot-difficulty-tiers/06-CONTEXT.md
+.planning/phases/07-points-economy-remove-ranking-leaderboard-add-wagerable-poin/07-CONTEXT.md
 
 ## Operator Next Steps
 
