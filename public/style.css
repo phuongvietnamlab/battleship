@@ -84,8 +84,8 @@ h1, h2, h3, .title, .ttl { font-family: "Oswald", sans-serif; letter-spacing: 1p
   outline-offset: 2px;
 }
 
-.topbar { display: flex; align-items: center; justify-content: space-between; padding: 6px 4px 18px; }
-.logo { display: flex; align-items: center; gap: 12px; }
+.topbar { display: flex; align-items: center; justify-content: space-between; padding: 6px 4px 18px; gap:8px; overflow:hidden; }
+.logo { display: flex; align-items: center; gap: 12px; min-width:0; flex-shrink:1; }
 .logo .badge {
   width: 50px; height: 50px; border-radius: 12px;
   background: linear-gradient(160deg, var(--gold), #c8961f);
@@ -581,25 +581,26 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 /* Room bar: own row under the topbar (room code + invite + leave). Keeps the
    topbar uncluttered so the logo/room/leave no longer overlap on mobile. */
 .topbar-sound { width:auto !important; padding:6px 10px !important; font-size:14px; }
-.topbar-right { display:flex; align-items:center; gap:8px; }
+.topbar-right { display:flex; align-items:center; gap:6px; flex-shrink:0; max-width:60%; }
 .profile-chip {
-  display:flex; align-items:center; gap:7px; max-width:150px;
-  background:var(--panel); border:1px solid var(--panel-brd); border-radius:20px; padding:3px 10px 3px 3px;
+  display:flex; align-items:center; gap:5px; max-width:120px;
+  background:var(--panel); border:1px solid var(--panel-brd); border-radius:20px; padding:3px 8px 3px 3px;
+  flex-shrink:1; min-width:0;
 }
-.profile-chip .avatar { width:28px; height:28px; border-radius:50%; object-fit:cover; flex:none; background:#0d2236; }
+.profile-chip .avatar { width:26px; height:26px; border-radius:50%; object-fit:cover; flex:none; background:#0d2236; }
 .profile-chip .avatar-fallback {
-  display:flex; align-items:center; justify-content:center; background:var(--sky); color:#06182c; font-weight:700; font-size:14px; text-transform:uppercase;
+  display:flex; align-items:center; justify-content:center; background:var(--sky); color:#06182c; font-weight:700; font-size:13px; text-transform:uppercase;
 }
-.profile-chip .pname { font-size:13px; color:#dbe7f3; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.profile-chip .pname { font-size:12px; color:#dbe7f3; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:70px; }
 .profile-chip:hover { border-color: var(--gold); }
 .profile-chip.active { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(240,193,75,0.25); }
-@media (max-width:380px){ .profile-chip .pname { display:none; } .profile-chip { padding:3px; } }
+@media (max-width:420px){ .profile-chip .pname { display:none; } .profile-chip { padding:3px; max-width:36px; } }
 
 /* Balance badge — always visible in topbar when logged in */
 .topbar-balance {
-  font-size:13px; font-weight:700; color:#ffd700; white-space:nowrap;
+  font-size:12px; font-weight:700; color:#ffd700; white-space:nowrap;
   background:rgba(255,215,0,0.1); border:1px solid rgba(255,215,0,0.25);
-  border-radius:12px; padding:3px 10px;
+  border-radius:12px; padding:2px 8px; flex-shrink:0;
 }
 
 /* Avatar dropdown menu — anchored to .topbar-right, z-index 80 (above overlay:50, below notice-toast:200) */

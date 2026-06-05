@@ -2749,7 +2749,7 @@ function App() {
                 onToggle={() => { setAvatarMenuOpen((v) => !v); if (avatarMenuOpen) setSignOutAllConfirm(false); }}
                 active={avatarMenuOpen}
               />
-              {balance !== null && <span className="topbar-balance" title="Points">🪙 {balance}</span>}
+              {balance !== null && <span className="topbar-balance" title="Points">💰 {balance}</span>}
               <AvatarMenu
                 open={avatarMenuOpen}
                 user={authUser}
