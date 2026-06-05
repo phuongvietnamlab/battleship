@@ -144,6 +144,34 @@ const I18N = {
     "err.PURCHASE_CAP_REACHED": "Purchase limit reached (3/match)",
     "err.NOT_ADVANCE_MODE": "Power-ups can only be purchased in advance mode",
     "err.GUEST_NO_WALLET": "Sign in to purchase power-ups",
+    "err.WAGERED_REQUIRES_ACCOUNT": "Sign in to play wagered matches",
+    "wallet.balance": "Points",
+    "wallet.free": "Free play",
+    "wallet.wager": "Wager",
+    "wallet.stakeLabel": "Stake",
+    "wallet.yourStake": "Your wager: {n} pts",
+    "wallet.insufficientBalance": "Not enough points",
+    "wallet.zeroBalance": "Play free games or win wagers to earn points!",
+    "queue.freeMatch": "⚡ Quick Match",
+    "queue.wageredMatch": "🪙 Wagered Match",
+    "queue.stakeSelect": "Select stake",
+    "queue.stake0": "Free (0 pts)",
+    "queue.stake10": "10 pts",
+    "queue.stake25": "25 pts",
+    "queue.stake50": "50 pts",
+    "queue.stake100": "100 pts",
+    "queue.titleFree": "Free Match",
+    "queue.titleWagered": "Wagered Match",
+    "shop.buy": "Buy",
+    "shop.title": "Power-up Shop",
+    "shop.price": "{n} pts",
+    "shop.remaining": "{n} left",
+    "shop.capReached": "Limit reached",
+    "shop.confirm": "Buy {type} for {price} pts?",
+    "shop.oppBought": "Opponent purchased a power-up!",
+    "game.pot": "Pot: {n} pts",
+    "game.won": "+{n} pts won!",
+    "game.lost": "-{n} pts wagered",
     "bot.easy": "Easy",
     "bot.medium": "Medium",
     "bot.hard": "Hard",
@@ -272,6 +300,34 @@ const I18N = {
     "err.PURCHASE_CAP_REACHED": "Đã đạt giới hạn mua (3/trận)",
     "err.NOT_ADVANCE_MODE": "Chỉ mua được power-up ở chế độ nâng cao",
     "err.GUEST_NO_WALLET": "Đăng nhập để mua power-up",
+    "err.WAGERED_REQUIRES_ACCOUNT": "Đăng nhập để chơi trận cá cược",
+    "wallet.balance": "Điểm",
+    "wallet.free": "Chơi miễn phí",
+    "wallet.wager": "Cá cược",
+    "wallet.stakeLabel": "Mức cược",
+    "wallet.yourStake": "Cược của bạn: {n} điểm",
+    "wallet.insufficientBalance": "Không đủ điểm",
+    "wallet.zeroBalance": "Chơi miễn phí hoặc thắng cược để kiếm điểm!",
+    "queue.freeMatch": "⚡ Ghép trận nhanh",
+    "queue.wageredMatch": "🪙 Trận cá cược",
+    "queue.stakeSelect": "Chọn mức cược",
+    "queue.stake0": "Miễn phí (0 đ)",
+    "queue.stake10": "10 điểm",
+    "queue.stake25": "25 điểm",
+    "queue.stake50": "50 điểm",
+    "queue.stake100": "100 điểm",
+    "queue.titleFree": "Ghép trận nhanh",
+    "queue.titleWagered": "Trận cá cược",
+    "shop.buy": "Mua",
+    "shop.title": "Cửa hàng Power-up",
+    "shop.price": "{n} điểm",
+    "shop.remaining": "Còn {n} lượt",
+    "shop.capReached": "Đã hết lượt mua",
+    "shop.confirm": "Mua {type} với {price} điểm?",
+    "shop.oppBought": "Đối thủ đã mua power-up!",
+    "game.pot": "Thưởng: {n} điểm",
+    "game.won": "+{n} điểm thắng!",
+    "game.lost": "-{n} điểm đã cược",
     "bot.easy": "Dễ",
     "bot.medium": "Trung bình",
     "bot.hard": "Khó",
@@ -725,10 +781,12 @@ function EmailAuthForm({ onAuthSuccess, clientId: cid }) {
 // resetMode: boolean — true when PasswordResetForm should be shown in request mode
 // onForgotPassword: opens PasswordResetForm in request mode
 // onResetBack: closes PasswordResetForm and returns to normal login view
-function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onHelp, error, authUser, authError, verifyNotice, clientId, signInDisabled, onSignInDisable, onEmailAuthSuccess }) {
+function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onWageredMatch, onHelp, error, authUser, authError, verifyNotice, clientId, signInDisabled, onSignInDisable, onEmailAuthSuccess, balance }) {
   const [code, setCode] = useState("");
   const [mode, setMode] = useState("classic");
   const [selectedTier, setSelectedTier] = useState(loadBotTier);
+  const [selectedStake, setSelectedStake] = useState(10);
+  const [roomStake, setRoomStake] = useState(0);
   function handleModeChange(m) {
     setMode(m);
   }
@@ -748,7 +806,33 @@ function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onHelp, error, authUser,
         ))}
       </div>
       <div className="divider">{t("common.or")}</div>
-      <button className="btn primary" onClick={onQuickMatch}>{t("queue.quickMatch")}</button>
+      <button className="btn primary" onClick={onQuickMatch}>{t("queue.freeMatch")}</button>
+      {authUser && balance !== null && (
+        <div style={{ margin: "10px 0", textAlign: "center" }}>
+          <div style={{ fontSize: "1.1em", fontWeight: "bold", marginBottom: 6 }}>🪙 {balance} {t("wallet.balance")}</div>
+          <label style={{ fontWeight: "bold", marginBottom: 4, display: "block", fontSize: "0.9em" }}>{t("queue.stakeSelect")}</label>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "center", marginBottom: 8 }}>
+            {[10, 25, 50, 100].map((s) => (
+              <button
+                key={s}
+                className={"btn " + (selectedStake === s ? "steel" : "ghost")}
+                style={{ fontSize: "0.9em", padding: "4px 10px" }}
+                onClick={() => setSelectedStake(s)}
+                disabled={balance < s}
+              >
+                {s} pts
+              </button>
+            ))}
+          </div>
+          <button
+            className="btn steel"
+            onClick={() => onWageredMatch(selectedStake)}
+            disabled={balance < selectedStake}
+          >
+            {t("queue.wageredMatch")} ({selectedStake} pts)
+          </button>
+        </div>
+      )}
       <div style={{ height: 10 }} />
       <div className="mode-pick">
         <button className={"mode-opt" + (mode === "classic" ? " on" : "")} onClick={() => handleModeChange("classic")}>
@@ -758,7 +842,17 @@ function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onHelp, error, authUser,
           <b>{t("mode.advance")}</b><span>{t("mode.advanceDesc")}</span>
         </button>
       </div>
-      <button className="btn steel" onClick={() => onCreate(mode)}>{t("lobby.createRoom")}</button>
+      <button className="btn steel" onClick={() => onCreate(mode, roomStake)}>{t("lobby.createRoom")}</button>
+      {authUser && (
+        <div style={{ margin: "4px 0", textAlign: "center" }}>
+          <select value={roomStake} onChange={(e) => setRoomStake(Number(e.target.value))} style={{ padding: "4px 8px", fontSize: "0.9em" }}>
+            <option value={0}>{t("queue.stake0")}</option>
+            {[10, 25, 50, 100].map((s) => (
+              <option key={s} value={s} disabled={balance < s}>{s} pts</option>
+            ))}
+          </select>
+        </div>
+      )}
       <div className="divider">{t("common.or")}</div>
       <div className="field">
         <label>{t("lobby.enterCodeLabel")}</label>
@@ -1578,6 +1672,14 @@ function App() {
   const [queueWindow, setQueueWindow]           = useState(null);   // (legacy — unused, kept for state cleanup)
   const [botOfferVisible, setBotOfferVisible]   = useState(false);  // D-09 delayed bot prompt
   const [elapsedSec, setElapsedSec]             = useState(0);      // re-render tick for elapsed timer
+  // Points economy (Phase 7)
+  const [balance, setBalance]                   = useState(null);   // null = guest/unknown, number = signed-in
+  const [stake, setStake]                       = useState(0);      // current match stake (0 = free)
+  const [purchasesRemaining, setPurchasesRemaining] = useState(0);  // power-up buys left this match
+  const [powerupPrice, setPowerupPrice]         = useState(5);      // price per power-up (from sync)
+  const [showShop, setShowShop]                 = useState(false);  // shop panel visible
+  const [oppBoughtNotice, setOppBoughtNotice]   = useState(false);  // brief "opp bought" toast
+  const [queueStake, setQueueStake]             = useState(0);      // stake shown on queue wait screen
   const myBubbleTimer = useRef(null);
   const oppBubbleTimer = useRef(null);
   const graceTimerRef = useRef(null);
@@ -1679,6 +1781,15 @@ function App() {
     } catch (e) { /* ignore — localStorage-like optional feature */ }
   }, []);
 
+  // Fetch wallet balance on auth state change (Phase 7)
+  useEffect(() => {
+    if (authUser) {
+      fetch("/api/wallet").then((r) => r.json()).then((d) => setBalance(d.balance)).catch(() => {});
+    } else {
+      setBalance(null);
+    }
+  }, [authUser]);
+
   useEffect(() => {
     socket.on("opponentJoined", () => {
       setOppPresent(true); addLog(t("log.oppJoined"));
@@ -1724,6 +1835,9 @@ function App() {
       setTurnDeadline(st.started ? (st.turnDeadline || null) : null);
       if (st.turnDur) setTurnDur(st.turnDur);
       if (st.oppProfile !== undefined) setOppProfile(st.oppProfile || null);
+      if (typeof st.stake === "number") setStake(st.stake);
+      if (typeof st.purchasesRemaining === "number") setPurchasesRemaining(st.purchasesRemaining);
+      if (typeof st.powerupPrice === "number") setPowerupPrice(st.powerupPrice);
       if (st.started) { setMyTurn(st.yourTurn); setScreen("battle"); }
       else if (st.youReady) { setIReady(true); setScreen("placement"); }
       else { setScreen(st.oppPresent ? "placement" : "room"); }
@@ -1782,6 +1896,11 @@ function App() {
       Sound.miss && Sound.miss();
     });
     socket.on("scoreUpdate", ({ you, opp }) => { setMyScore(you); setOppScore(opp); });
+    socket.on("balanceUpdate", (data) => setBalance(data.balance));
+    socket.on("oppBoughtPowerup", () => {
+      setOppBoughtNotice(true);
+      setTimeout(() => setOppBoughtNotice(false), 2500);
+    });
     socket.on("gameOver", ({ win, reason }) => { setOver({ win, reason }); setTurnDeadline(null); win ? Sound.win() : Sound.lose(); });
     socket.on("opponentLeft", () => {
       addLog(t("log.oppLeft")); setOppLeft(true);
@@ -1803,9 +1922,10 @@ function App() {
     // matchFound: server has paired this socket into a room — drop straight to placement (D-10).
     // Does NOT guard on s === "queue" — matchFound can arrive even if the player is on the lobby
     // (e.g. connection lag) and must always route to placement (Pitfall 4 from 05-RESEARCH.md).
-    socket.on("matchFound", ({ code: matchCode }) => {
+    socket.on("matchFound", ({ code: matchCode, stake: matchStake }) => {
       setCode(matchCode);
       persistRoom(matchCode);
+      if (typeof matchStake === "number") setStake(matchStake);
       setQueueType(null);
       setQueueSince(null);
       setQueueWindow(null);
@@ -1873,20 +1993,31 @@ function App() {
     };
   }, [screen, queueSince]);
 
-  function createRoom(mode) {
+  function createRoom(mode, roomStakeVal) {
     setError(null);
     setMyScore(0); setOppScore(0); setOppProfile(null); // phòng mới: tỉ số về 0-0
     setVsBot(false); setMode(mode === "advance" ? "advance" : "classic");
-    socket.emit("createRoom", { clientId, mode }, (res) => {
+    const stakeVal = roomStakeVal || 0;
+    setStake(stakeVal);
+    socket.emit("createRoom", { clientId, mode, stake: stakeVal, profile }, (res) => {
       if (res.ok) { setCode(res.code); persistRoom(res.code); setScreen("room"); }
       else if (res.code) { setError(errText(res)); }
     });
   }
   function joinRoom(c) {
     setError(null);
-    socket.emit("joinRoom", { code: c, clientId }, (res) => {
+    socket.emit("joinRoom", { code: c, clientId, profile }, (res) => {
       if (!res.ok) { setError(errText(res)); return; }
+      // If the room has a stake, confirm before committing (Phase 7 Task 5)
+      if (res.stake > 0) {
+        if (!confirm(t("wallet.yourStake", { n: res.stake }))) {
+          // Player declined — leave the room
+          socket.emit("leaveRoom", () => {});
+          return;
+        }
+      }
       setCode(res.code); persistRoom(res.code);
+      if (typeof res.stake === "number") setStake(res.stake);
       // reclaimed = took over a seat in an in-progress game (reconnect by code);
       // the server's "sync" event restores the correct screen/state. New seats
       // go straight to placement.
@@ -1900,9 +2031,25 @@ function App() {
         setQueueType("free");
         setQueueSince(Date.now());
         setElapsedSec(0);
+        setQueueStake(0);
         setScreen("queue");
       } else {
         setError(errText(res));
+      }
+    });
+  }
+  function handleWageredMatch(wagerStake) {
+    setError(null);
+    socket.emit("joinQueue", { type: "wagered", stake: wagerStake, clientId, profile }, (res) => {
+      if (res && res.ok) {
+        setQueueType("wagered");
+        setQueueSince(Date.now());
+        setElapsedSec(0);
+        setQueueStake(wagerStake);
+        setStake(wagerStake);
+        setScreen("queue");
+      } else {
+        setError(t("err." + (res && res.code)) || errText(res));
       }
     });
   }
@@ -2247,6 +2394,19 @@ function App() {
       }
     });
   }
+  // Phase 7: Buy a power-up mid-match
+  function handleBuyPowerup(type) {
+    if (purchasesRemaining <= 0 || balance < powerupPrice) return;
+    socket.emit("buyPowerup", { type }, (res) => {
+      if (res && res.ok) {
+        setPurchasesRemaining((n) => n - 1);
+        // Balance will update via balanceUpdate event
+      } else {
+        const msg = res && res.code ? t("err." + res.code) : "";
+        if (msg) showNotice(msg);
+      }
+    });
+  }
   function resetToLobby() {
     persistRoom(null);
     // Emit leaveRoom so the server removes our seat — prevents resume from
@@ -2263,6 +2423,7 @@ function App() {
     setOppLeft(false); setOppOffline(false); setGraceLeft(0); setConfirmLeave(false);
     setOppProfile(null);
     setChatOpen(false); setMyBubble(null); setOppBubble(null);
+    setStake(0); setPurchasesRemaining(0); setShowShop(false); setOppBoughtNotice(false);
     if (myBubbleTimer.current) { clearTimeout(myBubbleTimer.current); myBubbleTimer.current = null; }
     if (oppBubbleTimer.current) { clearTimeout(oppBubbleTimer.current); oppBubbleTimer.current = null; }
     if (graceTimerRef.current) { clearInterval(graceTimerRef.current); graceTimerRef.current = null; }
@@ -2360,12 +2521,15 @@ function App() {
 
       {notice && <div className="notice-toast">{notice}</div>}
 
-      {screen === "lobby" && <Lobby onCreate={createRoom} onJoin={joinRoom} onBot={handleBot} onQuickMatch={handleQuickMatch} onHelp={() => setHelpOpen(true)} error={error} authUser={authUser} authError={authError} verifyNotice={verifyNotice} clientId={clientId} signInDisabled={signInDisabled} onSignInDisable={() => setSignInDisabled(true)} onEmailAuthSuccess={setAuthUser} />}
+      {screen === "lobby" && <Lobby onCreate={createRoom} onJoin={joinRoom} onBot={handleBot} onQuickMatch={handleQuickMatch} onWageredMatch={handleWageredMatch} onHelp={() => setHelpOpen(true)} error={error} authUser={authUser} authError={authError} verifyNotice={verifyNotice} clientId={clientId} signInDisabled={signInDisabled} onSignInDisable={() => setSignInDisabled(true)} onEmailAuthSuccess={setAuthUser} balance={balance} />}
 
       {screen === "queue" && (
         <div className="lobby">
-          <h2>{t("queue.titleCasual")}</h2>
+          <h2>{queueType === "wagered" ? t("queue.titleWagered") : t("queue.titleFree")}</h2>
           <p className="sub">{t("queue.sub")}</p>
+          {queueType === "wagered" && queueStake > 0 && (
+            <div style={{ textAlign: "center", margin: "6px 0", fontWeight: "bold" }}>🪙 {queueStake} pts</div>
+          )}
           <div className="queue-timer">
             <span className="queue-elapsed" aria-live="polite" aria-atomic="true">{String(Math.floor(elapsedSec / 60)).padStart(2, "0")}:{String(elapsedSec % 60).padStart(2, "0")}</span>
             <span className="queue-label">{t("queue.elapsed")}</span>
@@ -2451,6 +2615,41 @@ function App() {
 
       {screen === "battle" && (
         <div>
+          {stake > 0 && !vsBot && (
+            <div style={{ textAlign: "center", margin: "4px 0", fontSize: "0.85em", color: "#ffd700", fontWeight: "bold" }}>
+              🪙 {t("game.pot", { n: stake * 2 })}
+            </div>
+          )}
+          {mode === "advance" && authUser && !vsBot && (
+            <div style={{ textAlign: "center", margin: "4px 0" }}>
+              <button className="btn ghost" style={{ fontSize: "0.85em", padding: "3px 10px" }} onClick={() => setShowShop((v) => !v)}>
+                🛒 {purchasesRemaining > 0 ? `(${purchasesRemaining})` : "—"}
+              </button>
+            </div>
+          )}
+          {showShop && mode === "advance" && authUser && !vsBot && (
+            <div style={{ background: "rgba(0,0,0,0.85)", border: "1px solid #4a90d9", borderRadius: 8, padding: 12, margin: "6px auto", maxWidth: 320 }}>
+              <h3 style={{ margin: "0 0 6px", fontSize: "0.95em" }}>{t("shop.title")}</h3>
+              <div style={{ fontSize: "0.8em", marginBottom: 8, color: "#aaa" }}>
+                {t("shop.price", { n: powerupPrice })} · {purchasesRemaining > 0 ? t("shop.remaining", { n: purchasesRemaining }) : t("shop.capReached")}
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                {["scatter", "cross", "double", "reveal", "mine"].map((type) => (
+                  <button key={type} className="btn ghost" style={{ fontSize: "0.8em", padding: "3px 8px" }}
+                    onClick={() => handleBuyPowerup(type)}
+                    disabled={purchasesRemaining <= 0 || balance < powerupPrice}>
+                    {POWER_ICON[type]} {POWER_NAME[type]} — {powerupPrice} 🪙
+                  </button>
+                ))}
+              </div>
+              <button className="btn ghost" style={{ marginTop: 6, fontSize: "0.8em", padding: "2px 10px" }} onClick={() => setShowShop(false)}>✕</button>
+            </div>
+          )}
+          {oppBoughtNotice && (
+            <div style={{ textAlign: "center", margin: "4px 0", fontSize: "0.85em", color: "#ff9800", fontWeight: "bold" }}>
+              {t("shop.oppBought")}
+            </div>
+          )}
           <Battle myTurn={myTurn} vsBot={vsBot} occ={occ} incoming={incoming} myShots={myShots} onFire={fire} log={log} sunkOpp={sunkOpp} sunkMine={sunkMine} sunkEnemyCells={sunkEnemyCells} sunkMyCells={sunkMyCells} myScore={myScore} oppScore={oppScore} oppLabel={vsBot ? t("common.bot") : t("common.opponent")} myProfile={profile} oppProfile={vsBot ? null : oppProfile} myBubble={myBubble} oppBubble={vsBot ? null : oppBubble} flashEnemy={flashEnemy} flashMine={flashMine} mode={vsBot ? "classic" : mode} inv={inv} powerups={powerups} revealedEnemy={revealedEnemy} aim={aim} onPower={activatePower} myMines={myMines} onPlaceMine={placeMine} turnDeadline={vsBot ? null : turnDeadline} turnDur={turnDur} shake={shake} />
         </div>
       )}
@@ -2462,6 +2661,16 @@ function App() {
             <p>{over.reason === "timeout"
               ? (over.win ? t("over.winTimeout") : t("over.loseTimeout"))
               : (over.win ? t("over.winNormal") : t("over.loseNormal"))}</p>
+            {stake > 0 && !vsBot && over.win && (
+              <div style={{ fontSize: "1.1em", color: "#4caf50", fontWeight: "bold", margin: "8px 0" }}>
+                {t("game.won", { n: Math.floor(stake * 2 * 0.9) })}
+              </div>
+            )}
+            {stake > 0 && !vsBot && !over.win && (
+              <div style={{ fontSize: "1.1em", color: "#ff6b78", fontWeight: "bold", margin: "8px 0" }}>
+                {t("game.lost", { n: stake })}
+              </div>
+            )}
             <button className="btn primary" onClick={rematchAction}>{t("over.rematch")}</button>
           </div>
         </div>
