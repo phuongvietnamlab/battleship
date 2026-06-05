@@ -124,3 +124,26 @@ Plans:
 Plans:
 
 - [x] Plan 01: Link-email backend routes + ProfileView UI
+
+### Phase 12: Merge Quick Play and Wagered Match: unified matchmaking button with conditional wager popup
+
+**Goal:** Remove the separate "Wagered Match" section from the lobby. When the user taps "Quick Play": if they are a guest, join the free queue immediately (0 pts, no popup); if they are logged in, show a popup/bottom-sheet to select the wager amount (0/10/25/50/100), then join the queue with that stake. One button, one flow — simpler lobby UI.
+
+**Requirements**:
+
+- MERGE-01: Remove the entire `wager-strip` section (balance display, chip selector, "Wagered Match" button) from the Lobby component
+- MERGE-02: When a logged-in user taps "Quick Play", show a BottomSheet/popup with stake options (Free / 10 / 25 / 50 / 100 pts) before joining the queue
+- MERGE-03: When a guest taps "Quick Play", skip the popup entirely — join the free queue immediately with stake=0
+- MERGE-04: The stake popup should show the user's current balance and disable options exceeding the balance
+- MERGE-05: Remove the `onWageredMatch` prop and `handleWageredMatch` as a separate handler; unify into a single `handleQuickMatch(stake)` flow
+- MERGE-06: Server-side joinQueue logic remains unchanged — "free" (stake=0) and "wagered" (stake>0) queue types still work the same way
+- MERGE-07: Remove unused i18n keys related to the old separate wagered match button (`queue.wageredMatch`, etc.) or repurpose them
+- MERGE-08: The Quick Play hero button text/style remains the same (yellow CTA, ⚡ icon)
+- MERGE-09: Friends room wager selector in the BottomSheet remains unaffected (separate feature)
+
+**Depends on:** Phase 7 (points economy)
+**Plans:** 1 plan
+
+Plans:
+
+- [x] Plan 01: Unified Quick Play with conditional stake popup

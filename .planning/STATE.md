@@ -107,6 +107,7 @@ Recent decisions affecting current work:
 - Phase 8 added: Auth migration — replace Google/Facebook OAuth with WebAuthn Passkeys (biometric auth); keep email/password as fallback
 - Phase 9 added: Lobby UI redesign — simplify home screen UX, card-based layout, progressive disclosure, mobile-first one-screen lobby
 - Phase 11 added: Linked email for passkey accounts — allow passkey users to link email + set password from profile for cross-device login
+- Phase 12 added: Merge Quick Play and Wagered Match — unified matchmaking button with conditional wager popup for logged-in users, free play for guests
 
 ### Pending Todos
 

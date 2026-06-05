@@ -867,15 +867,16 @@ function BottomSheet({ open, onClose, title, children }) {
 }
 
 // ---------- Lobby ----------
-function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onWageredMatch, onHelp, error, authUser, authError, verifyNotice, clientId, signInDisabled, onSignInDisable, onEmailAuthSuccess, balance }) {
+function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onHelp, error, authUser, authError, verifyNotice, clientId, signInDisabled, onSignInDisable, onEmailAuthSuccess, balance }) {
   const [code, setCode] = useState("");
   const [mode, setMode] = useState("classic");
   const [selectedTier, setSelectedTier] = useState(loadBotTier);
-  const [selectedStake, setSelectedStake] = useState(10);
   const [roomStake, setRoomStake] = useState(0);
   const [botSheetOpen, setBotSheetOpen] = useState(false);
   const [friendSheetOpen, setFriendSheetOpen] = useState(false);
   const [authSheetOpen, setAuthSheetOpen] = useState(false);
+  const [stakeSheetOpen, setStakeSheetOpen] = useState(false);
+  const [sheetStake, setSheetStake] = useState(0);
   const [hasPlatformAuth, setHasPlatformAuth] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(() => {
     try { return !localStorage.getItem("lobby_onboarded"); } catch { return true; }
@@ -911,7 +912,7 @@ function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onWageredMatch, onHelp, 
       {verifyNotice === "error" && <div className="error verify-notice">{t("auth.verifyError")}</div>}
 
       {/* Hero CTA — Quick Play */}
-      <button className={"btn primary hero-cta" + (showOnboarding ? " onboarding-pulse" : "")} onClick={() => { dismissOnboarding(); onQuickMatch(); }}>
+      <button className={"btn primary hero-cta" + (showOnboarding ? " onboarding-pulse" : "")} onClick={() => { dismissOnboarding(); if (authUser) { setStakeSheetOpen(true); } else { onQuickMatch(0); } }}>
         <span className="hero-icon">⚡</span>
         <span className="hero-text">
           <strong>{t("lobby.quickPlay")}</strong>
@@ -943,21 +944,6 @@ function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onWageredMatch, onHelp, 
           {t("mode.advance")}
         </button>
       </div>
-
-      {/* Wager section — only for logged-in users */}
-      {authUser && balance !== null && (
-        <div className="wager-strip">
-          <span className="wager-balance">💰 {balance}</span>
-          <div className="wager-chips">
-            {[10, 25, 50, 100].map((s) => (
-              <button key={s} className={"chip" + (selectedStake === s ? " active" : "")} onClick={() => setSelectedStake(s)} disabled={balance < s}>{s}</button>
-            ))}
-          </div>
-          <button className="btn steel compact" onClick={() => { dismissOnboarding(); onWageredMatch(selectedStake); }} disabled={balance < selectedStake}>
-            {t("queue.wageredMatch")}
-          </button>
-        </div>
-      )}
 
       {/* Footer utilities */}
       <div className="lobby-footer">
@@ -1013,6 +999,21 @@ function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onWageredMatch, onHelp, 
           <PasskeyButton clientId={clientId} onAuthSuccess={(u) => { onEmailAuthSuccess(u); setAuthSheetOpen(false); }} />
         )}
         <EmailAuthForm onAuthSuccess={(u) => { onEmailAuthSuccess(u); setAuthSheetOpen(false); }} clientId={clientId} />
+      </BottomSheet>
+
+      {/* Bottom Sheet: Stake selection (for logged-in Quick Play) */}
+      <BottomSheet open={stakeSheetOpen} onClose={() => setStakeSheetOpen(false)} title={t("queue.stakeSelect")}>
+        <div style={{ textAlign: "center", marginBottom: 10, fontSize: "1.1em" }}>💰 {balance ?? 0}</div>
+        <div className="wager-chips" style={{ justifyContent: "center", marginBottom: 14 }}>
+          {[0, 10, 25, 50, 100].map((s) => (
+            <button key={s} className={"chip" + (sheetStake === s ? " active" : "")} onClick={() => setSheetStake(s)} disabled={s > 0 && (balance == null || balance < s)}>
+              {s === 0 ? t("queue.stake0") : s}
+            </button>
+          ))}
+        </div>
+        <button className="btn primary" onClick={() => { onQuickMatch(sheetStake); setStakeSheetOpen(false); }} disabled={sheetStake > 0 && (balance == null || balance < sheetStake)}>
+          {t("queue.quickMatch")}
+        </button>
       </BottomSheet>
     </div>
   );
@@ -2401,34 +2402,34 @@ function App() {
       if (!res.reclaimed) { setOppPresent(true); setScreen("placement"); }
     });
   }
-  function handleQuickMatch() {
+  function handleQuickMatch(stake = 0) {
     setError(null);
-    socket.emit("joinQueue", { type: "free", clientId, profile }, (res) => {
-      if (res && res.ok) {
-        setQueueType("free");
-        setQueueSince(Date.now());
-        setElapsedSec(0);
-        setQueueStake(0);
-        setScreen("queue");
-      } else {
-        setError(errText(res));
-      }
-    });
-  }
-  function handleWageredMatch(wagerStake) {
-    setError(null);
-    socket.emit("joinQueue", { type: "wagered", stake: wagerStake, clientId, profile }, (res) => {
-      if (res && res.ok) {
-        setQueueType("wagered");
-        setQueueSince(Date.now());
-        setElapsedSec(0);
-        setQueueStake(wagerStake);
-        setStake(wagerStake);
-        setScreen("queue");
-      } else {
-        setError(t("err." + (res && res.code)) || errText(res));
-      }
-    });
+    if (stake > 0) {
+      socket.emit("joinQueue", { type: "wagered", stake, clientId, profile }, (res) => {
+        if (res && res.ok) {
+          setQueueType("wagered");
+          setQueueSince(Date.now());
+          setElapsedSec(0);
+          setQueueStake(stake);
+          setStake(stake);
+          setScreen("queue");
+        } else {
+          setError(t("err." + (res && res.code)) || errText(res));
+        }
+      });
+    } else {
+      socket.emit("joinQueue", { type: "free", clientId, profile }, (res) => {
+        if (res && res.ok) {
+          setQueueType("free");
+          setQueueSince(Date.now());
+          setElapsedSec(0);
+          setQueueStake(0);
+          setScreen("queue");
+        } else {
+          setError(errText(res));
+        }
+      });
+    }
   }
   function handleLeaveQueue() {
     socket.emit("leaveQueue", {}, () => {});
@@ -2896,7 +2897,7 @@ function App() {
 
       {notice && <div className="notice-toast">{notice}</div>}
 
-      {screen === "lobby" && <Lobby onCreate={createRoom} onJoin={joinRoom} onBot={handleBot} onQuickMatch={handleQuickMatch} onWageredMatch={handleWageredMatch} onHelp={() => setHelpOpen(true)} error={error} authUser={authUser} authError={authError} verifyNotice={verifyNotice} clientId={clientId} signInDisabled={signInDisabled} onSignInDisable={() => setSignInDisabled(true)} onEmailAuthSuccess={setAuthUser} balance={balance} />}
+      {screen === "lobby" && <Lobby onCreate={createRoom} onJoin={joinRoom} onBot={handleBot} onQuickMatch={handleQuickMatch} onHelp={() => setHelpOpen(true)} error={error} authUser={authUser} authError={authError} verifyNotice={verifyNotice} clientId={clientId} signInDisabled={signInDisabled} onSignInDisable={() => setSignInDisabled(true)} onEmailAuthSuccess={setAuthUser} balance={balance} />}
 
       {screen === "queue" && (
         <div className="lobby">
