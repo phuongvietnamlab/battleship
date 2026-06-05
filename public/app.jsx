@@ -1492,7 +1492,7 @@ function PasskeyButton({ clientId, onAuthSuccess }) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "same-origin",
-      body: JSON.stringify({ credential: assertion }),
+      body: JSON.stringify({ credential: assertion, challengeToken: optData.challengeToken }),
     });
     const verData = await verRes.json();
     if (!verData.ok) throw new Error(verData.code || "WEBAUTHN_FAILED");
@@ -1524,7 +1524,12 @@ function PasskeyButton({ clientId, onAuthSuccess }) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "same-origin",
-      body: JSON.stringify({ credential: attestation }),
+      body: JSON.stringify({
+        credential: attestation,
+        challengeToken: optData.challengeToken,
+        _pendingClientId: optData._pendingClientId,
+        _existingUserId: optData._existingUserId,
+      }),
     });
     const verData = await verRes.json();
     if (!verData.ok) throw new Error(verData.code || "WEBAUTHN_FAILED");

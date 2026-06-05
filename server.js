@@ -177,7 +177,7 @@ app.use("/auth", express.json());
 app.post("/auth/signout", (req, res) => {
   req.session.destroy((err) => {
     if (err) return res.status(500).json({ ok: false, code: "AUTH_FAILED" });
-    res.clearCookie("connect.sid", { path: "/" });
+    res.clearCookie("connect.sid", { path: "/", httpOnly: true, secure: req.secure, sameSite: "lax" });
     res.json({ ok: true });
   });
 });
@@ -193,7 +193,7 @@ app.post("/auth/signout-all", async (req, res) => {
   try {
     await pool.query("DELETE FROM session WHERE user_id = $1", [userId]);
     req.session.destroy(() => {
-      res.clearCookie("connect.sid", { path: "/" });
+      res.clearCookie("connect.sid", { path: "/", httpOnly: true, secure: req.secure, sameSite: "lax" });
       res.json({ ok: true });
     });
   } catch (e) {
@@ -384,8 +384,15 @@ app.post("/auth/webauthn/register-options", authRateLimit, async (req, res) => {
     req.session.webauthnChallenge = options.challenge;
     req.session.webauthnPendingClientId = pendingClientId;
     req.session.webauthnExistingUserId = existingUserId;
-    req.session.save(() => {
-      res.json({ ok: true, options });
+
+    // HMAC-signed challenge token as fallback (same pattern as login-options)
+    const hmac = crypto.createHmac("sha256", process.env.SESSION_SECRET || "test-placeholder-not-used-in-production");
+    hmac.update(options.challenge);
+    const challengeToken = options.challenge + "." + hmac.digest("base64url");
+
+    req.session.save((saveErr) => {
+      if (saveErr) console.error("[webauthn] register-options session save failed:", saveErr.message);
+      res.json({ ok: true, options, challengeToken, _pendingClientId: pendingClientId, _existingUserId: existingUserId });
     });
   } catch (e) {
     console.error("[webauthn] register-options failed:", e.message);
@@ -397,12 +404,29 @@ app.post("/auth/webauthn/register-options", authRateLimit, async (req, res) => {
 // This is called AFTER the user confirmed via Face ID / Touch ID / Windows Hello.
 app.post("/auth/webauthn/register-verify", authRateLimit, async (req, res) => {
   try {
-    const expectedChallenge = req.session?.webauthnChallenge;
+    let expectedChallenge = req.session?.webauthnChallenge;
+
+    const { credential, deviceName, challengeToken, _pendingClientId, _existingUserId } = req.body || {};
+
+    // Fallback: verify HMAC-signed challengeToken if session lost
+    if (!expectedChallenge && challengeToken && typeof challengeToken === "string") {
+      const dotIdx = challengeToken.lastIndexOf(".");
+      if (dotIdx > 0) {
+        const challenge = challengeToken.slice(0, dotIdx);
+        const sig = challengeToken.slice(dotIdx + 1);
+        const hmac = crypto.createHmac("sha256", process.env.SESSION_SECRET || "test-placeholder-not-used-in-production");
+        hmac.update(challenge);
+        const expectedSig = hmac.digest("base64url");
+        if (sig === expectedSig) {
+          expectedChallenge = challenge;
+        }
+      }
+    }
+
     if (!expectedChallenge) {
       return res.status(400).json({ ok: false, code: "WEBAUTHN_FAILED" });
     }
 
-    const { credential, deviceName } = req.body || {};
     if (!credential) {
       return res.status(400).json({ ok: false, code: "WEBAUTHN_FAILED" });
     }
@@ -421,11 +445,11 @@ app.post("/auth/webauthn/register-verify", authRateLimit, async (req, res) => {
     const { credential: regCredential } = verification.registrationInfo;
 
     // Determine user ID: existing user adding passkey, or create new user
-    let userId = req.session.webauthnExistingUserId;
+    let userId = req.session.webauthnExistingUserId || _existingUserId || null;
 
     if (!userId) {
       // Create new user NOW (after biometric confirmed — never before)
-      const pendingClientId = req.session.webauthnPendingClientId || null;
+      const pendingClientId = req.session.webauthnPendingClientId || _pendingClientId || null;
       const randomName = "Player-" + Math.random().toString(36).slice(2, 6).toUpperCase();
       const newUser = await linkOrPromoteAccount("passkey", regCredential.id, randomName, null, pendingClientId);
       userId = newUser.id;
@@ -474,9 +498,21 @@ app.post("/auth/webauthn/login-options", authRateLimit, async (req, res) => {
       // Empty allowCredentials = discoverable credential (resident key) mode
     });
 
+    // Store challenge in session (primary path)
     req.session.webauthnChallenge = options.challenge;
-    req.session.save(() => {
-      res.json({ ok: true, options });
+
+    // Also create an HMAC-signed challenge token as fallback for when session
+    // is lost between requests (mobile Safari after signout — AUTHM-BUG-01).
+    const hmac = crypto.createHmac("sha256", process.env.SESSION_SECRET || "test-placeholder-not-used-in-production");
+    hmac.update(options.challenge);
+    const challengeToken = options.challenge + "." + hmac.digest("base64url");
+
+    req.session.save((saveErr) => {
+      if (saveErr) {
+        console.error("[webauthn] login-options session save failed:", saveErr.message);
+        // Still send response — client can use challengeToken fallback
+      }
+      res.json({ ok: true, options, challengeToken });
     });
   } catch (e) {
     console.error("[webauthn] login-options failed:", e.message);
@@ -487,8 +523,29 @@ app.post("/auth/webauthn/login-options", authRateLimit, async (req, res) => {
 // POST /auth/webauthn/login-verify — verify authentication assertion and establish session.
 app.post("/auth/webauthn/login-verify", authRateLimit, async (req, res) => {
   try {
-    const expectedChallenge = req.session?.webauthnChallenge;
+    // Primary: challenge from session. Fallback: HMAC-signed challengeToken from body.
+    let expectedChallenge = req.session?.webauthnChallenge;
+
     if (!expectedChallenge) {
+      // Fallback: verify HMAC-signed challengeToken sent by client
+      const { challengeToken } = req.body || {};
+      if (challengeToken && typeof challengeToken === "string") {
+        const dotIdx = challengeToken.lastIndexOf(".");
+        if (dotIdx > 0) {
+          const challenge = challengeToken.slice(0, dotIdx);
+          const sig = challengeToken.slice(dotIdx + 1);
+          const hmac = crypto.createHmac("sha256", process.env.SESSION_SECRET || "test-placeholder-not-used-in-production");
+          hmac.update(challenge);
+          const expectedSig = hmac.digest("base64url");
+          if (sig === expectedSig) {
+            expectedChallenge = challenge;
+          }
+        }
+      }
+    }
+
+    if (!expectedChallenge) {
+      console.error("[webauthn] login-verify: no challenge in session or body. sessionID:", req.sessionID);
       return res.status(400).json({ ok: false, code: "WEBAUTHN_FAILED" });
     }
 
@@ -500,6 +557,7 @@ app.post("/auth/webauthn/login-verify", authRateLimit, async (req, res) => {
     // Look up stored credential
     const storedCred = await getWebAuthnCredentialById(credential.id);
     if (!storedCred) {
+      console.error("[webauthn] login-verify: credential not found in DB, id:", credential.id);
       return res.status(401).json({ ok: false, code: "CREDENTIAL_NOT_FOUND" });
     }
 
