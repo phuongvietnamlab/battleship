@@ -147,3 +147,27 @@ Plans:
 Plans:
 
 - [x] Plan 01: Unified Quick Play with conditional stake popup
+
+### Phase 13: Match history: view past battles with results, points, and win/loss status
+
+**Goal:** Allow authenticated users to view their past matches — opponent, result (win/loss), points wagered/earned, mode, time, and reason for match ending. Accessible from lobby via a "Lịch sử" button. Also show opponent win-rate popup when tapping their avatar in battle.
+
+**Requirements**:
+
+- HIST-01: GET /api/matches — paginated match history endpoint with offset pagination (page + limit, max 50)
+- HIST-02: Dynamic filters — result (all/win/loss), mode (all/classic/advance), wager (all/has/none) via query params
+- HIST-03: GET /api/profile/:userId returns real win/loss/winRate stats from matches table (replaces hardcoded zeros)
+- HIST-04: MatchHistory screen — scrollable card list with opponent name, result badge, points +/-, mode chip, relative time
+- HIST-05: IntersectionObserver infinite scroll — load more when sentinel visible (page size 20)
+- HIST-06: Filter pills (sticky bar) — result/mode/wager filter groups with active state
+- HIST-07: Opponent mini-profile popup in battle — click avatar shows win rate + total games
+- HIST-08: Auth guard — 401 for unauthenticated API calls; lobby button hidden for guests
+- HIST-09: i18n — full Vietnamese + English support for all history UI strings
+
+**Depends on:** Phase 3 (match recording data)
+**Plans:** 2 plans
+
+Plans:
+
+- [ ] Plan 01: Backend API — getMatchHistory, getUserStats, GET /api/matches, upgrade /api/profile stats
+- [ ] Plan 02: Frontend — MatchHistory component, lobby button, filters, infinite scroll, opponent stats popup
