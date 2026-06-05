@@ -89,7 +89,7 @@ const I18N = {
     "err.BAD_PLACEMENT": "Invalid ship placement", "err.NOT_YOUR_TURN": "Not your turn yet", "err.BAD_CELL": "Invalid cell", "err.NO_POWERUP": "No power-up",
     "err.NO_REVEAL": "No cells left to reveal", "err.MINE_ON_SHIP": "Can't place a mine on a ship", "err.CELL_SHOT": "This cell was already shot",
     "err.MINE_EXISTS": "There's already a mine here", "err.NO_CELLS": "No cells left to shoot",
-    "auth.signInPasskey": "🔐 Sign in with Passkey",
+    "auth.signInPasskey": "🔐 Create Passkey",
     "auth.createPasskey": "Create account with Passkey",
     "auth.addPasskey": "Add Passkey",
     "auth.passkeyRegistered": "Passkey registered!",
@@ -248,7 +248,7 @@ const I18N = {
     "err.BAD_PLACEMENT": "Sắp xếp thuyền không hợp lệ", "err.NOT_YOUR_TURN": "Chưa tới lượt bạn", "err.BAD_CELL": "Ô không hợp lệ", "err.NO_POWERUP": "Không có power-up",
     "err.NO_REVEAL": "Không còn ô để lộ", "err.MINE_ON_SHIP": "Không đặt mìn lên thuyền", "err.CELL_SHOT": "Ô này đã bị bắn",
     "err.MINE_EXISTS": "Đã có mìn ở đây", "err.NO_CELLS": "Hết ô để bắn",
-    "auth.signInPasskey": "🔐 Đăng nhập bằng Passkey",
+    "auth.signInPasskey": "🔐 Tạo Passkey",
     "auth.createPasskey": "Tạo tài khoản bằng Passkey",
     "auth.addPasskey": "Thêm Passkey",
     "auth.passkeyRegistered": "Đã đăng ký Passkey!",
@@ -1349,8 +1349,10 @@ function ChatComposer({ open, onSend, onToggle }) {
 // ---------- PasskeyButton ----------
 // Renders the "Sign in with Passkey" button for guests.
 // Uses WebAuthn/FIDO2 to authenticate via biometrics (Face ID, Touch ID, Windows Hello).
-// Smart flow: tries login first, if no credential exists → falls back to register (create account).
-function PasskeyButton({ clientId, onAuthSuccess, mode }) {
+// Flow: always register a new passkey (creates account + saves to iCloud/device).
+// For returning users who already have a passkey, the browser's native passkey
+// autofill handles login automatically (no button needed).
+function PasskeyButton({ clientId, onAuthSuccess }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -1359,15 +1361,37 @@ function PasskeyButton({ clientId, onAuthSuccess, mode }) {
     setLoading(true);
     setError("");
     try {
-      // Try login first (user may already have a passkey)
-      const loginSuccess = await tryPasskeyLogin();
-      if (loginSuccess) return; // done
+      // 1. Get registration options (creates a new account linked to guest)
+      const optRes = await fetch("/auth/webauthn/register-options", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId }),
+      });
+      const optData = await optRes.json();
+      if (!optData.ok) throw new Error("Failed to get options");
 
-      // Login failed (no credential) → register a new passkey (create account + Face ID)
-      await doPasskeyRegister();
+      // 2. Trigger Face ID / Touch ID / Windows Hello to CREATE a passkey
+      const attestation = await startRegistration({ optionsJSON: optData.options });
+
+      // 3. Verify registration with server
+      const verRes = await fetch("/auth/webauthn/register-verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ credential: attestation }),
+      });
+      const verData = await verRes.json();
+      if (!verData.ok) throw new Error(verData.code || "WEBAUTHN_FAILED");
+
+      // 4. Success — fetch user info and log in
+      const meRes = await fetch("/api/me");
+      const meData = await meRes.json();
+      if (meData.user && onAuthSuccess) onAuthSuccess(meData.user);
     } catch (e) {
       if (e.name === "NotAllowedError" || e.name === "AbortError") {
         // User cancelled biometric prompt — do nothing
+      } else if (e.name === "InvalidStateError") {
+        // Credential already exists for this user — try login instead
+        await tryLogin();
       } else {
         console.error("[passkey]", e.message || e);
         setError(t("auth.errPasskeyFailed"));
@@ -1377,16 +1401,15 @@ function PasskeyButton({ clientId, onAuthSuccess, mode }) {
     }
   }
 
-  async function tryPasskeyLogin() {
+  async function tryLogin() {
     try {
       const optRes = await fetch("/auth/webauthn/login-options", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
       });
       const optData = await optRes.json();
-      if (!optData.ok) return false;
+      if (!optData.ok) return;
 
-      // This triggers Face ID / Touch ID / Windows Hello
       const assertion = await startAuthentication({ optionsJSON: optData.options });
 
       const verRes = await fetch("/auth/webauthn/login-verify", {
@@ -1395,46 +1418,12 @@ function PasskeyButton({ clientId, onAuthSuccess, mode }) {
         body: JSON.stringify({ credential: assertion }),
       });
       const verData = await verRes.json();
-      if (!verData.ok) return false;
-
-      if (onAuthSuccess) onAuthSuccess(verData.user);
-      return true;
+      if (verData.ok && onAuthSuccess) onAuthSuccess(verData.user);
     } catch (e) {
-      // NotAllowedError during login = no credential found or user cancelled
-      // In either case, fall through to register
-      if (e.name === "NotAllowedError" || e.message?.includes("No credentials")) {
-        return false;
+      if (e.name !== "NotAllowedError") {
+        console.error("[passkey] login fallback failed:", e.message || e);
       }
-      throw e; // re-throw other errors
     }
-  }
-
-  async function doPasskeyRegister() {
-    // 1. Get registration options (creates a new account linked to guest)
-    const optRes = await fetch("/auth/webauthn/register-options", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ clientId }),
-    });
-    const optData = await optRes.json();
-    if (!optData.ok) throw new Error("Failed to get register options");
-
-    // 2. This triggers Face ID / Touch ID / Windows Hello to CREATE a passkey
-    const attestation = await startRegistration({ optionsJSON: optData.options });
-
-    // 3. Verify with server
-    const verRes = await fetch("/auth/webauthn/register-verify", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ credential: attestation }),
-    });
-    const verData = await verRes.json();
-    if (!verData.ok) throw new Error(verData.code || "WEBAUTHN_FAILED");
-
-    // 4. Success — fetch user info
-    const meRes = await fetch("/api/me");
-    const meData = await meRes.json();
-    if (meData.user && onAuthSuccess) onAuthSuccess(meData.user);
   }
 
   return (
