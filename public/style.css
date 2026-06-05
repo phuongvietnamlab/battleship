@@ -84,8 +84,8 @@ h1, h2, h3, .title, .ttl { font-family: "Oswald", sans-serif; letter-spacing: 1p
   outline-offset: 2px;
 }
 
-.topbar { display: flex; align-items: center; justify-content: space-between; padding: 6px 4px 18px; gap:8px; overflow:hidden; }
-.logo { display: flex; align-items: center; gap: 12px; min-width:0; flex-shrink:1; }
+.topbar { display: flex; align-items: center; justify-content: space-between; padding: 6px 4px 18px; gap:8px; }
+.logo { display: flex; align-items: center; gap: 12px; min-width:0; flex-shrink:1; overflow:hidden; }
 .logo .badge {
   width: 50px; height: 50px; border-radius: 12px;
   background: linear-gradient(160deg, var(--gold), #c8961f);
