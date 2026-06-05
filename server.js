@@ -1446,21 +1446,32 @@ function removeFromQueues(queueKey) {
 
 // Return a valid pair from entries in the given queue type.
 // For free, any two entries pair (FIFO).
-// For wagered: pair only entries with the same stake level.
+// For wagered: pair only entries with the same stake level AND same mode.
+// For free: pair only entries with the same mode (Phase 12).
 function findPair(type, entries) {
   if (entries.length < 2) return null;
   if (type === "wagered") {
-    // Match only entries with the same stake level
-    const byStake = {};
+    // Match only entries with the same stake level AND same mode
+    const byKey = {};
     for (const e of entries) {
-      (byStake[e.stake] = byStake[e.stake] || []).push(e);
+      const k = e.stake + "_" + (e.mode || "classic");
+      (byKey[k] = byKey[k] || []).push(e);
     }
-    for (const group of Object.values(byStake)) {
+    for (const group of Object.values(byKey)) {
       if (group.length >= 2) return [group[0], group[1]];
     }
     return null;
   }
-  return [entries[0], entries[1]];
+  // Free queue: group by mode, pair within same mode
+  const byMode = {};
+  for (const e of entries) {
+    const m = e.mode || "classic";
+    (byMode[m] = byMode[m] || []).push(e);
+  }
+  for (const group of Object.values(byMode)) {
+    if (group.length >= 2) return [group[0], group[1]];
+  }
+  return null;
 }
 
 // Attempt to pair the two oldest non-pairing entries in the given queue.
@@ -1526,9 +1537,11 @@ async function createMatchedRoom(entryA, entryB, type) {
     return;
   }
   const code = newCode();
+  // Phase 12: use mode from first entry (both players matched from same queue type)
+  const matchMode = entryA.mode || "classic";
   rooms[code] = {
     code, players: {}, order: [], started: false, turn: null, scores: {},
-    lastStarter: null, mode: "classic",
+    lastStarter: null, mode: matchMode,
     powerups: {}, turnTimer: null, turnDeadline: null,
     resolving: false, lastActivityAt: Date.now(),
     matchQueueType: type, // D-11: preserved for partner re-queue on pre-start disconnect
@@ -1680,6 +1693,7 @@ io.on("connection", (socket) => {
       pairing: false,
       profile: sanitizeProfile(arg && arg.profile), // T-5-01
       queueType: type,
+      mode: (arg && arg.mode === "advance") ? "advance" : "classic", // Phase 12: carry mode preference
     };
     socket.data.queueType = type;
     socket.data.queueKey = queueKey;

@@ -911,8 +911,18 @@ function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onHelp, error, authUser,
       {verifyNotice === "success" && <div className="notice verify-notice">{t("auth.verifySuccess")}</div>}
       {verifyNotice === "error" && <div className="error verify-notice">{t("auth.verifyError")}</div>}
 
+      {/* Mode toggle — compact segmented control (applies to Quick Play + Friends) */}
+      <div className="mode-toggle-compact" role="radiogroup" aria-label="Game mode">
+        <button className={mode === "classic" ? "active" : ""} role="radio" aria-checked={mode === "classic"} onClick={() => setMode("classic")}>
+          {t("mode.classic")}
+        </button>
+        <button className={mode === "advance" ? "active" : ""} role="radio" aria-checked={mode === "advance"} onClick={() => setMode("advance")}>
+          {t("mode.advance")}
+        </button>
+      </div>
+
       {/* Hero CTA — Quick Play */}
-      <button className={"btn primary hero-cta" + (showOnboarding ? " onboarding-pulse" : "")} onClick={() => { dismissOnboarding(); if (authUser) { setStakeSheetOpen(true); } else { onQuickMatch(0); } }}>
+      <button className={"btn primary hero-cta" + (showOnboarding ? " onboarding-pulse" : "")} onClick={() => { dismissOnboarding(); if (authUser) { setStakeSheetOpen(true); } else { onQuickMatch(0, mode); } }}>
         <span className="hero-icon">⚡</span>
         <span className="hero-text">
           <strong>{t("lobby.quickPlay")}</strong>
@@ -932,16 +942,6 @@ function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onHelp, error, authUser,
           <span className="card-icon">👥</span>
           <strong>{t("lobby.friendCard")}</strong>
           <small>{t("lobby.friendCardSub")}</small>
-        </button>
-      </div>
-
-      {/* Mode toggle — compact segmented control */}
-      <div className="mode-toggle-compact" role="radiogroup" aria-label="Game mode">
-        <button className={mode === "classic" ? "active" : ""} role="radio" aria-checked={mode === "classic"} onClick={() => setMode("classic")}>
-          {t("mode.classic")}
-        </button>
-        <button className={mode === "advance" ? "active" : ""} role="radio" aria-checked={mode === "advance"} onClick={() => setMode("advance")}>
-          {t("mode.advance")}
         </button>
       </div>
 
@@ -1010,7 +1010,7 @@ function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onHelp, error, authUser,
             </button>
           ))}
         </div>
-        <button className="btn primary" onClick={() => { onQuickMatch(sheetStake); setStakeSheetOpen(false); }} disabled={sheetStake > 0 && (balance == null || balance < sheetStake)}>
+        <button className="btn primary" onClick={() => { onQuickMatch(sheetStake, mode); setStakeSheetOpen(false); }} disabled={sheetStake > 0 && (balance == null || balance < sheetStake)}>
           {t("queue.quickMatch")}
         </button>
       </BottomSheet>
@@ -2401,10 +2401,10 @@ function App() {
       if (!res.reclaimed) { setOppPresent(true); setScreen("placement"); }
     });
   }
-  function handleQuickMatch(stake = 0) {
+  function handleQuickMatch(stake = 0, queueMode = "classic") {
     setError(null);
     if (stake > 0) {
-      socket.emit("joinQueue", { type: "wagered", stake, clientId, profile }, (res) => {
+      socket.emit("joinQueue", { type: "wagered", stake, mode: queueMode, clientId, profile }, (res) => {
         if (res && res.ok) {
           setQueueType("wagered");
           setQueueSince(Date.now());
@@ -2417,7 +2417,7 @@ function App() {
         }
       });
     } else {
-      socket.emit("joinQueue", { type: "free", clientId, profile }, (res) => {
+      socket.emit("joinQueue", { type: "free", mode: queueMode, clientId, profile }, (res) => {
         if (res && res.ok) {
           setQueueType("free");
           setQueueSince(Date.now());
