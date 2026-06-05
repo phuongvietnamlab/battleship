@@ -969,13 +969,12 @@ function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onHelp, error, authUser,
       <BottomSheet open={friendSheetOpen} onClose={() => setFriendSheetOpen(false)} title={t("lobby.friendTitle")}>
         <button className="btn steel" onClick={() => { onCreate(mode, roomStake); setFriendSheetOpen(false); }}>{t("lobby.createRoom")}</button>
         {authUser && (
-          <div style={{ margin: "8px 0", textAlign: "center" }}>
-            <select value={roomStake} onChange={(e) => setRoomStake(Number(e.target.value))} style={{ padding: "4px 8px", fontSize: "0.9em", background: "rgba(255,255,255,.08)", color: "#cfe8ff", border: "1px solid rgba(150,200,255,.2)", borderRadius: "6px" }}>
-              <option value={0}>{t("queue.stake0")}</option>
-              {[10, 25, 50, 100].map((s) => (
-                <option key={s} value={s} disabled={balance < s}>{s} pts</option>
-              ))}
-            </select>
+          <div className="wager-chips" style={{ justifyContent: "center", margin: "10px 0" }}>
+            {[0, 10, 25, 50, 100].map((s) => (
+              <button key={s} className={"chip" + (roomStake === s ? " active" : "")} onClick={() => setRoomStake(s)} disabled={s > 0 && (balance == null || balance < s)}>
+                {s === 0 ? t("queue.stake0") : s}
+              </button>
+            ))}
           </div>
         )}
         <div className="divider">{t("common.or")}</div>
