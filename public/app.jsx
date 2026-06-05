@@ -1470,7 +1470,7 @@ function PasskeyButton({ clientId, onAuthSuccess }) {
         try { await doLogin(); } catch (_) {}
       } else {
         console.error("[passkey]", e.message || e);
-        setError(t("auth.errPasskeyFailed"));
+        setError(e.message || t("auth.errPasskeyFailed"));
       }
     } finally {
       setLoading(false);
@@ -1495,7 +1495,7 @@ function PasskeyButton({ clientId, onAuthSuccess }) {
       body: JSON.stringify({ credential: assertion, challengeToken: optData.challengeToken }),
     });
     const verData = await verRes.json();
-    if (!verData.ok) throw new Error(verData.code || "WEBAUTHN_FAILED");
+    if (!verData.ok) throw new Error(verData.debug || verData.code || "WEBAUTHN_FAILED");
 
     if (onAuthSuccess) onAuthSuccess(verData.user);
   }

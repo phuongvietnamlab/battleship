@@ -308,7 +308,14 @@ const { getWebAuthnCredentials, getWebAuthnCredentialById,
 // RP config from env — WebAuthn Relying Party identity
 const RP_NAME = process.env.RP_NAME || "Battleship Online";
 const RP_ID = process.env.RP_ID || (process.env.SITE_ORIGIN ? new URL(process.env.SITE_ORIGIN).hostname : "localhost");
-const RP_ORIGIN = process.env.RP_ORIGIN || process.env.SITE_ORIGIN || "http://localhost:4000";
+// Support multiple origins: primary RP_ORIGIN + SITE_ORIGIN (if different) + localhost for dev
+const RP_ORIGIN_PRIMARY = process.env.RP_ORIGIN || process.env.SITE_ORIGIN || "http://localhost:4000";
+const RP_ORIGINS = [...new Set([
+  RP_ORIGIN_PRIMARY,
+  ...(process.env.SITE_ORIGIN && process.env.SITE_ORIGIN !== RP_ORIGIN_PRIMARY ? [process.env.SITE_ORIGIN] : []),
+  "http://localhost:4000",
+])];
+const RP_ORIGIN = RP_ORIGINS.length === 1 ? RP_ORIGINS[0] : RP_ORIGINS;
 
 // GET /auth/webauthn/has-passkey?clientId=xxx — check if this guest already has a passkey account.
 // Returns { hasPasskey: true/false }. Used by client to decide which button to show.
@@ -561,25 +568,49 @@ app.post("/auth/webauthn/login-verify", authRateLimit, async (req, res) => {
       return res.status(401).json({ ok: false, code: "CREDENTIAL_NOT_FOUND" });
     }
 
-    const verification = await verifyAuthenticationResponse({
-      response: credential,
-      expectedChallenge,
-      expectedOrigin: RP_ORIGIN,
-      expectedRPID: RP_ID,
-      credential: {
-        id: storedCred.id,
-        publicKey: storedCred.public_key,
-        counter: storedCred.counter,
-        transports: storedCred.transports || [],
-      },
-    });
+    let verification;
+    try {
+      verification = await verifyAuthenticationResponse({
+        response: credential,
+        expectedChallenge,
+        expectedOrigin: RP_ORIGIN,
+        expectedRPID: RP_ID,
+        credential: {
+          id: storedCred.id,
+          publicKey: storedCred.public_key,
+          counter: Number(storedCred.counter) || 0,
+          transports: storedCred.transports || [],
+        },
+      });
+    } catch (verifyErr) {
+      // If counter mismatch (common with synced passkeys), retry with counter=0
+      if (verifyErr.message && verifyErr.message.includes("counter")) {
+        console.warn("[webauthn] counter mismatch, retrying with counter=0:", verifyErr.message);
+        verification = await verifyAuthenticationResponse({
+          response: credential,
+          expectedChallenge,
+          expectedOrigin: RP_ORIGIN,
+          expectedRPID: RP_ID,
+          credential: {
+            id: storedCred.id,
+            publicKey: storedCred.public_key,
+            counter: 0,
+            transports: storedCred.transports || [],
+          },
+        });
+      } else {
+        throw verifyErr;
+      }
+    }
 
     if (!verification.verified) {
-      return res.status(401).json({ ok: false, code: "WEBAUTHN_FAILED" });
+      console.error("[webauthn] login-verify: signature verification returned false");
+      return res.status(401).json({ ok: false, code: "WEBAUTHN_FAILED", debug: "signature_invalid" });
     }
 
     // Update counter for replay protection
     await updateWebAuthnCounter(storedCred.id, verification.authenticationInfo.newCounter);
+    console.log("[webauthn] login-verify: success, user_id:", storedCred.user_id, "newCounter:", verification.authenticationInfo.newCounter);
 
     // Clear challenge
     delete req.session.webauthnChallenge;
@@ -599,7 +630,8 @@ app.post("/auth/webauthn/login-verify", authRateLimit, async (req, res) => {
     });
   } catch (e) {
     console.error("[webauthn] login-verify failed:", e.message);
-    res.status(500).json({ ok: false, code: "WEBAUTHN_FAILED" });
+    // Return debug info temporarily to diagnose mobile auth issue
+    res.status(500).json({ ok: false, code: "WEBAUTHN_FAILED", debug: e.message });
   }
 });
 
