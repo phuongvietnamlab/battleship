@@ -1484,7 +1484,18 @@ io.on("connection", (socket) => {
     if (clientId) {
       for (const code in rooms) {
         if (rooms[code].players && rooms[code].players[clientId]) {
-          touchRoom(rooms[code]); // SEC-03: stamp activity on resume so sweep doesn't evict
+          const room = rooms[code];
+          // BUG-FIX: if the room has only this player left (opponent already left)
+          // and the game is not active, don't resume into a dead room. Clean it up
+          // so the player lands on the lobby instead of a stale empty room.
+          if (room.order.length <= 1 && !room.started) {
+            const p = room.players[clientId];
+            if (p && p.timer) { clearTimeout(p.timer); p.timer = null; }
+            clearTurnTimer(room);
+            delete rooms[code];
+            break; // fall through to cb({ ok: false })
+          }
+          touchRoom(room); // SEC-03: stamp activity on resume so sweep doesn't evict
           // WR-03: a player back in a room must not leave a phantom queue entry
           // behind. Clear any lingering entry under this socket's queue key and
           // reset per-socket queue state.
@@ -1492,11 +1503,11 @@ io.on("connection", (socket) => {
           socket.data.queueType = null;
           socket.data.queueKey = null;
           socket.data.queueClientId = null;
-          reclaimSeat(rooms[code], code, clientId, clientId, socket);
+          reclaimSeat(room, code, clientId, clientId, socket);
           upsertGuestCredential(clientId); // fire-and-forget: ensure durable credential on resume (DATA-01)
           // Stamp userId onto seat if the player signed in between sessions; never overwrite existing id with null
-          if (socket.data.userId && rooms[code] && rooms[code].players[clientId]) {
-            rooms[code].players[clientId].userId = socket.data.userId;
+          if (socket.data.userId && room && room.players[clientId]) {
+            room.players[clientId].userId = socket.data.userId;
           }
           return cb && cb({ ok: true, code });
         }
@@ -1511,6 +1522,14 @@ io.on("connection", (socket) => {
     const clientId = arg && arg.clientId;
     const room = rooms[code];
     if (!room || !clientId || !room.players[clientId]) {
+      return cb && cb({ ok: false });
+    }
+    // BUG-FIX: if room is dead (only me left, game not active), clean up and reject.
+    if (room.order.length <= 1 && !room.started) {
+      const p = room.players[clientId];
+      if (p && p.timer) { clearTimeout(p.timer); p.timer = null; }
+      clearTurnTimer(room);
+      delete rooms[code];
       return cb && cb({ ok: false });
     }
     touchRoom(room); // SEC-03: stamp activity on rejoin so sweep doesn't evict live room

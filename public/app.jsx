@@ -1913,6 +1913,9 @@ function App() {
       addLog(t("log.oppLeft")); setOppLeft(true);
       setOppOffline(false); setGraceLeft(0);
       if (graceTimerRef.current) { clearInterval(graceTimerRef.current); graceTimerRef.current = null; }
+      // Clear persisted room immediately so F5 before clicking "return to lobby"
+      // does not auto-rejoin the dead room (BUG-FIX: stale room on refresh).
+      persistRoom(null);
       Sound.lose && Sound.lose();
     });
     socket.on("rematchStart", () => {
@@ -2390,6 +2393,9 @@ function App() {
   }
   function resetToLobby() {
     persistRoom(null);
+    // Emit leaveRoom so the server removes our seat — prevents resume from
+    // pulling us back into the dead room on next page load (BUG-FIX).
+    if (!vsBot && socket && socket.connected) socket.emit("leaveRoom", () => {});
     setCode(null); setError(null); setOppPresent(false); setOppReady(false);
     setIReady(false); setMyTurn(false); setTurnDeadline(null); setOcc(new Set());
     setIncoming(new Map()); setMyShots(new Map()); setLog([]); setOver(null);
@@ -2411,7 +2417,6 @@ function App() {
   function leaveRoom() { setConfirmLeave(true); }
   function doLeave() {
     setConfirmLeave(false);
-    if (!vsBot) socket.emit("leaveRoom", () => {});
     resetToLobby();
   }
   function copyCode() {
