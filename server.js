@@ -314,8 +314,10 @@ app.post("/auth/webauthn/register-options", authRateLimit, async (req, res) => {
     // If not signed in, create a new account from guest (passkey-only account creation)
     if (!userId) {
       const pendingClientId = bodyClientId || req.session?.pendingClientId || null;
+      // Generate a random display name for passkey-only accounts
+      const randomName = "Player-" + Math.random().toString(36).slice(2, 6).toUpperCase();
       // Create a new user and link guest credential
-      const newUser = await linkOrPromoteAccount("passkey", "pending-" + Date.now(), null, null, pendingClientId);
+      const newUser = await linkOrPromoteAccount("passkey", "pending-" + Date.now(), randomName, null, pendingClientId);
       userId = newUser.id;
       user = newUser;
       // Establish session immediately so register-verify knows who we are
@@ -522,6 +524,32 @@ app.get("/api/profile/:userId", async (req, res) => {
   } catch (e) {
     console.error("[auth] profile fetch failed:", e.message);
     res.status(500).json({ error: "SERVER_ERROR" });
+  }
+});
+
+// POST /api/profile/update-name — update own display name.
+// Only the authenticated user can update their own name.
+app.post("/api/profile/update-name", authRateLimit, async (req, res) => {
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ ok: false, code: "NOT_AUTHENTICATED" });
+
+  const { name } = req.body || {};
+  if (typeof name !== "string" || name.trim().length < 1) {
+    return res.status(400).json({ ok: false, code: "INVALID_NAME" });
+  }
+
+  // Sanitize: strip control chars, collapse whitespace, cap at 40, HTML-escape
+  const cleaned = name.replace(/[\x00-\x1f\x7f]/g, "").replace(/\s+/g, " ").trim().slice(0, 40);
+  if (!cleaned) return res.status(400).json({ ok: false, code: "INVALID_NAME" });
+
+  const safeName = escapeHtml(cleaned);
+
+  try {
+    await pool.query("UPDATE users SET display_name=$1 WHERE id=$2", [safeName, userId]);
+    res.json({ ok: true, displayName: safeName });
+  } catch (e) {
+    console.error("[profile] update-name failed:", e.message);
+    res.status(500).json({ ok: false });
   }
 });
 
