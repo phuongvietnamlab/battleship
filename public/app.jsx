@@ -171,7 +171,7 @@ const I18N = {
     "wallet.insufficientBalance": "Not enough points",
     "wallet.zeroBalance": "Play free games or win wagers to earn points!",
     "queue.freeMatch": "⚡ Quick Match",
-    "queue.wageredMatch": "🪙 Wagered Match",
+    "queue.wageredMatch": "💰 Wagered Match",
     "queue.stakeSelect": "Select stake",
     "queue.stake0": "Free (0 pts)",
     "queue.stake10": "10 pts",
@@ -358,7 +358,7 @@ const I18N = {
     "wallet.insufficientBalance": "Không đủ điểm",
     "wallet.zeroBalance": "Chơi miễn phí hoặc thắng cược để kiếm điểm!",
     "queue.freeMatch": "⚡ Ghép trận nhanh",
-    "queue.wageredMatch": "🪙 Trận cá cược",
+    "queue.wageredMatch": "💰 Trận cá cược",
     "queue.stakeSelect": "Chọn mức cược",
     "queue.stake0": "Miễn phí (0 đ)",
     "queue.stake10": "10 điểm",
@@ -947,7 +947,7 @@ function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onWageredMatch, onHelp, 
       {/* Wager section — only for logged-in users */}
       {authUser && balance !== null && (
         <div className="wager-strip">
-          <span className="wager-balance">🪙 {balance}</span>
+          <span className="wager-balance">💰 {balance}</span>
           <div className="wager-chips">
             {[10, 25, 50, 100].map((s) => (
               <button key={s} className={"chip" + (selectedStake === s ? " active" : "")} onClick={() => setSelectedStake(s)} disabled={balance < s}>{s}</button>
@@ -2903,7 +2903,7 @@ function App() {
           <h2>{queueType === "wagered" ? t("queue.titleWagered") : t("queue.titleFree")}</h2>
           <p className="sub">{t("queue.sub")}</p>
           {queueType === "wagered" && queueStake > 0 && (
-            <div style={{ textAlign: "center", margin: "6px 0", fontWeight: "bold" }}>🪙 {queueStake} pts</div>
+            <div style={{ textAlign: "center", margin: "6px 0", fontWeight: "bold" }}>💰 {queueStake} pts</div>
           )}
           <div className="queue-timer">
             <span className="queue-elapsed" aria-live="polite" aria-atomic="true">{String(Math.floor(elapsedSec / 60)).padStart(2, "0")}:{String(elapsedSec % 60).padStart(2, "0")}</span>
@@ -2992,7 +2992,7 @@ function App() {
         <div>
           {stake > 0 && !vsBot && (
             <div style={{ textAlign: "center", margin: "4px 0", fontSize: "0.85em", color: "#ffd700", fontWeight: "bold" }}>
-              🪙 {t("game.pot", { n: stake * 2 })}
+              💰 {t("game.pot", { n: stake * 2 })}
             </div>
           )}
           {mode === "advance" && authUser && !vsBot && (
@@ -3013,7 +3013,7 @@ function App() {
                   <button key={type} className="btn ghost" style={{ fontSize: "0.8em", padding: "3px 8px" }}
                     onClick={() => handleBuyPowerup(type)}
                     disabled={purchasesRemaining <= 0 || balance < powerupPrice}>
-                    {POWER_ICON[type]} {POWER_NAME[type]} — {powerupPrice} 🪙
+                    {POWER_ICON[type]} {POWER_NAME[type]} — {powerupPrice} 💰
                   </button>
                 ))}
               </div>
