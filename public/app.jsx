@@ -2487,7 +2487,7 @@ function App() {
       setScreen("battle");
       addLog(youFirst ? t("log.youFirst") : t("log.botFirst"));
       if (youFirst) setMyTurn(true);
-      else { setMyTurn(false); setTimeout(botShoot, 700); }
+      else { setMyTurn(false); setTimeout(botShoot, 2000); }
       return;
     }
     socket.emit("placeShips", ships, (res) => {
@@ -2713,7 +2713,7 @@ function App() {
     }
     const allMineSunk = myShipsRef.current.every((ship) => [...ship].every((kk) => botShotsRef.current.has(kk)));
     if (allMineSunk) { setOppScore((n) => n + 1); setOver({ win: false }); Sound.lose(); return; }
-    if (hit) setTimeout(botShoot, 600);   // trúng -> máy bắn tiếp
+    if (hit) setTimeout(botShoot, 2000);   // trúng -> máy bắn tiếp
     else setMyTurn(true);                  // trượt -> tới lượt bạn
   }
   function fireLocal(r, c) {
@@ -2741,7 +2741,7 @@ function App() {
     } else {
       addLog(t("log.youFireMiss", { cell: cellLabel(r, c) })); Sound.miss();
       setMyTurn(false);
-      setTimeout(botShoot, 600);
+      setTimeout(botShoot, 2000);
     }
   }
 

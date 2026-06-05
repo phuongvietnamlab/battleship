@@ -1612,6 +1612,8 @@ io.on("connection", (socket) => {
       if (!debitResult.ok) {
         return cb && cb({ ok: false, code: "INSUFFICIENT_BALANCE" });
       }
+      // Push updated balance to client immediately after debit
+      socket.emit("balanceUpdate", { balance: debitResult.balance });
       // Store hostWagerId for potential refund
       var hostWagerId = referenceId;
     }
@@ -1679,6 +1681,8 @@ io.on("connection", (socket) => {
       if (!debitResult.ok) {
         return cb && cb({ ok: false, code: "INSUFFICIENT_BALANCE" });
       }
+      // Push updated balance to client immediately after debit
+      socket.emit("balanceUpdate", { balance: debitResult.balance });
       wagerId = referenceId;
     }
 
@@ -1786,6 +1790,8 @@ io.on("connection", (socket) => {
       if (!debitResult.ok) {
         return cb && cb({ ok: false, code: "INSUFFICIENT_BALANCE", stake: room.stake });
       }
+      // Push updated balance to client immediately after debit
+      socket.emit("balanceUpdate", { balance: debitResult.balance });
       joinerWagerId = referenceId;
     }
 
@@ -2210,7 +2216,9 @@ io.on("connection", (socket) => {
         const leavingUserId = room.players[clientId]?.userId;
         const leavingWagerId = room.players[clientId]?.wagerId;
         if (leavingUserId) {
-          creditWallet(leavingUserId, room.stake, "wager_refund", leavingWagerId || "leave_" + code).catch(() => {});
+          creditWallet(leavingUserId, room.stake, "wager_refund", leavingWagerId || "leave_" + code).then((res) => {
+            if (res.ok) socket.emit("balanceUpdate", { balance: res.balance });
+          }).catch(() => {});
         }
         // Refund the remaining player too (room will be torn down or they'll be alone)
         const oppId = opponentOf(room, clientId);
