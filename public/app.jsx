@@ -89,8 +89,10 @@ const I18N = {
     "err.BAD_PLACEMENT": "Invalid ship placement", "err.NOT_YOUR_TURN": "Not your turn yet", "err.BAD_CELL": "Invalid cell", "err.NO_POWERUP": "No power-up",
     "err.NO_REVEAL": "No cells left to reveal", "err.MINE_ON_SHIP": "Can't place a mine on a ship", "err.CELL_SHOT": "This cell was already shot",
     "err.MINE_EXISTS": "There's already a mine here", "err.NO_CELLS": "No cells left to shoot",
-    "auth.signInPasskey": "🔐 Passkey",
+    "auth.signInPasskey": "🔐 Sign in with Passkey",
     "auth.createPasskey": "🔐 Create Passkey",
+    "auth.switchToRegister": "Don't have a passkey? Create one",
+    "auth.switchToLogin": "Already have a passkey? Sign in",
     "auth.addPasskey": "Add Passkey",
     "auth.passkeyRegistered": "Passkey registered!",
     "auth.errPasskeyFailed": "Passkey authentication failed. Please try again.",
@@ -265,8 +267,10 @@ const I18N = {
     "err.BAD_PLACEMENT": "Sắp xếp thuyền không hợp lệ", "err.NOT_YOUR_TURN": "Chưa tới lượt bạn", "err.BAD_CELL": "Ô không hợp lệ", "err.NO_POWERUP": "Không có power-up",
     "err.NO_REVEAL": "Không còn ô để lộ", "err.MINE_ON_SHIP": "Không đặt mìn lên thuyền", "err.CELL_SHOT": "Ô này đã bị bắn",
     "err.MINE_EXISTS": "Đã có mìn ở đây", "err.NO_CELLS": "Hết ô để bắn",
-    "auth.signInPasskey": "🔐 Passkey",
+    "auth.signInPasskey": "🔐 Đăng nhập Passkey",
     "auth.createPasskey": "🔐 Tạo Passkey",
+    "auth.switchToRegister": "Chưa có Passkey? Tạo mới",
+    "auth.switchToLogin": "Đã có Passkey? Đăng nhập",
     "auth.addPasskey": "Thêm Passkey",
     "auth.passkeyRegistered": "Đã đăng ký Passkey!",
     "auth.errPasskeyFailed": "Xác thực Passkey thất bại. Vui lòng thử lại.",
@@ -1429,43 +1433,36 @@ function ChatComposer({ open, onSend, onToggle }) {
 }
 
 // ---------- PasskeyButton ----------
-// Single smart button: checks if user has a passkey for this site.
-// If yes → login (Face ID). If no → register (create passkey + account).
-// Uses server-side check to avoid triggering browser's "no passkey" popup.
+// ---------- PasskeyButton ----------
+// Smart single button for passkey auth.
+// Uses localStorage flag to remember if user has registered a passkey on this device.
+// - First time (no flag): shows "Đăng ký Passkey" → register flow → Face ID creates passkey
+// - Returning (flag set): shows "Đăng nhập Passkey" → login flow → Face ID authenticates
+// Small toggle link below lets user switch between modes manually.
 function PasskeyButton({ clientId, onAuthSuccess }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const hasPasskeyFlag = typeof localStorage !== "undefined" && localStorage.getItem("hasPasskey") === "1";
+  const [isReturning, setIsReturning] = useState(hasPasskeyFlag);
 
   async function handleClick() {
     if (loading) return;
     setLoading(true);
     setError("");
     try {
-      // Ask server if there are ANY passkey credentials stored for a recent session
-      // If user previously logged in on this device, try login flow directly.
-      // Otherwise go straight to register (no popup asking to pick a non-existent key).
-
-      // Strategy: call register-options first. If the server returns excludeCredentials
-      // with items, it means this user already has a passkey → do login instead.
-      // But since user is guest (not logged in), we can't check server-side.
-      // So we try startAuthentication with conditional mediation silently, and if it
-      // throws (no credential), we register.
-
-      // Attempt 1: Try register (most common for new users — no confusing popup)
-      await doRegister();
+      if (isReturning) {
+        await doLogin();
+      } else {
+        await doRegister();
+      }
     } catch (e) {
-      if (e.name === "InvalidStateError") {
-        // This means a credential already exists on this authenticator for this RP
-        // → user already has a passkey → login instead
-        try {
-          await doLogin();
-        } catch (e2) {
-          if (e2.name !== "NotAllowedError" && e2.name !== "AbortError") {
-            setError(t("auth.errPasskeyFailed"));
-          }
-        }
-      } else if (e.name === "NotAllowedError" || e.name === "AbortError") {
-        // User cancelled — do nothing
+      if (e.name === "NotAllowedError" || e.name === "AbortError") {
+        // User cancelled biometric prompt — do nothing
+      } else if (e.name === "InvalidStateError") {
+        // Credential already exists → switch to login mode and retry
+        setIsReturning(true);
+        localStorage.setItem("hasPasskey", "1");
+        try { await doLogin(); } catch (_) {}
       } else {
         console.error("[passkey]", e.message || e);
         setError(t("auth.errPasskeyFailed"));
@@ -1473,31 +1470,6 @@ function PasskeyButton({ clientId, onAuthSuccess }) {
     } finally {
       setLoading(false);
     }
-  }
-
-  async function doRegister() {
-    const optRes = await fetch("/auth/webauthn/register-options", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ clientId }),
-    });
-    const optData = await optRes.json();
-    if (!optData.ok) throw new Error("Failed to get options");
-
-    // Triggers Face ID / Touch ID / Windows Hello to CREATE a passkey
-    const attestation = await startRegistration({ optionsJSON: optData.options });
-
-    const verRes = await fetch("/auth/webauthn/register-verify", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ credential: attestation }),
-    });
-    const verData = await verRes.json();
-    if (!verData.ok) throw new Error(verData.code || "WEBAUTHN_FAILED");
-
-    const meRes = await fetch("/api/me");
-    const meData = await meRes.json();
-    if (meData.user && onAuthSuccess) onAuthSuccess(meData.user);
   }
 
   async function doLogin() {
@@ -1521,17 +1493,57 @@ function PasskeyButton({ clientId, onAuthSuccess }) {
     if (onAuthSuccess) onAuthSuccess(verData.user);
   }
 
+  async function doRegister() {
+    const optRes = await fetch("/auth/webauthn/register-options", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clientId }),
+    });
+    const optData = await optRes.json();
+    if (!optData.ok) throw new Error("register-options failed");
+
+    const attestation = await startRegistration({ optionsJSON: optData.options });
+
+    const verRes = await fetch("/auth/webauthn/register-verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ credential: attestation }),
+    });
+    const verData = await verRes.json();
+    if (!verData.ok) throw new Error(verData.code || "WEBAUTHN_FAILED");
+
+    // Mark device as having a passkey
+    localStorage.setItem("hasPasskey", "1");
+    setIsReturning(true);
+
+    const meRes = await fetch("/api/me");
+    const meData = await meRes.json();
+    if (meData.user && onAuthSuccess) onAuthSuccess(meData.user);
+  }
+
+  function toggleMode() {
+    setIsReturning(!isReturning);
+    setError("");
+  }
+
   return (
-    <>
+    <div style={{ marginBottom: 8 }}>
       {error && <div className="error" style={{ marginBottom: 8 }}>{error}</div>}
       <button
         className="btn passkey-signin"
         disabled={loading}
         onClick={handleClick}
       >
-        {loading ? "..." : t("auth.signInPasskey")}
+        {loading ? "..." : (isReturning ? t("auth.signInPasskey") : t("auth.createPasskey"))}
       </button>
-    </>
+      <button
+        type="button"
+        onClick={toggleMode}
+        style={{ display: "block", margin: "6px auto 0", fontSize: 12, color: "#a9ccec", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}
+      >
+        {isReturning ? t("auth.switchToRegister") : t("auth.switchToLogin")}
+      </button>
+    </div>
   );
 }
 
