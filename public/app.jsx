@@ -32,7 +32,8 @@ const I18N = {
     "lobby.playBot": "🤖 Play vs Bot", "lobby.createRoom": "⚓ Create new room", "lobby.enterCodeLabel": "Enter room code", "lobby.joinBtn": "Join room",
     "mode.classic": "Classic", "mode.classicDesc": "Classic, no power-ups",
     "ship.carrier": "Carrier", "ship.battleship": "Battleship", "ship.cruiser": "Cruiser", "ship.submarine": "Submarine", "ship.destroyer": "Destroyer",
-    "pw.scatter": "Scatter Blast", "pw.cross": "Cross Missile", "pw.double": "Extra Turn", "pw.reveal": "Reveal Cell", "pw.mine": "Sea Mine",
+    "pw.scatter": "Scatter Blast", "pw.cross": "Cross Missile", "pw.double": "Extra Turn", "pw.reveal": "Reveal Cell", "pw.mine": "Sea Mine", "pw.sonar": "Sonar Ping", "pw.decoy": "Decoy",
+    "shop.capReached": "Max (2/2)", "decoy.place": "Tap an empty cell to place your decoy", "decoy.onShip": "Cannot place decoy on a ship", "decoy.invalidated": "Decoy position invalidated — place it again",
     "board.yourFleet": "Your fleet",
     "place.shipTitle": "Drag to move · double-tap to rotate",
     "place.hint": "Your fleet starts placed at random. Drag a ship to move it, double-tap to rotate, or tap 🎲 Random for a new layout.",
@@ -182,7 +183,6 @@ const I18N = {
     "shop.title": "Power-up Shop",
     "shop.price": "{n} pts",
     "shop.remaining": "{n} left",
-    "shop.capReached": "Limit reached",
     "shop.confirm": "Buy {type} for {price} pts?",
     "shop.oppBought": "Opponent purchased a power-up!",
     "game.pot": "Pot: {n} pts",
@@ -217,7 +217,8 @@ const I18N = {
     "lobby.playBot": "🤖 Chơi với máy", "lobby.createRoom": "⚓ Tạo phòng mới", "lobby.enterCodeLabel": "Nhập mã phòng", "lobby.joinBtn": "Vào phòng",
     "mode.classic": "Cổ điển", "mode.classicDesc": "Cổ điển, không power-up",
     "ship.carrier": "Tàu sân bay", "ship.battleship": "Thiết giáp hạm", "ship.cruiser": "Tàu tuần dương", "ship.submarine": "Tàu ngầm", "ship.destroyer": "Khu trục hạm",
-    "pw.scatter": "Nổ ngẫu nhiên", "pw.cross": "Tên lửa chữ thập", "pw.double": "Thêm lượt", "pw.reveal": "Lộ ô thuyền", "pw.mine": "Mìn nước",
+    "pw.scatter": "Nổ ngẫu nhiên", "pw.cross": "Tên lửa chữ thập", "pw.double": "Thêm lượt", "pw.reveal": "Lộ ô thuyền", "pw.mine": "Mìn nước", "pw.sonar": "Dò sóng", "pw.decoy": "Mồi nhử",
+    "shop.capReached": "Tối đa (2/2)", "decoy.place": "Chạm vào ô trống để đặt mồi nhử", "decoy.onShip": "Không đặt được mồi nhử lên thuyền", "decoy.invalidated": "Vị trí mồi nhử bị vô hiệu — đặt lại",
     "board.yourFleet": "Hạm đội của bạn",
     "place.shipTitle": "Kéo để di chuyển · chạm 2 lần để xoay",
     "place.hint": "Hạm đội được xếp ngẫu nhiên sẵn. Kéo thuyền để di chuyển, chạm 2 lần để xoay, hoặc bấm 🎲 Ngẫu nhiên để xếp lại.",
@@ -367,7 +368,6 @@ const I18N = {
     "shop.title": "Cửa hàng Power-up",
     "shop.price": "{n} điểm",
     "shop.remaining": "Còn {n} lượt",
-    "shop.capReached": "Đã hết lượt mua",
     "shop.confirm": "Mua {type} với {price} điểm?",
     "shop.oppBought": "Đối thủ đã mua power-up!",
     "game.pot": "Thưởng: {n} điểm",
@@ -1074,8 +1074,38 @@ function Grid({ enemy, occ, hits, incoming, onCellClick, hoverCells, onCellHover
   );
 }
 
+// ---------- Placement Shop (Phase 15 — power-up purchase during placement) ----------
+function PlacementShop({ stake, balance, inventory, purchaseCount, onBuy, disabled }) {
+  const price = Math.round(stake * 0.10);
+  const maxReached = purchaseCount >= 2;
+  const canAfford = balance >= price;
+
+  return (
+    <div className="placement-shop">
+      <div className="shop-header">⚡ {t("shop.title")} · {price} 💰</div>
+      <div className="shop-row">
+        {[
+          { type: "sonar", icon: "🔊", nameKey: "pw.sonar" },
+          { type: "cross", icon: "➕", nameKey: "pw.cross" },
+          { type: "decoy", icon: "🪤", nameKey: "pw.decoy" },
+          { type: "scatter", icon: "🌠", nameKey: "pw.scatter" },
+        ].map(({ type, icon, nameKey }) => (
+          <button key={type} className="shop-item"
+            onClick={() => onBuy(type)}
+            disabled={disabled || maxReached || !canAfford || (type === "decoy" && (inventory.decoy || 0) >= 1)}>
+            <span className="shop-icon">{icon}</span>
+            <span className="shop-name">{t(nameKey)}</span>
+          </button>
+        ))}
+      </div>
+      {maxReached && <div className="shop-cap">{t("shop.capReached")}</div>}
+      {!maxReached && !canAfford && <div className="shop-cap">{t("wallet.insufficientBalance")}</div>}
+    </div>
+  );
+}
+
 // ---------- Placement screen (touch + mouse drag) ----------
-function Placement({ onConfirm, ready, waiting }) {
+function Placement({ onConfirm, ready, waiting, stake, balance, authUser, vsBot, onBuyPowerup, inventory, purchaseCount, decoyPending, decoyCell, onDecoyPlace }) {
   // placed: id -> {r, c, dir}
   const [placed, setPlaced] = useState({});
   const [drag, setDrag] = useState(null);    // {id, dir, offset, dx, dy, sz, fromBoard}
@@ -1088,6 +1118,19 @@ function Placement({ onConfirm, ready, waiting }) {
   // off-screen dock). The player can still drag/rotate to rearrange, or hit
   // Random/Clear. Only seeds on a fresh placement screen (not after confirm).
   useEffect(() => { if (!ready && Object.keys(placed).length === 0) randomize(); }, []);
+
+  // Decoy invalidation: if ships now overlap the decoy cell, reset it
+  useEffect(() => {
+    if (!decoyCell) return;
+    const occ = new Set();
+    for (const [id, p] of Object.entries(placed)) {
+      cellsFor(p.r, p.c, sizeOf(id), p.dir).forEach((x) => occ.add(key(x.r, x.c)));
+    }
+    if (occ.has(key(decoyCell.r, decoyCell.c))) {
+      onDecoyPlace(null); // reset decoyCell in parent
+      // Parent will set decoyPending back to true via the invalidation logic
+    }
+  }, [placed]);
 
   const sizeOf = (id) => FLEET_DEF.find((f) => f.id === id).size;
 
@@ -1199,14 +1242,25 @@ function Placement({ onConfirm, ready, waiting }) {
     if (valid) hoverKeys = new Set(ks); else hoverBad = new Set(ks);
   }
 
-  // build 10x10 cells
+  // build occupied cells set for decoy validation
+  const allOccKeys = new Set();
+  for (const [id, p] of Object.entries(placed)) {
+    cellsFor(p.r, p.c, sizeOf(id), p.dir).forEach((x) => allOccKeys.add(key(x.r, x.c)));
+  }
+
+  // build 11x11 cells
   const gridCells = [];
   for (let r = 0; r < BOARD; r++) for (let c = 0; c < BOARD; c++) {
     const k = key(r, c);
     let cls = "cell";
     if (hoverKeys.has(k)) cls += " preview-ok";
     if (hoverBad.has(k)) cls += " preview-bad";
-    gridCells.push(<div key={k} className={cls} />);
+    if (decoyPending && !allOccKeys.has(k)) cls += " placeable";
+    const handleDecoyClick = decoyPending ? () => {
+      if (allOccKeys.has(k)) { /* can't place on ship */ return; }
+      onDecoyPlace({ r, c });
+    } : undefined;
+    gridCells.push(<div key={k} className={cls} onClick={handleDecoyClick} />);
   }
 
   function ghostBox(d) {
@@ -1215,12 +1269,22 @@ function Placement({ onConfirm, ready, waiting }) {
       : { width: CELL, height: d.sz * PITCH - GAP };
   }
 
+  const showShop = stake > 0 && authUser && !vsBot;
+
   return (
     <div className="place-wrap">
       <p className="hint place-hint">{t("place.hint")}</p>
+
+      {showShop && (
+        <PlacementShop stake={stake} balance={balance} inventory={inventory}
+          purchaseCount={purchaseCount} onBuy={onBuyPowerup} disabled={ready} />
+      )}
+
+      {decoyPending && <p className="hint decoy-hint">{t("decoy.place")}</p>}
+
       <div className="controls place-actions">
         <button className="btn ghost" onClick={randomize}>{t("place.random")}</button>
-        <button className="btn primary" disabled={!allPlaced || ready} onClick={confirm}>
+        <button className="btn primary" disabled={!allPlaced || ready || decoyPending} onClick={confirm}>
           {ready ? (waiting ? t("place.waitingOpp") : t("place.readyMark")) : t("place.ready")}
         </button>
       </div>
@@ -1230,7 +1294,6 @@ function Placement({ onConfirm, ready, waiting }) {
           <div className="grid own" ref={gridRef}
             style={{ gridTemplateColumns: `repeat(${BOARD}, var(--cell))`, position: "relative" }}>
             {gridCells}
-            {/* placed ships overlay */}
             {Object.entries(placed).map(([id, p]) => {
               if (drag && drag.id === id) return null; // hide while dragging
               const sz = sizeOf(id);
@@ -1248,6 +1311,12 @@ function Placement({ onConfirm, ready, waiting }) {
                 </div>
               );
             })}
+            {/* Decoy marker */}
+            {decoyCell && (
+              <div className="decoy-marker" style={{ left: PAD + decoyCell.c * PITCH, top: PAD + decoyCell.r * PITCH, width: CELL, height: CELL }}>
+                🪤
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -2343,6 +2412,11 @@ function App() {
   const [balance, setBalance]                   = useState(null);   // null = guest/unknown, number = signed-in
   const [stake, setStake]                       = useState(0);      // current match stake (0 = free)
   const [queueStake, setQueueStake]             = useState(0);      // stake shown on queue wait screen
+  // Power-up shop (Phase 15)
+  const [placementInv, setPlacementInv]         = useState({ sonar: 0, cross: 0, decoy: 0, scatter: 0 });
+  const [placementPurchases, setPlacementPurchases] = useState(0);
+  const [decoyPending, setDecoyPending]         = useState(false);
+  const [decoyCell, setDecoyCell]               = useState(null);   // {r,c} or null
   // Premium emoji (Phase 14)
   const [premiumEmojis, setPremiumEmojis]       = useState([]);     // emoji catalog from API
   const [emojiCooldown, setEmojiCooldown]       = useState(false);  // 5s cooldown between sends
@@ -2374,6 +2448,30 @@ function App() {
 
   const addLog = useCallback((s) => setLog((l) => [s, ...l].slice(0, 40)), []);
   const showNotice = useCallback((s) => { setNotice(s); setTimeout(() => setNotice((n) => (n === s ? null : n)), 4000); }, []);
+
+  // Power-up purchase flow (Phase 15)
+  function handlePlacementBuy(type) {
+    socket.emit("buyPlacementPowerup", { type }, (res) => {
+      if (res && res.ok) {
+        setPlacementInv(prev => ({ ...prev, [type]: (prev[type] || 0) + 1 }));
+        setPlacementPurchases(n => n + 1);
+        if (type === "decoy") setDecoyPending(true);
+      } else {
+        showNotice(t("err." + (res?.code || "UNKNOWN")));
+      }
+    });
+  }
+  function handleDecoyPlace(cell) {
+    if (cell === null) {
+      // Decoy invalidated by ship overlap — re-enter pending mode
+      setDecoyCell(null);
+      setDecoyPending(true);
+      showNotice(t("decoy.invalidated"));
+    } else {
+      setDecoyCell(cell);
+      setDecoyPending(false);
+    }
+  }
 
   // Sign-out: destroy current session, revert UI to guest.
   // Force page reload after signout so Safari's WebAuthn "freebie" counter resets —
@@ -2727,7 +2825,8 @@ function App() {
       else { setMyTurn(false); setTimeout(botShoot, 2000); }
       return;
     }
-    socket.emit("placeShips", ships, (res) => {
+    const payload = decoyCell ? { ships, decoyCell } : ships;
+    socket.emit("placeShips", payload, (res) => {
       if (res.ok) {
         setIReady(true);
         const s = new Set();
@@ -2766,6 +2865,8 @@ function App() {
     botTierRef.current = tier;
     botHitsRef.current = new Set();
     botRemainingRef.current = FLEET_DEF.map((f) => f.size);
+    setPlacementInv({ sonar: 0, cross: 0, decoy: 0, scatter: 0 });
+    setPlacementPurchases(0); setDecoyPending(false); setDecoyCell(null);
     setScreen("placement");
   }
   function rematchAction() {
@@ -3022,6 +3123,8 @@ function App() {
     setOppProfile(null);
     setChatOpen(false); setMyBubble(null); setOppBubble(null);
     setStake(0);
+    setPlacementInv({ sonar: 0, cross: 0, decoy: 0, scatter: 0 });
+    setPlacementPurchases(0); setDecoyPending(false); setDecoyCell(null);
     if (myBubbleTimer.current) { clearTimeout(myBubbleTimer.current); myBubbleTimer.current = null; }
     if (oppBubbleTimer.current) { clearTimeout(oppBubbleTimer.current); oppBubbleTimer.current = null; }
     if (graceTimerRef.current) { clearInterval(graceTimerRef.current); graceTimerRef.current = null; }
@@ -3236,7 +3339,11 @@ function App() {
               {vsBot ? t("place.botReady") : (oppPresent ? (oppReady ? t("place.oppReady") : t("place.oppPlacing")) : t("place.waitOpp"))}
             </div>
           </div>
-          <Placement onConfirm={confirmPlacement} ready={iReady} waiting={iReady && !oppReady} />
+          <Placement onConfirm={confirmPlacement} ready={iReady} waiting={iReady && !oppReady}
+            stake={stake} balance={balance} authUser={authUser} vsBot={vsBot}
+            onBuyPowerup={handlePlacementBuy} inventory={placementInv}
+            purchaseCount={placementPurchases} decoyPending={decoyPending}
+            decoyCell={decoyCell} onDecoyPlace={handleDecoyPlace} />
         </div>
       )}
 
