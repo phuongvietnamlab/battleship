@@ -1461,118 +1461,51 @@ function PowerBar({ inv, aim, onPower, myTurn }) {
   );
 }
 
-// ---------- Sonar Drag (row/col drag-and-drop blocks onto enemy grid) ----------
+// ---------- Sonar Drag (tap-to-select: choose Row/Col then tap grid) ----------
 function SonarDrag({ onDrop, onCancel }) {
-  const [dragging, setDragging] = useState(null); // null | { axis: "row"|"col" }
-  const [pos, setPos] = useState({ x: 0, y: 0 });
-  const [hoverIndex, setHoverIndex] = useState(-1); // which row/col is highlighted
+  const [axis, setAxis] = useState(null); // null | "row" | "col"
 
-  function startDrag(e, axis) {
-    e.preventDefault();
-    setDragging({ axis });
-    setPos({ x: e.clientX, y: e.clientY });
-    setHoverIndex(-1);
-  }
-
-  function getGridInfo(clientX, clientY) {
-    const gridEl = document.querySelector(".grid.enemy");
-    if (!gridEl) return null;
-    const rect = gridEl.getBoundingClientRect();
-    const PAD = 2;
-    const pitch = (rect.width - PAD * 2) / BOARD;
-    const col = Math.floor((clientX - rect.left - PAD) / pitch);
-    const row = Math.floor((clientY - rect.top - PAD) / pitch);
-    return { row, col, pitch, rect, PAD };
-  }
-
+  // When axis is selected, grid cells become clickable for sonar
+  // The parent Battle component routes grid clicks here via onDrop
   useEffect(() => {
-    if (!dragging) return;
-    function move(e) {
-      if (e.cancelable) e.preventDefault();
-      setPos({ x: e.clientX, y: e.clientY });
-      const info = getGridInfo(e.clientX, e.clientY);
-      if (info) {
-        const idx = dragging.axis === "row" ? info.row : info.col;
-        setHoverIndex(idx >= 0 && idx < BOARD ? idx : -1);
-      } else {
-        setHoverIndex(-1);
+    if (!axis) return;
+    // Add a click handler on the enemy grid cells
+    function handleGridClick(e) {
+      const cell = e.target.closest(".cell");
+      if (!cell) return;
+      const gridEl = cell.closest(".grid.enemy");
+      if (!gridEl) return;
+      const rect = gridEl.getBoundingClientRect();
+      const PAD = 2;
+      const pitch = (rect.width - PAD * 2) / BOARD;
+      const col = Math.floor((e.clientX - rect.left - PAD) / pitch);
+      const row = Math.floor((e.clientY - rect.top - PAD) / pitch);
+      if (row >= 0 && row < BOARD && col >= 0 && col < BOARD) {
+        const index = axis === "row" ? row : col;
+        onDrop(axis, index);
       }
     }
-    function up(e) {
-      const info = getGridInfo(e.clientX, e.clientY);
-      if (info) {
-        const idx = dragging.axis === "row" ? info.row : info.col;
-        if (idx >= 0 && idx < BOARD) {
-          onDrop(dragging.axis, idx);
-        }
-      }
-      setDragging(null);
-      setHoverIndex(-1);
-    }
-    window.addEventListener("pointermove", move, { passive: false });
-    window.addEventListener("pointerup", up);
-    window.addEventListener("pointercancel", () => { setDragging(null); setHoverIndex(-1); });
-    return () => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-    };
-  }, [dragging]);
-
-  // Build highlight cells for the hovered row or column
-  const highlightCells = new Set();
-  if (dragging && hoverIndex >= 0) {
-    for (let i = 0; i < BOARD; i++) {
-      if (dragging.axis === "row") highlightCells.add(hoverIndex + "," + i);
-      else highlightCells.add(i + "," + hoverIndex);
-    }
-  }
+    const gridEl = document.querySelector(".grid.enemy");
+    if (gridEl) gridEl.addEventListener("click", handleGridClick);
+    return () => { if (gridEl) gridEl.removeEventListener("click", handleGridClick); };
+  }, [axis]);
 
   return (
     <div className="sonar-drag">
       <div className="sonar-drag-blocks">
-        <div className={"sonar-block" + (dragging && dragging.axis === "row" ? " active" : "")}
-          onPointerDown={(e) => startDrag(e, "row")}>
+        <div className={"sonar-block" + (axis === "row" ? " active" : "")}
+          onClick={() => setAxis(axis === "row" ? null : "row")}>
           <span className="sonar-block-cells">■ ■ ■</span>
           <span className="sonar-block-label">{LANG === "vi" ? "Hàng" : "Row"}</span>
         </div>
-        <div className={"sonar-block" + (dragging && dragging.axis === "col" ? " active" : "")}
-          onPointerDown={(e) => startDrag(e, "col")}>
+        <div className={"sonar-block" + (axis === "col" ? " active" : "")}
+          onClick={() => setAxis(axis === "col" ? null : "col")}>
           <span className="sonar-block-cells sonar-col-cells">■<br/>■<br/>■</span>
           <span className="sonar-block-label">{LANG === "vi" ? "Cột" : "Col"}</span>
         </div>
       </div>
+      {axis && <div className="sonar-tap-hint">{LANG === "vi" ? "Chạm vào biển địch để dò " + (axis === "row" ? "hàng" : "cột") : "Tap enemy grid to scan " + axis}</div>}
       <button className="btn ghost sonar-cancel-btn" onClick={onCancel}>{LANG === "vi" ? "Hủy" : "Cancel"}</button>
-      {dragging && (
-        <div className="sonar-ghost" style={{ left: pos.x - 20, top: pos.y - 20 }}>
-          {dragging.axis === "row" ? "■ ■ ■" : "■\n■\n■"}
-        </div>
-      )}
-      {highlightCells.size > 0 && <SonarHighlight cells={highlightCells} />}
-    </div>
-  );
-}
-
-// Overlay that highlights a row/column on the enemy grid during sonar drag
-function SonarHighlight({ cells }) {
-  const gridEl = document.querySelector(".grid.enemy");
-  if (!gridEl) return null;
-  const rect = gridEl.getBoundingClientRect();
-  const PAD = 2;
-  const pitch = (rect.width - PAD * 2) / BOARD;
-  return (
-    <div className="sonar-highlight-overlay" style={{ position: "fixed", left: rect.left, top: rect.top, width: rect.width, height: rect.height, pointerEvents: "none", zIndex: 40 }}>
-      {[...cells].map((k) => {
-        const [r, c] = k.split(",").map(Number);
-        return (
-          <div key={k} className="sonar-hl-cell" style={{
-            position: "absolute",
-            left: PAD + c * pitch,
-            top: PAD + r * pitch,
-            width: pitch - 1,
-            height: pitch - 1,
-          }} />
-        );
-      })}
     </div>
   );
 }
@@ -2812,24 +2745,19 @@ function App() {
     }
   }, [authUser]);
 
-  // Lock body scroll on battle screen to prevent mobile bounce (Phase 15)
+  // Prevent pinch-zoom and horizontal pan on battle screen (Phase 15)
+  // Allow normal vertical scroll but block zoom/horizontal movement
   useEffect(() => {
     if (screen === "battle") {
-      document.body.style.overflow = "hidden";
-      document.body.style.position = "fixed";
-      document.body.style.width = "100%";
-      document.body.style.height = "100%";
+      document.body.style.overflowX = "hidden";
+      document.body.style.overscrollBehavior = "none";
     } else {
-      document.body.style.overflow = "";
-      document.body.style.position = "";
-      document.body.style.width = "";
-      document.body.style.height = "";
+      document.body.style.overflowX = "";
+      document.body.style.overscrollBehavior = "";
     }
     return () => {
-      document.body.style.overflow = "";
-      document.body.style.position = "";
-      document.body.style.width = "";
-      document.body.style.height = "";
+      document.body.style.overflowX = "";
+      document.body.style.overscrollBehavior = "";
     };
   }, [screen]);
 
