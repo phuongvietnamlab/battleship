@@ -171,3 +171,39 @@ Plans:
 
 - [x] Plan 01: Backend API — getMatchHistory, getUserStats, GET /api/matches, upgrade /api/profile stats
 - [x] Plan 02: Frontend — MatchHistory component, lobby button, filters, infinite scroll, opponent stats popup
+
+### Phase 14: Premium animated emoji: purchasable GIF stickers that fly from sender to receiver avatar with explosion effects, deducted from points
+
+**Goal:** Add a premium animated emoji system to in-game chat. Users can send special GIF-based stickers that play a fly-and-impact animation from the sender's avatar to the receiver's avatar (e.g., a bomb flies across and explodes on impact). These emoji cost points per use — deducted immediately on send. Start with 6 curated animated emoji. Regular text chat remains free.
+
+**Requirements**:
+
+- EMOJI-01: Database table `premium_emojis` — stores emoji catalog (id, name, slug, animation_url, preview_url, cost_points, description, sort_order, active)
+- EMOJI-02: 6 initial animated emoji seeded into the catalog:
+  1. 💣 Bomb (quả bom) — flies and explodes on impact (cost: 5 pts)
+  2. 🚀 Rocket (tên lửa) — launches across screen, blast on hit (cost: 5 pts)
+  3. 🥊 Boxing Glove (đấm) — punches the opponent's avatar with knockback shake (cost: 3 pts)
+  4. 🌊 Tsunami Wave (sóng thần) — wave crashes over opponent's avatar (cost: 5 pts)
+  5. ⚡ Lightning Strike (sét đánh) — bolt zaps from above onto opponent (cost: 3 pts)
+  6. 🔥 Fireball (cầu lửa) — fireball hurls across and ignites on contact (cost: 5 pts)
+- EMOJI-03: Socket event `sendPremiumEmoji` — client sends emoji_id; server validates balance ≥ cost, deducts points atomically, broadcasts animation event to room
+- EMOJI-04: Server-side validation — reject if: insufficient points, emoji not active, user is guest (must be authenticated), not in active battle phase
+- EMOJI-05: Client animation system — emoji sprite/GIF flies from sender avatar position → receiver avatar position with easing curve, then plays impact animation (CSS/JS keyframes or Lottie)
+- EMOJI-06: Impact effects per emoji type — each emoji has a unique arrival animation (explosion, shake, splash, zap, etc.) rendered on/over the receiver's avatar area
+- EMOJI-07: Emoji picker panel in battle chat — grid of 6 emoji with preview thumbnails + point cost badge; disabled items greyed out if insufficient balance
+- EMOJI-08: Real-time balance display in emoji picker showing current points (updates after each send)
+- EMOJI-09: Cooldown — 5 second cooldown between premium emoji sends per user (prevents spam, server-enforced)
+- EMOJI-10: GET /api/emojis — returns active emoji catalog with costs (public, cached)
+- EMOJI-11: Animation assets — lightweight GIF/spritesheet/Lottie files for each emoji (< 100KB each), served from /public/emojis/
+- EMOJI-12: i18n — emoji names and descriptions in Vietnamese + English
+- EMOJI-13: Sound effect (optional) — short SFX on impact (muted by default, respects user sound preference)
+- EMOJI-14: Guest users see a "Đăng nhập để dùng / Sign in to use" prompt when tapping emoji picker
+
+**Depends on:** Phase 7 (points economy — points balance and deduction API)
+**Plans:** 3 plans
+
+Plans:
+
+- [ ] Plan 01: Backend — Database migration (premium_emojis table + seed), GET /api/emojis endpoint, socket handler sendPremiumEmoji with validation + debit + cooldown
+- [ ] Plan 02: Frontend — Emoji picker tab in ChatComposer, animation overlay component (flight + impact), premiumEmoji socket listener + queue
+- [ ] Plan 03: Animation assets + avatar-targeted positioning + per-emoji impact effects + i18n + mobile polish + edge cases

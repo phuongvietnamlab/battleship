@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-06-01)
 
 ## Current Position
 
-Phase: Milestone v1.0 complete
-Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-06-04 — Milestone v1.0 completed and archived
+Phase: Phase 14 — Premium Animated Emoji
+Plan: Ready to execute (3 plans)
+Status: Planned
+Last activity: 2026-06-06 — Phase 14 planned (3 plans)
 
 ## Performance Metrics
 
@@ -109,6 +109,7 @@ Recent decisions affecting current work:
 - Phase 11 added: Linked email for passkey accounts — allow passkey users to link email + set password from profile for cross-device login
 - Phase 12 added: Merge Quick Play and Wagered Match — unified matchmaking button with conditional wager popup for logged-in users, free play for guests
 - Phase 13 added: Match history — view past battles with results, points, and win/loss status
+- Phase 14 added: Premium animated emoji — purchasable GIF stickers (6 initial) that fly from sender to receiver avatar with explosion effects, deducted from points
 
 ### Pending Todos
 
