@@ -1492,15 +1492,27 @@ function PremiumEmojiAnimation({ event, myClientId, onComplete }) {
   const isFromMe = event.senderId === myClientId;
   const direction = isFromMe ? "ltr" : "rtl";
   useEffect(() => {
-    const timer = setTimeout(onComplete, 2200);
+    const timer = setTimeout(onComplete, 2800);
     return () => clearTimeout(timer);
   }, []);
   return (
     <div className={"premium-anim-overlay " + direction + " impact-" + (event.impactType || "explosion")}>
+      <div className="premium-anim-glow" />
       <div className="premium-anim-projectile">
         <img src={"/emojis/" + event.slug + ".svg"} alt="" className="premium-anim-img" />
+        <div className="premium-anim-trail" />
+        <div className="premium-anim-trail t2" />
+        <div className="premium-anim-trail t3" />
       </div>
-      <div className={"premium-anim-impact impact-" + (event.impactType || "explosion")} />
+      <div className="premium-anim-impact">
+        <div className="impact-ring" />
+        <div className="impact-ring r2" />
+        <div className="impact-flash" />
+      </div>
+      <div className="premium-anim-particles">
+        <span className="pa-p p1" /><span className="pa-p p2" /><span className="pa-p p3" />
+        <span className="pa-p p4" /><span className="pa-p p5" /><span className="pa-p p6" />
+      </div>
     </div>
   );
 }
@@ -3081,7 +3093,12 @@ function App() {
     try { if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).catch(() => {}); } catch (e) {}
     setLinkCopied(true); setTimeout(() => setLinkCopied(false), 1800);
   }
-  function toggleChat() { setChatOpen((o) => !o); }
+  function toggleChat() {
+    setChatOpen((o) => {
+      if (o) setTimeout(() => { window.scrollTo({ top: 0, behavior: "smooth" }); }, 120);
+      return !o;
+    });
+  }
   function sendChat(text) {
     text = (text || "").trim();
     if (!text || vsBot) return;
@@ -3092,6 +3109,8 @@ function App() {
     socket.emit("chat", { text });
     setChatOpen(false); // tự đóng ô soạn sau khi gửi
     try { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); } catch (e) {}
+    // Fix iOS/Android: bàn phím đẩy viewport xuống, scroll lại top sau khi đóng
+    setTimeout(() => { window.scrollTo({ top: 0, behavior: "smooth" }); }, 120);
   }
 
   // ─── Premium Emoji (Phase 14) ───────────────────────────────────────────────
