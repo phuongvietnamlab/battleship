@@ -1461,28 +1461,72 @@ function PowerBar({ inv, aim, onPower, myTurn }) {
   );
 }
 
-// ---------- Sonar Panel (row/col selection UI) ----------
-function SonarPanel({ onSelect, onCancel }) {
+// ---------- Sonar Drag (row/col drag-and-drop blocks) ----------
+function SonarDrag({ onDrop, onCancel }) {
+  const [dragging, setDragging] = useState(null); // null | { axis: "row"|"col", startX, startY }
+  const [pos, setPos] = useState({ x: 0, y: 0 });
+  const ghostRef = useRef(null);
+
+  function startDrag(e, axis) {
+    e.preventDefault();
+    setDragging({ axis });
+    setPos({ x: e.clientX, y: e.clientY });
+  }
+
+  useEffect(() => {
+    if (!dragging) return;
+    function move(e) {
+      if (e.cancelable) e.preventDefault();
+      setPos({ x: e.clientX, y: e.clientY });
+    }
+    function up(e) {
+      // Find the grid element (.grid.enemy) under the drop point
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      const gridEl = el && el.closest(".grid.enemy");
+      if (gridEl) {
+        const rect = gridEl.getBoundingClientRect();
+        const PAD = 2;
+        const pitch = (rect.width - PAD * 2) / BOARD;
+        const col = Math.floor((e.clientX - rect.left - PAD) / pitch);
+        const row = Math.floor((e.clientY - rect.top - PAD) / pitch);
+        if (row >= 0 && row < BOARD && col >= 0 && col < BOARD) {
+          const index = dragging.axis === "row" ? row : col;
+          onDrop(dragging.axis, index);
+        }
+      }
+      setDragging(null);
+    }
+    window.addEventListener("pointermove", move, { passive: false });
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", () => setDragging(null));
+    return () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", () => {});
+    };
+  }, [dragging]);
+
   return (
-    <div className="sonar-panel">
-      <div className="sonar-hint">{t("battle.aimingSonar")}</div>
-      <div className="sonar-section">
-        <div className="sonar-label">≡ {LANG === "vi" ? "Hàng" : "Row"}</div>
-        <div className="sonar-btns">
-          {ROWS.map((label, i) => (
-            <button key={"r" + i} className="sonar-pick" onClick={() => onSelect("row", i)}>{label}</button>
-          ))}
+    <div className="sonar-drag">
+      <div className="sonar-drag-hint">{t("battle.aimingSonar")}</div>
+      <div className="sonar-drag-blocks">
+        <div className={"sonar-block row-block" + (dragging && dragging.axis === "row" ? " dragging" : "")}
+          onPointerDown={(e) => startDrag(e, "row")}>
+          <span className="sonar-block-cells">▬▬▬</span>
+          <span className="sonar-block-label">{LANG === "vi" ? "Hàng" : "Row"}</span>
+        </div>
+        <div className={"sonar-block col-block" + (dragging && dragging.axis === "col" ? " dragging" : "")}
+          onPointerDown={(e) => startDrag(e, "col")}>
+          <span className="sonar-block-cells">▮<br/>▮<br/>▮</span>
+          <span className="sonar-block-label">{LANG === "vi" ? "Cột" : "Col"}</span>
         </div>
       </div>
-      <div className="sonar-section">
-        <div className="sonar-label">⦀ {LANG === "vi" ? "Cột" : "Col"}</div>
-        <div className="sonar-btns">
-          {COLS.map((label, i) => (
-            <button key={"c" + i} className="sonar-pick" onClick={() => onSelect("col", i)}>{label}</button>
-          ))}
+      <button className="btn ghost sonar-cancel-btn" onClick={onCancel}>{LANG === "vi" ? "Hủy" : "Cancel"}</button>
+      {dragging && (
+        <div className="sonar-ghost" style={{ left: pos.x - 20, top: pos.y - 20 }}>
+          {dragging.axis === "row" ? "▬▬▬" : "▮▮▮"}
         </div>
-      </div>
-      <button className="btn secondary sonar-cancel" onClick={onCancel}>{LANG === "vi" ? "Hủy" : "Cancel"}</button>
+      )}
     </div>
   );
 }
@@ -1490,6 +1534,7 @@ function SonarPanel({ onSelect, onCancel }) {
 function Battle({ myTurn, vsBot, occ, incoming, myShots, onFire, log, sunkOpp, sunkMine, sunkEnemyCells, sunkMyCells, myScore, oppScore, oppLabel, myProfile, oppProfile, myBubble, oppBubble, flashEnemy, flashMine, turnDeadline, turnDur, shake, inv, aim, onPower, onCrossHover, hoverCells }) {
   const [tab, setTab] = useState("enemy"); // enemy | own (mobile)
   const [oppStats, setOppStats] = useState(null); // { wins, losses, gamesPlayed, winRate } | null
+  const enemyGridRef = useRef(null);
   const [oppStatsOpen, setOppStatsOpen] = useState(false);
   const oppStatsCache = useRef(null);
 
@@ -1554,10 +1599,14 @@ function Battle({ myTurn, vsBot, occ, incoming, myShots, onFire, log, sunkOpp, s
       <div className={"boards tab-" + tab + (shake ? " shake" : "")}>
         <div className="board-wrap wrap-enemy">
           <div className="board-title enemy">{t("battle.enemyWaters")} {myTurn && !aim ? t("battle.fireSuffix") : ""}</div>
-          <Grid enemy hits={myShots} shootable={myTurn && aim !== "sonar"} sunk={sunkEnemyCells} flash={flashEnemy}
-            aimCells={aim === "cross" ? hoverCells : null}
-            onCellClick={(r, c) => myTurn && onFire(r, c)}
-            onCellHover={(r, c) => onCrossHover && onCrossHover(r, c)} />
+          <PowerBar inv={inv} aim={aim} onPower={onPower} myTurn={myTurn} />
+          {aim === "sonar" && <SonarDrag onDrop={(axis, index) => onPower("sonar-fire", { axis, index })} onCancel={() => onPower("sonar")} />}
+          <div ref={enemyGridRef}>
+            <Grid enemy hits={myShots} shootable={myTurn && aim !== "sonar"} sunk={sunkEnemyCells} flash={flashEnemy}
+              aimCells={aim === "cross" ? hoverCells : null}
+              onCellClick={(r, c) => myTurn && onFire(r, c)}
+              onCellHover={(r, c) => onCrossHover && onCrossHover(r, c)} />
+          </div>
           <Counter label={t("counter.sunkEnemy")} value={sunkOpp} cls="enemy" />
         </div>
         <div className="board-wrap wrap-own">
@@ -1568,8 +1617,6 @@ function Battle({ myTurn, vsBot, occ, incoming, myShots, onFire, log, sunkOpp, s
         </div>
       </div>
       {aim === "cross" && <div className="aim-hint">{t("battle.aimingCross")}</div>}
-      <PowerBar inv={inv} aim={aim} onPower={onPower} myTurn={myTurn} />
-      {aim === "sonar" && <SonarPanel onSelect={(axis, index) => onPower("sonar-fire", { axis, index })} onCancel={() => onPower("sonar")} />}
       <div className="log">
         {log.length === 0 && <div>{t("battle.logStart")}</div>}
         {log.map((l, i) => <div key={i}>{l}</div>)}

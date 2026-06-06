@@ -412,15 +412,20 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 /* aim hint banner (inline, not fixed) */
 .aim-hint { text-align:center; font-size:12px; color:#ffe9b0; background:rgba(40,30,8,.85); border:1px solid var(--gold); border-radius:8px; padding:5px 12px; margin:4px auto 6px; max-width:92vw; width:fit-content; }
 
-/* sonar panel (row/col selection UI) */
-.sonar-panel { background:rgba(8,30,58,.92); border:1px solid rgba(120,190,255,.35); border-radius:12px; padding:10px 12px; margin:6px auto 8px; max-width:400px; }
-.sonar-hint { font-size:12px; color:#ffe9b0; text-align:center; margin-bottom:8px; }
-.sonar-section { margin-bottom:8px; }
-.sonar-label { font-size:11px; color:#9fb6cc; margin-bottom:4px; font-weight:600; }
-.sonar-btns { display:flex; gap:3px; flex-wrap:wrap; }
-.sonar-pick { min-width:28px; height:28px; border-radius:6px; border:1px solid rgba(120,190,255,.3); background:rgba(20,50,80,.7); color:#cfe8ff; font-size:12px; font-weight:600; cursor:pointer; transition:background .15s, border-color .15s; }
-.sonar-pick:hover { background:rgba(240,193,75,.2); border-color:var(--gold); color:#ffe9b0; }
-.sonar-cancel { display:block; margin:6px auto 0; font-size:12px; padding:4px 16px; }
+/* sonar drag-and-drop blocks */
+.sonar-drag { text-align:center; margin:4px 0; }
+.sonar-drag-hint { font-size:11px; color:#ffe9b0; margin-bottom:6px; }
+.sonar-drag-blocks { display:flex; gap:12px; justify-content:center; align-items:center; }
+.sonar-block { display:flex; flex-direction:column; align-items:center; gap:3px; padding:8px 14px;
+  border:2px dashed rgba(240,193,75,.5); border-radius:10px; background:rgba(240,193,75,.08);
+  cursor:grab; touch-action:none; user-select:none; transition: border-color .15s, background .15s; }
+.sonar-block:active { cursor:grabbing; border-color:#f0c040; background:rgba(240,193,75,.15); }
+.sonar-block.dragging { opacity:.4; }
+.sonar-block-cells { font-size:16px; color:#f0c040; line-height:1.1; letter-spacing:2px; }
+.sonar-block-label { font-size:10px; color:#b0d0f0; font-weight:600; }
+.sonar-cancel-btn { font-size:11px; margin-top:6px; padding:3px 14px; }
+.sonar-ghost { position:fixed; z-index:999; pointer-events:none; font-size:24px; color:#f0c040;
+  filter: drop-shadow(0 4px 8px rgba(0,0,0,.6)); opacity:.85; }
 
 /* bảng điểm 2 người trong room */
 .scoreboard {
@@ -612,8 +617,6 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
   .power-btn{ min-width:0; flex:1 1 0; padding:6px 4px; }
   .power-btn .pn{ font-size:9px; line-height:1.1; }
   .power-btn .pi{ font-size:15px; }
-  .sonar-panel{ padding:8px 10px; }
-  .sonar-pick{ min-width:24px; height:24px; font-size:11px; }
 }
 @media (max-width:380px){
   .logo h1{ font-size:18px; }
