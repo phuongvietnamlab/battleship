@@ -130,6 +130,13 @@ const SNAPSHOT_MS = 3000; // how often to snapshot rooms to Redis (when enabled)
 const CLEANUP_INTERVAL_MS = 60000;    // run the room cleanup sweep every 60s (SEC-03)
 const ROOM_IDLE_THRESHOLD_MS = 300000; // evict rooms with no activity for > 5 min (SEC-03)
 
+// ─── Power-up system constants (Phase 15-02) ────────────────────────────────
+const NEW_POWERS = ["sonar", "cross", "decoy", "scatter"];
+const POWERUP_MAX_PER_MATCH = 2;
+const POWERUP_PRICE_PCT = 0.10; // 10% of stake
+
+function newInv() { return { sonar: 0, cross: 0, decoy: 0, scatter: 0 }; }
+
 // Per-player rate limiters (D-06/D-07 — close rapid-fire DoS vector, SEC-01).
 // RateLimiterMemory is in-process (no Redis dependency — Redis store deferred to Phase 5).
 // Key: socket.data.clientId || socket.id (per-player isolation).
@@ -155,6 +162,7 @@ const VALID_STAKES = [10, 25, 50, 100];
 
 const joinQueueLimiter = new RateLimiterMemory({ points: 5, duration: 60 }); // 5/min per clientId
 const premiumEmojiLimiter = new RateLimiterMemory({ points: 1, duration: 5 }); // 1 per 5s per player (Phase 14)
+const buyPlacementPowerupLimiter = new RateLimiterMemory({ points: 3, duration: 60 }); // 3 purchases/min per player (Phase 15-02)
 
 // ─── Auth rate limiter ───────────────────────────────────────────────────────
 // 10 auth attempts/min per IP — protects against auth-route brute-force (T-02-09).
@@ -1175,6 +1183,11 @@ function syncPayload(room, code, clientId) {
     oppScore: (room.scores && oppId && room.scores[oppId]) || 0,
     mode: "classic",
     stake: room.stake || 0, // Phase 7
+    // Phase 15-02: power-up inventory and purchase state
+    inv: me ? (me.inv || newInv()) : newInv(),
+    decoyCell: me ? (me.decoyCell || null) : null,
+    purchasesRemaining: POWERUP_MAX_PER_MATCH - ((room.purchases && room.purchases[clientId]) || 0),
+    powerupPrice: (room.stake > 0) ? Math.round(room.stake * POWERUP_PRICE_PCT) : 0,
   };
 }
 
@@ -1499,6 +1512,7 @@ async function createMatchedRoom(entryA, entryB, type) {
     resolving: false, lastActivityAt: Date.now(),
     matchQueueType: type, // D-11: preserved for partner re-queue on pre-start disconnect
     stake: type === "wagered" ? (entryA.stake || 0) : 0, // Phase 7: carry stake from queue entries
+    purchases: {},
   };
   for (const entry of [entryA, entryB]) {
     rooms[code].players[entry.clientId] = {
@@ -1508,6 +1522,7 @@ async function createMatchedRoom(entryA, entryB, type) {
       userId: entry.userId ?? null,
       matchQueueType: type, // D-11: retained so disconnect handler can re-queue survivor
       wagerId: entry.wagerId ?? null, // Phase 7: track for potential refund
+      inv: newInv(), decoyCell: null,
     };
     rooms[code].order.push(entry.clientId);
     const sock = io.of("/").sockets.get(entry.socketId);
@@ -1575,12 +1590,13 @@ io.on("connection", (socket) => {
       var hostWagerId = referenceId;
     }
     // room.recorded is the D-06 dedup flag set synchronously at end paths (Task 2 — endGameForfeit/doShot/scheduleSeatRelease/leaveRoom)
-    rooms[code] = { code, players: {}, order: [], started: false, turn: null, scores: {}, lastStarter: null, mode: "classic", turnTimer: null, turnDeadline: null, resolving: false, lastActivityAt: Date.now(), stake, hostWagerId: hostWagerId || null };
+    rooms[code] = { code, players: {}, order: [], started: false, turn: null, scores: {}, lastStarter: null, mode: "classic", turnTimer: null, turnDeadline: null, resolving: false, lastActivityAt: Date.now(), stake, hostWagerId: hostWagerId || null, purchases: {} };
     rooms[code].players[clientId] = {
       sid: socket.id, ready: false, occ: null, hits: new Set(), online: true, timer: null, bonus: 0,
       profile: sanitizeProfile(arg && arg.profile),
       userId: socket.data.userId ?? null,
       wagerId: hostWagerId || null, // Phase 7: track for refund
+      inv: newInv(), decoyCell: null,
     };
     rooms[code].order.push(clientId);
     socket.join(code);
@@ -1760,6 +1776,7 @@ io.on("connection", (socket) => {
       profile: sanitizeProfile(arg && arg.profile),
       userId: socket.data.userId ?? null,
       wagerId: joinerWagerId, // Phase 7: track for refund
+      inv: newInv(), decoyCell: null,
     };
     room.order.push(clientId);
     socket.join(code);
@@ -1862,16 +1879,78 @@ io.on("connection", (socket) => {
     emitToClient(room, clientId, "sync", syncPayload(room, code, clientId));
   });
 
-  socket.on("placeShips", (ships, cb) => {
+  // ─── Placement-phase power-up purchase (Phase 15-02) ──────────────────────
+  socket.on("buyPlacementPowerup", async ({ type }, cb) => {
+    // Rate limit: 3 purchases/min per player
+    const rlKey = socket.data.clientId || socket.id;
+    try {
+      await buyPlacementPowerupLimiter.consume(rlKey);
+    } catch (e) {
+      return cb && cb({ ok: false, code: "RATE_LIMITED" });
+    }
     const code = socket.data.code;
     const clientId = socket.data.clientId;
     const room = rooms[code];
     if (!room || !room.players[clientId]) return cb && cb({ ok: false, code: "NO_ROOM" });
+    if (room.started) return cb && cb({ ok: false, code: "GAME_ALREADY_STARTED" });
+    if (!room.stake || room.stake <= 0) return cb && cb({ ok: false, code: "FREE_MATCH" });
+    const me = room.players[clientId];
+    if (!me.userId) return cb && cb({ ok: false, code: "GUEST_CANNOT_BUY" });
+    if (!NEW_POWERS.includes(type)) return cb && cb({ ok: false, code: "INVALID_TYPE" });
+    if (!room.purchases) room.purchases = {};
+    if ((room.purchases[clientId] || 0) >= POWERUP_MAX_PER_MATCH) return cb && cb({ ok: false, code: "PURCHASE_CAP_REACHED" });
+    if (type === "decoy" && me.inv.decoy >= 1) return cb && cb({ ok: false, code: "DECOY_CAP_REACHED" });
+
+    const price = Math.round(room.stake * POWERUP_PRICE_PCT);
+    const referenceId = `powerup_placement_${type}_${clientId}_${room.purchases[clientId] || 0}`;
+    const debitResult = await debitWallet(me.userId, price, "powerup_purchase", referenceId);
+    if (!debitResult.ok) return cb && cb({ ok: false, code: "INSUFFICIENT_BALANCE" });
+
+    // Grant power-up
+    if (!me.inv) me.inv = newInv();
+    me.inv[type]++;
+    room.purchases[clientId] = (room.purchases[clientId] || 0) + 1;
+
+    // Push balance update to buyer only (secrecy: opponent gets nothing)
+    socket.emit("balanceUpdate", { balance: debitResult.balance });
+
+    touchRoom(room); // SEC-03: stamp activity
+    const remaining = POWERUP_MAX_PER_MATCH - room.purchases[clientId];
+    cb && cb({ ok: true, type, price, newBalance: debitResult.balance, remaining });
+  });
+
+  socket.on("placeShips", (arg, cb) => {
+    const code = socket.data.code;
+    const clientId = socket.data.clientId;
+    const room = rooms[code];
+    if (!room || !room.players[clientId]) return cb && cb({ ok: false, code: "NO_ROOM" });
+
+    // Backward-compatible payload parsing: accept array (old) or { ships, decoyCell } (new)
+    const ships = Array.isArray(arg) ? arg : (arg && arg.ships ? arg.ships : arg);
+    const decoyCell = (!Array.isArray(arg) && arg && arg.decoyCell) ? arg.decoyCell : null;
+
     const pv = validatePlacement(ships);
     if (!pv) return cb && cb({ ok: false, code: "BAD_PLACEMENT" });
-    room.players[clientId].occ = pv.occ;
-    room.players[clientId].ships = pv.ships;
-    room.players[clientId].ready = true;
+
+    const me = room.players[clientId];
+    const occ = pv.occ;
+
+    // Decoy validation (Phase 15-02)
+    if (me.inv && me.inv.decoy > 0 && !decoyCell) {
+      return cb && cb({ ok: false, code: "DECOY_NOT_PLACED" });
+    }
+    if (decoyCell) {
+      if (!inBounds(decoyCell.r, decoyCell.c)) return cb && cb({ ok: false, code: "BAD_DECOY_CELL" });
+      const dk = decoyCell.r + "," + decoyCell.c;
+      // Validate decoy not on a ship
+      if (occ.has(dk)) return cb && cb({ ok: false, code: "DECOY_ON_SHIP" });
+      occ.add(dk);
+      me.decoyCell = dk;
+    }
+
+    me.occ = occ;
+    me.ships = pv.ships;
+    me.ready = true;
     touchRoom(room); // SEC-03: stamp activity
     cb && cb({ ok: true });
 
@@ -2059,7 +2138,11 @@ io.on("connection", (socket) => {
       room.players[id].bonus = 0;
       room.players[id].skipNext = false;
       room.players[id].timeouts = 0;
+      // Phase 15-02: reset power-up state on rematch
+      room.players[id].inv = newInv();
+      room.players[id].decoyCell = null;
     }
+    room.purchases = {}; // Phase 15-02: reset purchase counts
     room.started = false;
     room.recorded = false; // CR-01: clear dedup flag so the rematch game records its own match (MATCH-01)
     room.startedAt = null; // re-captured at battle start in placeShips allReady
