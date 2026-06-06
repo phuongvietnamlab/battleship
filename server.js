@@ -9,7 +9,14 @@ const path = require("path");
 const crypto = require("crypto");
 const { Server } = require("socket.io");
 const store = require("./store"); // optional Redis snapshot; no-op without REDIS_URL
-const { pool, runMigrations, upsertGuestCredential, linkOrPromoteAccount, createEmailAccount, verifyEmailLogin, recordMatch, getMatchHistory, getUserStats, getWalletBalance, debitWallet, creditWallet, createWallet, getUserById, setEmailPassword, linkEmailToUser } = require("./db"); // Postgres: identity persistence + wallet
+const { pool, runMigrations, upsertGuestCredential, linkOrPromoteAccount, createEmailAccount, verifyEmailLogin, recordMatch, getMatchHistory, getUserStats, resolveUserIdFromClientId, getWalletBalance, debitWallet, creditWallet, createWallet, getUserById, setEmailPassword, linkEmailToUser } = require("./db"); // Postgres: identity persistence + wallet
+
+// Helper: resolve userId for match recording — uses room player userId first, falls back to DB lookup via clientId
+async function resolveMatchUserId(room, clientId) {
+  const existing = room.players[clientId]?.userId;
+  if (existing) return existing;
+  return resolveUserIdFromClientId(clientId);
+}
 
 const app = express();
 const server = http.createServer(app);
@@ -1586,6 +1593,11 @@ async function createMatchedRoom(entryA, entryB, type) {
       sock.data.queueClientId = null;
     }
     upsertGuestCredential(entry.clientId); // fire-and-forget: durable identity (DATA-01)
+    // Phase 13: resolve userId for guest players so match recording works
+    if (!rooms[code].players[entry.clientId].userId) {
+      const cid = entry.clientId;
+      resolveUserIdFromClientId(cid).then(uid => { if (uid && rooms[code] && rooms[code].players[cid]) rooms[code].players[cid].userId = uid; }).catch(() => {});
+    }
   }
   io.to(code).emit("roomUpdate", roomPublic(rooms[code]));
   io.to(code).emit("opponentJoined");
@@ -1652,6 +1664,10 @@ io.on("connection", (socket) => {
     cb && cb({ ok: true, code, stake });
     io.to(code).emit("roomUpdate", roomPublic(rooms[code]));
     upsertGuestCredential(clientId); // fire-and-forget: durable identity (DATA-01)
+    // Phase 13: resolve userId for guest host so match recording works
+    if (!rooms[code].players[clientId].userId) {
+      resolveUserIdFromClientId(clientId).then(uid => { if (uid && rooms[code] && rooms[code].players[clientId]) rooms[code].players[clientId].userId = uid; }).catch(() => {});
+    }
   });
 
   // ─── Queue handlers (05-01) ───────────────────────────────────────────────
@@ -1829,6 +1845,10 @@ io.on("connection", (socket) => {
     io.to(code).emit("roomUpdate", roomPublic(room));
     io.to(code).emit("opponentJoined");
     upsertGuestCredential(clientId); // fire-and-forget: P2 persists on first session (DATA-01)
+    // Phase 13: resolve userId for guest so match recording works later
+    if (!room.players[clientId].userId) {
+      resolveUserIdFromClientId(clientId).then(uid => { if (uid && room.players[clientId]) room.players[clientId].userId = uid; }).catch(() => {});
+    }
     // exchange profiles so both scoreboards show avatar + name immediately
     const oppId = opponentOf(room, clientId);
     if (oppId) {
@@ -1939,6 +1959,12 @@ io.on("connection", (socket) => {
     if (allReady) {
       room.started = true;
       room.startedAt = new Date(); // capture battle start time for match recording (MATCH-01)
+      // Phase 13: resolve userId for guest players so recordMatch can persist the match
+      for (const id of ids) {
+        if (!room.players[id].userId) {
+          resolveUserIdFromClientId(id).then(uid => { if (uid && room.players[id]) room.players[id].userId = uid; }).catch(() => {});
+        }
+      }
       // ván đầu chọn ngẫu nhiên; các ván sau đổi lượt người đi trước (so le)
       if (room.lastStarter && ids.includes(room.lastStarter)) {
         room.turn = ids.find((id) => id !== room.lastStarter);

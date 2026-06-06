@@ -1013,19 +1013,6 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 }
 .history-title { margin:0; font-size:18px; flex:1; }
 .history-total { font-size:12px; color:#a9ccec; white-space:nowrap; }
-.history-filters {
-  display:flex; gap:10px; padding:8px 14px; position:sticky; top:48px; z-index:2;
-  background:rgba(4,16,31,.88); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
-  overflow-x:auto; flex-shrink:0;
-}
-.history-filter-group { display:flex; gap:4px; flex-shrink:0; }
-.history-pill {
-  padding:5px 12px; border-radius:16px; font-size:12px; font-family:"Oswald",sans-serif;
-  border:1px solid rgba(120,190,255,.3); background:transparent; color:#a9ccec;
-  cursor:pointer; white-space:nowrap; transition:background .15s, color .15s, border-color .15s;
-}
-.history-pill:hover { border-color:var(--gold); color:#cfe8ff; }
-.history-pill.active { background:var(--gold); color:#07203f; border-color:var(--gold); font-weight:600; }
 .history-list { flex:1; padding:0 14px 20px; display:flex; flex-direction:column; gap:8px; }
 @keyframes fadeSlideIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
 .match-card {

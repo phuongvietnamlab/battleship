@@ -1731,7 +1731,6 @@ function MatchHistory({ authUser, onBack }) {
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
-  const [filters, setFilters] = useState({ result: "all", mode: "all", wager: "all" });
   const sentinelRef = useRef(null);
   const abortRef = useRef(null);
 
@@ -1751,13 +1750,13 @@ function MatchHistory({ authUser, onBack }) {
     return `${dd}/${mm}/${d.getFullYear()} ${hh}:${mi}`;
   }
 
-  const loadPage = useCallback(async (p, f) => {
+  const loadPage = useCallback(async (p) => {
     if (abortRef.current) abortRef.current.abort();
     const ctrl = new AbortController();
     abortRef.current = ctrl;
     setLoading(true);
     try {
-      const params = new URLSearchParams({ page: p, limit: 20, result: f.result, mode: f.mode, wager: f.wager });
+      const params = new URLSearchParams({ page: p, limit: 20 });
       const res = await fetch("/api/matches?" + params, { signal: ctrl.signal });
       if (!res.ok) throw new Error("fetch failed");
       const data = await res.json();
@@ -1771,15 +1770,8 @@ function MatchHistory({ authUser, onBack }) {
     }
   }, []);
 
-  // Load on page/filter change
-  useEffect(() => { loadPage(page, filters); }, [page, filters, loadPage]);
-
-  // Reset on filter change
-  function updateFilter(key, value) {
-    setMatches([]);
-    setPage(1);
-    setFilters(prev => ({ ...prev, [key]: value }));
-  }
+  // Load on page change
+  useEffect(() => { loadPage(page); }, [page, loadPage]);
 
   // IntersectionObserver for infinite scroll
   useEffect(() => {
@@ -1793,12 +1785,6 @@ function MatchHistory({ authUser, onBack }) {
     return () => obs.disconnect();
   }, [hasMore, loading]);
 
-  const filterGroups = [
-    { key: "result", options: [{ value: "all", label: t("history.all") }, { value: "win", label: t("history.win") }, { value: "loss", label: t("history.loss") }] },
-    { key: "mode", options: [{ value: "all", label: t("history.all") }, { value: "classic", label: t("history.classic") }, { value: "advance", label: t("history.advance") }] },
-    { key: "wager", options: [{ value: "all", label: t("history.all") }, { value: "has", label: t("history.wager") }, { value: "none", label: t("history.free") }] },
-  ];
-
   return (
     <div className="history-container">
       <div className="history-header">
@@ -1806,30 +1792,19 @@ function MatchHistory({ authUser, onBack }) {
         <h2 className="history-title">{t("history.title")}</h2>
         <span className="history-total">{t("history.total", { n: total })}</span>
       </div>
-      <div className="history-filters">
-        {filterGroups.map(g => (
-          <div key={g.key} className="history-filter-group">
-            {g.options.map(opt => (
-              <button
-                key={opt.value}
-                className={"history-pill" + (filters[g.key] === opt.value ? " active" : "")}
-                onClick={() => updateFilter(g.key, opt.value)}
-              >{opt.label}</button>
-            ))}
-          </div>
-        ))}
-      </div>
       <div className="history-list">
         {matches.map(m => (
           <div key={m.id} className="match-card">
             <div className="match-avatar">{m.opponent.displayName ? m.opponent.displayName.charAt(0).toUpperCase() : "?"}</div>
             <div className="match-info">
-              <div className="match-opponent">{m.opponent.displayName || "Unknown"}</div>
+              <div className="match-opponent">{m.opponent.displayName || (LANG === "vi" ? "Khách" : "Guest")}</div>
               <div className="match-meta">
                 <span className={"match-result " + m.result}>{m.result === "win" ? "✅" : "❌"} {m.result === "win" ? t("history.win") : t("history.loss")}</span>
-                <span className={"match-points " + (m.pointsDelta >= 0 ? "positive" : "negative")}>
-                  {m.pointsDelta > 0 ? "+" : ""}{m.pointsDelta} {t("history.pts")}
-                </span>
+                {m.stake > 0 && (
+                  <span className={"match-points " + (m.pointsDelta >= 0 ? "positive" : "negative")}>
+                    {m.pointsDelta > 0 ? "+" : ""}{m.pointsDelta} {t("history.pts")}
+                  </span>
+                )}
                 <span className="match-mode-chip">{m.mode}</span>
               </div>
             </div>

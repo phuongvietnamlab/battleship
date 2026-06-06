@@ -470,9 +470,9 @@ async function recordMatch(winnerId, loserId, reason, mode, startedAt, stake = 0
     return;
   }
 
-  // Unresolvable-seat guard (D-04): matches FK is NOT NULL; skip rather than throw
+  // At least both sides must be resolvable for FK constraint (matches.winner_id/loser_id NOT NULL)
   if (winnerId == null || loserId == null) {
-    console.log("[match] unresolvable user_id — skipping");
+    console.log("[match] unresolvable user_id (winner:", winnerId, "loser:", loserId, ") — skipping");
     return;
   }
 
@@ -763,6 +763,23 @@ async function updateWebAuthnCounter(credentialId, newCounter) {
 }
 
 // ─── Match History (Phase 13) ─────────────────────────────────────────────────
+
+// Resolve userId from clientId (guest credential lookup). Used before recordMatch
+// to ensure guest players get their matches recorded.
+async function resolveUserIdFromClientId(clientId) {
+  if (!clientId) return null;
+  if (!process.env.DATABASE_URL && !process.env.PGHOST && !process.env.PGDATABASE) return null;
+  try {
+    const { rows } = await pool.query(
+      "SELECT user_id FROM credentials WHERE type='guest' AND external_id=$1 LIMIT 1",
+      [clientId]
+    );
+    return rows[0]?.user_id ?? null;
+  } catch (e) {
+    return null;
+  }
+}
+
 async function getMatchHistory(userId, { result = "all", mode = "all", wager = "all" } = {}, page = 1, limit = 20) {
   if (!process.env.DATABASE_URL && !process.env.PGHOST && !process.env.PGDATABASE) {
     return { matches: [], total: 0, page, hasMore: false };
@@ -796,7 +813,7 @@ async function getMatchHistory(userId, { result = "all", mode = "all", wager = "
        m.started_at,
        m.ended_at
      FROM matches m
-     JOIN users u ON u.id = CASE WHEN m.winner_id = $1 THEN m.loser_id ELSE m.winner_id END
+     LEFT JOIN users u ON u.id = CASE WHEN m.winner_id = $1 THEN m.loser_id ELSE m.winner_id END
      WHERE (m.winner_id = $1 OR m.loser_id = $1)
        AND ($2 = 'all' OR ($2 = 'win' AND m.winner_id = $1) OR ($2 = 'loss' AND m.loser_id = $1))
        AND ($3 = 'all' OR m.mode = $3)
@@ -853,6 +870,7 @@ module.exports = {
   recordMatch,
   getMatchHistory,
   getUserStats,
+  resolveUserIdFromClientId,
   getWalletBalance,
   debitWallet,
   creditWallet,
