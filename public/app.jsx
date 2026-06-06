@@ -490,6 +490,14 @@ const Sound = (function () {
     mine() { noise(0.6, 0.6); tone(90, 0.6, "sawtooth", 0.45, 40); },
     win() { [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => tone(f, 0.22, "triangle", 0.3), i * 130)); },
     lose() { [400, 330, 262, 196].forEach((f, i) => setTimeout(() => tone(f, 0.28, "sawtooth", 0.25), i * 150)); },
+    // Premium emoji impact sounds
+    emojiExplosion() { noise(0.4, 0.55); tone(150, 0.35, "sawtooth", 0.4, 45); setTimeout(() => { noise(0.25, 0.3); tone(70, 0.4, "sine", 0.3, 35); }, 50); },
+    emojiShake() { noise(0.15, 0.5); tone(200, 0.1, "square", 0.35, 100); setTimeout(() => { noise(0.1, 0.35); tone(160, 0.08, "square", 0.3, 80); }, 60); },
+    emojiSplash() { noise(0.35, 0.4); tone(400, 0.25, "sine", 0.25, 150); setTimeout(() => { noise(0.2, 0.3); tone(300, 0.15, "sine", 0.2, 100); }, 80); },
+    emojiHearts() { [880, 1100, 1320].forEach((f, i) => setTimeout(() => tone(f, 0.15, "sine", 0.2), i * 100)); },
+    emojiBounce() { tone(440, 0.08, "triangle", 0.25, 220); setTimeout(() => tone(550, 0.08, "triangle", 0.2, 330), 80); setTimeout(() => tone(660, 0.1, "triangle", 0.2, 440), 160); },
+    // Emoji whoosh during flight
+    emojiWhoosh() { tone(600, 0.3, "sine", 0.12, 200); noise(0.2, 0.1); },
   };
 })();
 
@@ -1511,8 +1519,20 @@ function PremiumEmojiAnimation({ event, myClientId, onComplete }) {
       endY: to.top + to.height / 2,
     });
 
+    // Play whoosh on launch
+    Sound.emojiWhoosh();
+    // Play impact sound when emoji arrives (~850ms for normal, ~1100ms for hearts)
+    const impactDelay = impact === "hearts" ? 1050 : 830;
+    const impactSoundTimer = setTimeout(() => {
+      if (impact === "explosion") Sound.emojiExplosion();
+      else if (impact === "shake") Sound.emojiShake();
+      else if (impact === "splash") Sound.emojiSplash();
+      else if (impact === "hearts") Sound.emojiHearts();
+      else if (impact === "bounce") Sound.emojiBounce();
+    }, impactDelay);
+
     const timer = setTimeout(onComplete, 2200);
-    return () => clearTimeout(timer);
+    return () => { clearTimeout(timer); clearTimeout(impactSoundTimer); };
   }, []);
 
   if (!coords) return null;
