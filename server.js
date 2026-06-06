@@ -1302,7 +1302,7 @@ function onTurnTimeout(room, who) {
 
 // Resolve a set of shots fired by clientId at their opponent. Handles power-up pickup,
 // mines, sunk/win detection, turn handover and all emits. Returns a summary for the caller's cb.
-function doShot(room, clientId, cells) {
+function doShot(room, clientId, cells, opts = {}) {
   // Guard: null/shape check before any property access — prevents crash-probing
   // a game mid-resolution (SEC-02, T-03-02).
   if (!Array.isArray(cells) || !cells.length) return { ok: false, code: "BAD_STATE" };
@@ -1354,6 +1354,7 @@ function doShot(room, clientId, cells) {
   // turn: a hit keeps it; a clean miss can be saved by a bonus shot
   let keep = anyHit;
   if (!keep && (me.bonus || 0) > 0) { me.bonus--; keep = true; }
+  if (opts.forceEndTurn) keep = false;
   if (!keep) giveTurn(room, opp, clientId);
   for (const id of room.order) emitToClient(room, id, "turnUpdate", { yourTurn: room.turn === id });
   armTurnTimer(room);
@@ -2013,9 +2014,8 @@ io.on("connection", (socket) => {
     cb && cb(summary);
   });
 
-  // Ability handler shell — old types (double, reveal, mine, scatter) removed in Phase 15-01.
-  // Plan 15-03 will rewrite this with new power-up implementations.
-  socket.on("useAbility", async ({ type, r, c }, cb) => {
+  // Power-up ability handler — Phase 15-03: sonar, cross missile, scatter blast
+  socket.on("useAbility", async ({ type, r, c, axis, index }, cb) => {
     // Rate limit: 1 ability/s per player (D-06/D-07, SEC-01)
     const rlKey = socket.data.clientId || socket.id;
     try {
@@ -2031,8 +2031,96 @@ io.on("connection", (socket) => {
     const room = rooms[code];
     if (!room || !room.started) return cb && cb({ ok: false });
     if (room.turn !== clientId) return cb && cb({ ok: false, code: "NOT_YOUR_TURN" });
-    // No power-ups currently implemented — Plan 15-03 will add new types
-    cb && cb({ ok: false });
+    const me = room.players[clientId];
+    if (!me) return cb && cb({ ok: false });
+
+    // --- Sonar Ping ---
+    if (type === "sonar") {
+      if ((me.inv.sonar || 0) <= 0) return cb && cb({ ok: false, code: "NO_POWERUP" });
+      if (!["row", "col"].includes(axis)) return cb && cb({ ok: false, code: "BAD_AXIS" });
+      if (!Number.isInteger(index) || index < 0 || index >= BOARD) return cb && cb({ ok: false, code: "BAD_INDEX" });
+
+      me.inv.sonar--;
+      me.timeouts = 0;
+
+      const opp = opponentOf(room, clientId);
+      const oppData = room.players[opp];
+      let found = false;
+      if (oppData && oppData.occ) {
+        for (const k of oppData.occ) {
+          const [kr, kc] = k.split(",").map(Number);
+          if (axis === "row" && kr === index) { found = true; break; }
+          if (axis === "col" && kc === index) { found = true; break; }
+        }
+      }
+
+      // Consume turn (sonar always ends turn)
+      giveTurn(room, opp, clientId);
+      for (const id of room.order) emitToClient(room, id, "turnUpdate", { yourTurn: room.turn === id });
+      armTurnTimer(room);
+      emitToClient(room, clientId, "invUpdate", { inv: me.inv });
+
+      return cb && cb({ ok: true, type: "sonar", result: found ? "YES" : "NO", axis, index });
+    }
+
+    // --- Cross Missile ---
+    if (type === "cross") {
+      if ((me.inv.cross || 0) <= 0) return cb && cb({ ok: false, code: "NO_POWERUP" });
+      if (!inBounds(r, c)) return cb && cb({ ok: false, code: "BAD_CELL" });
+      if (room.resolving) return cb && cb({ ok: false, code: "BAD_STATE" });
+
+      me.inv.cross--;
+      me.timeouts = 0;
+
+      room.resolving = true;
+      let summary;
+      try {
+        summary = doShot(room, clientId, expandCells("cross", r, c), { forceEndTurn: true });
+      } finally {
+        room.resolving = false;
+      }
+
+      emitToClient(room, clientId, "invUpdate", { inv: me.inv });
+      return cb && cb(Object.assign({ type: "cross" }, summary));
+    }
+
+    // --- Scatter Blast ---
+    if (type === "scatter") {
+      if ((me.inv.scatter || 0) <= 0) return cb && cb({ ok: false, code: "NO_POWERUP" });
+      if (room.resolving) return cb && cb({ ok: false, code: "BAD_STATE" });
+
+      const cand = [];
+      for (let rr = 0; rr < BOARD; rr++) {
+        for (let cc = 0; cc < BOARD; cc++) {
+          const k = rr + "," + cc;
+          if (!me.hits.has(k)) cand.push([rr, cc]);
+        }
+      }
+      if (!cand.length) return cb && cb({ ok: false, code: "NO_CELLS" });
+
+      me.inv.scatter--;
+      me.timeouts = 0;
+
+      const n = Math.min(cand.length, 2 + Math.floor(Math.random() * 2)); // 2-3 cells
+      const pick = [];
+      for (let i = 0; i < n; i++) {
+        pick.push(cand.splice(Math.floor(Math.random() * cand.length), 1)[0]);
+      }
+
+      room.resolving = true;
+      let summary;
+      try {
+        summary = doShot(room, clientId, pick, { forceEndTurn: true });
+      } finally {
+        room.resolving = false;
+      }
+
+      emitToClient(room, clientId, "invUpdate", { inv: me.inv });
+      return cb && cb(Object.assign({ type: "scatter" }, summary));
+    }
+
+    // Unknown type
+    cb && cb({ ok: false, code: "UNKNOWN_TYPE" });
   });
 
   // Relay a chat message to the opponent. Text is trimmed + length-capped, and a
