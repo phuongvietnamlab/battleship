@@ -207,3 +207,20 @@ Plans:
 - [ ] Plan 01: Backend — Database migration (premium_emojis table + seed), GET /api/emojis endpoint, socket handler sendPremiumEmoji with validation + debit + cooldown
 - [ ] Plan 02: Frontend — Emoji picker tab in ChatComposer, animation overlay component (flight + impact), premiumEmoji socket listener + queue
 - [ ] Plan 03: Animation assets + avatar-targeted positioning + per-emoji impact effects + i18n + mobile polish + edge cases
+
+### Phase 15: Power-up redesign: remove advance mode, new purchase-based power-up system
+
+**Goal:** Replace the dual-mode (Classic/Advance) power-up system with a unified single-mode game where players purchase up to 2 power-ups (Sonar Ping, Cross Missile, Decoy, Scatter Blast) during the placement phase using 10% of the match stake. Remove all advance-mode code, random spawning, and mid-match shop.
+
+**Requirements**: See `.kiro/specs/power-up-redesign/requirements.md`
+**Depends on:** Phase 7 (wallet/points economy), Phase 2 (auth)
+**Plans:** 6 plans
+
+Plans:
+
+- [ ] Plan 01: Legacy removal — remove advance mode & old power-up system
+- [ ] Plan 02: New purchase system — server-side placement-phase shop
+- [ ] Plan 03: Power-up implementations — server-side game logic (sonar, cross, scatter, decoy)
+- [ ] Plan 04: Client UI — placement shop + decoy placement
+- [ ] Plan 05: Client UI — battle phase power-ups (sonar DnD, cross aim, scatter)
+- [ ] Plan 06: Integration testing + edge cases
