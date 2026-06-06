@@ -1543,7 +1543,7 @@ function ChatComposer({ open, onSend, onToggle, premiumEmojis, balance, isGuest,
                     className={"premium-emoji-btn" + ((balance < em.cost || emojiCooldown) ? " disabled" : "")}
                     disabled={balance < em.cost || emojiCooldown}
                     onClick={() => onSendPremium(em.id)}
-                    title={lang === "vi" ? em.description_vi : em.description_en}
+                    title={LANG === "vi" ? em.description_vi : em.description_en}
                   >
                     <img src={"/emojis/" + em.animation_file} alt={em.name} className="pe-img" />
                     <span className="pe-cost">{em.cost}{t("premiumEmoji.pts") || "pts"}</span>
