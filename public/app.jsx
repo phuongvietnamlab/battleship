@@ -1605,8 +1605,11 @@ function PremiumEmojiAnimation({ event, myClientId, onComplete }) {
     );
   }
 
+  // Direction class for directional effects (splash)
+  const dirClass = dx > 0 ? " from-left" : " from-right";
+
   return (
-    <div className={"pe-anim impact-" + impact} ref={ref} style={style}>
+    <div className={"pe-anim impact-" + impact + dirClass} ref={ref} style={style}>
       <div className="pe-anim-emoji">
         <img src={"/emojis/" + event.slug + ".svg"} alt="" className="pe-anim-img" />
       </div>

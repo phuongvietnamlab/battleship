@@ -1259,40 +1259,66 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 }
 
 /* ════════ SPLASH (Water 💦) ══════════════════════════════════════════════════ */
+/* Water splashes FROM the direction the emoji flew in */
 .pe-splash-bucket {
-  width:36px; height:55px; margin:-75px 0 0 -18px;
-  background:linear-gradient(180deg, rgba(41,182,246,.85) 0%, rgba(41,182,246,.2) 100%);
-  border-radius:0 0 50% 50%; opacity:0;
-  animation:pe-splash-pour 0.6s ease-in 0.8s forwards;
+  width:50px; height:45px; margin:-22px 0 0 -25px;
+  background:linear-gradient(135deg, rgba(41,182,246,.85) 0%, rgba(41,182,246,.3) 100%);
+  border-radius:0 60% 50% 0; opacity:0;
+  animation:pe-splash-pour-ltr 0.55s ease-out 0.8s forwards;
 }
-@keyframes pe-splash-pour {
-  0% { opacity:0; transform:scaleY(0) translateY(-20px); transform-origin:top; }
-  30% { opacity:0.9; transform:scaleY(1) translateY(0); }
-  70% { opacity:0.6; transform:scaleY(1.2) translateY(10px); }
-  100% { opacity:0; transform:scaleY(1.4) translateY(20px); }
+/* From left: water sprays rightward onto avatar */
+.pe-anim.from-left .pe-splash-bucket {
+  margin:-22px 0 0 -40px;
+  border-radius:0 60% 50% 0;
+  animation-name:pe-splash-pour-ltr;
+}
+/* From right: water sprays leftward onto avatar */
+.pe-anim.from-right .pe-splash-bucket {
+  margin:-22px 0 0 -10px;
+  border-radius:60% 0 0 50%;
+  animation-name:pe-splash-pour-rtl;
+}
+@keyframes pe-splash-pour-ltr {
+  0% { opacity:0; transform:translate(-30px, -10px) scaleX(0.3) rotate(-15deg); transform-origin:left center; }
+  30% { opacity:0.9; transform:translate(-10px, 0) scaleX(1) rotate(-5deg); }
+  70% { opacity:0.6; transform:translate(5px, 5px) scaleX(1.1) rotate(0deg); }
+  100% { opacity:0; transform:translate(10px, 12px) scaleX(0.8) rotate(5deg); }
+}
+@keyframes pe-splash-pour-rtl {
+  0% { opacity:0; transform:translate(30px, -10px) scaleX(0.3) rotate(15deg); transform-origin:right center; }
+  30% { opacity:0.9; transform:translate(10px, 0) scaleX(1) rotate(5deg); }
+  70% { opacity:0.6; transform:translate(-5px, 5px) scaleX(1.1) rotate(0deg); }
+  100% { opacity:0; transform:translate(-10px, 12px) scaleX(0.8) rotate(-5deg); }
 }
 .pe-splash-drop {
   width:5px; height:9px; border-radius:50% 50% 50% 50% / 60% 60% 40% 40%;
   background:rgba(41,182,246,.85); opacity:0;
-  animation:pe-drop-fall 0.55s ease-in forwards;
+  animation:pe-drop-fall-ltr 0.5s ease-in forwards;
 }
-.pe-splash-drop.dr1 { animation-delay:0.9s; --ddx:-12px; }
-.pe-splash-drop.dr2 { animation-delay:0.93s; --ddx:10px; width:4px; height:7px; }
-.pe-splash-drop.dr3 { animation-delay:0.88s; --ddx:-5px; }
-.pe-splash-drop.dr4 { animation-delay:0.95s; --ddx:16px; width:4px; height:6px; }
-.pe-splash-drop.dr5 { animation-delay:0.92s; --ddx:2px; }
-@keyframes pe-drop-fall {
-  0% { opacity:1; transform:translate(var(--ddx, 0), -30px); }
-  100% { opacity:0; transform:translate(var(--ddx, 0), 40px); }
+.pe-anim.from-left .pe-splash-drop { animation-name:pe-drop-fall-ltr; }
+.pe-anim.from-right .pe-splash-drop { animation-name:pe-drop-fall-rtl; }
+.pe-splash-drop.dr1 { animation-delay:0.88s; --ddx:8px; --ddy:30px; }
+.pe-splash-drop.dr2 { animation-delay:0.91s; --ddx:15px; --ddy:25px; width:4px; height:7px; }
+.pe-splash-drop.dr3 { animation-delay:0.86s; --ddx:3px; --ddy:35px; }
+.pe-splash-drop.dr4 { animation-delay:0.93s; --ddx:20px; --ddy:20px; width:4px; height:6px; }
+.pe-splash-drop.dr5 { animation-delay:0.9s; --ddx:12px; --ddy:32px; }
+/* Drops spray in the direction of momentum (from-left → drops go right + down) */
+@keyframes pe-drop-fall-ltr {
+  0% { opacity:1; transform:translate(-15px, -10px) rotate(-10deg); }
+  100% { opacity:0; transform:translate(var(--ddx), var(--ddy)) rotate(5deg); }
+}
+@keyframes pe-drop-fall-rtl {
+  0% { opacity:1; transform:translate(15px, -10px) rotate(10deg); }
+  100% { opacity:0; transform:translate(calc(var(--ddx) * -1), var(--ddy)) rotate(-5deg); }
 }
 .pe-splash-wave {
-  width:56px; height:18px; margin:-5px 0 0 -28px;
-  border-radius:50%; background:rgba(41,182,246,.4);
-  opacity:0; animation:pe-wave-spread 0.5s ease-out 1s forwards;
+  width:50px; height:16px; margin:-2px 0 0 -25px;
+  border-radius:50%; background:rgba(41,182,246,.35);
+  opacity:0; animation:pe-wave-spread 0.45s ease-out 0.95s forwards;
 }
 @keyframes pe-wave-spread {
-  0% { opacity:0.8; transform:scaleX(0.4) scaleY(1); }
-  100% { opacity:0; transform:scaleX(1.6) scaleY(0.3); }
+  0% { opacity:0.7; transform:scaleX(0.5) scaleY(1); }
+  100% { opacity:0; transform:scaleX(1.5) scaleY(0.3); }
 }
 
 /* ════════ HEARTS (Kiss 💋) ═══════════════════════════════════════════════════ */
