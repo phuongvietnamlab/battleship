@@ -1788,18 +1788,20 @@ function MatchHistory({ authUser, onBack }) {
   return (
     <div className="history-container">
       <div className="history-header">
-        <button className="btn ghost compact" onClick={onBack}>{t("history.back")}</button>
-        <h2 className="history-title">{t("history.title")}</h2>
-        <span className="history-total">{t("history.total", { n: total })}</span>
+        <button className="btn ghost compact history-back" onClick={onBack}>←</button>
+        <div className="history-header-center">
+          <h2 className="history-title">{t("history.title")}</h2>
+          <span className="history-total">{total} {LANG === "vi" ? "trận" : "matches"}</span>
+        </div>
       </div>
       <div className="history-list">
         {matches.map(m => (
-          <div key={m.id} className="match-card">
+          <div key={m.id} className={"match-card " + m.result}>
             <div className="match-avatar">{m.opponent.displayName ? m.opponent.displayName.charAt(0).toUpperCase() : "?"}</div>
             <div className="match-info">
               <div className="match-opponent">{m.opponent.displayName || (LANG === "vi" ? "Khách" : "Guest")}</div>
               <div className="match-meta">
-                <span className={"match-result " + m.result}>{m.result === "win" ? "✅" : "❌"} {m.result === "win" ? t("history.win") : t("history.loss")}</span>
+                <span className={"match-result-badge " + m.result}>{m.result === "win" ? (LANG === "vi" ? "Thắng" : "Won") : (LANG === "vi" ? "Thua" : "Lost")}</span>
                 {m.stake > 0 && (
                   <span className={"match-points " + (m.pointsDelta >= 0 ? "positive" : "negative")}>
                     {m.pointsDelta > 0 ? "+" : ""}{m.pointsDelta} {t("history.pts")}
