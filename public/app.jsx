@@ -2590,7 +2590,7 @@ function App() {
   const botRemainingRef = useRef([]);          // kích thước tàu còn lại (chưa chìm)
 
   const addLog = useCallback((s) => setLog((l) => [s, ...l].slice(0, 40)), []);
-  const showNotice = useCallback((s) => { setNotice(s); setTimeout(() => setNotice((n) => (n === s ? null : n)), 4000); }, []);
+  const showNotice = useCallback((s) => { setNotice(s); setTimeout(() => setNotice((n) => (n === s ? null : n)), 6000); }, []);
 
   // Power-up purchase flow (Phase 15)
   function handlePlacementBuy(type) {
@@ -2627,6 +2627,9 @@ function App() {
       // Highlight the scanned row/col immediately
       setSonarScan({ axis, index });
       setAim(null);
+      // Prevent scroll jump when sonar UI disappears
+      const scrollY = window.scrollY;
+      requestAnimationFrame(() => window.scrollTo(0, scrollY));
       socket.emit("useAbility", { type: "sonar", axis, index }, (res) => {
         if (!res || !res.ok) { addLog(errText(res)); setSonarScan(null); return; }
         // Show result after a brief highlight animation
