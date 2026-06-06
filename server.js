@@ -1903,9 +1903,12 @@ io.on("connection", (socket) => {
     if (type === "decoy" && me.inv.decoy >= 1) return cb && cb({ ok: false, code: "DECOY_CAP_REACHED" });
 
     const price = Math.round(room.stake * POWERUP_PRICE_PCT);
-    const referenceId = `powerup_placement_${type}_${clientId}_${room.purchases[clientId] || 0}`;
+    const referenceId = `pu_${code}_${type}_${clientId}_${Date.now()}`;
     const debitResult = await debitWallet(me.userId, price, "powerup_purchase", referenceId);
-    if (!debitResult.ok) return cb && cb({ ok: false, code: "INSUFFICIENT_BALANCE" });
+    if (!debitResult.ok) {
+      console.error("[powerup] debitWallet failed:", me.userId, price, debitResult.code, referenceId);
+      return cb && cb({ ok: false, code: debitResult.code || "INSUFFICIENT_BALANCE" });
+    }
 
     // Grant power-up
     if (!me.inv) me.inv = newInv();
