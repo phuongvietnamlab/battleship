@@ -2791,6 +2791,8 @@ function App() {
       addLog(t("log.oppLeft")); setOppLeft(true);
       setOppOffline(false); setGraceLeft(0);
       if (graceTimerRef.current) { clearInterval(graceTimerRef.current); graceTimerRef.current = null; }
+      // Re-fetch balance immediately (server may have refunded wager + power-ups)
+      fetch("/api/wallet").then(r => r.json()).then(d => setBalance(d.balance)).catch(() => {});
       // Clear persisted room immediately so F5 before clicking "return to lobby"
       // does not auto-rejoin the dead room (BUG-FIX: stale room on refresh).
       persistRoom(null);
@@ -3289,6 +3291,8 @@ function App() {
     if (myBubbleTimer.current) { clearTimeout(myBubbleTimer.current); myBubbleTimer.current = null; }
     if (oppBubbleTimer.current) { clearTimeout(oppBubbleTimer.current); oppBubbleTimer.current = null; }
     if (graceTimerRef.current) { clearInterval(graceTimerRef.current); graceTimerRef.current = null; }
+    // Re-fetch wallet balance so refunded points show immediately
+    if (authUser) fetch("/api/wallet").then(r => r.json()).then(d => setBalance(d.balance)).catch(() => {});
     setScreen("lobby");
   }
   // Ask first (window.confirm is blocked in the Instant Games iframe, so we use
