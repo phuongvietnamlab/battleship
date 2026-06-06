@@ -1492,12 +1492,11 @@ function PremiumEmojiAnimation({ event, myClientId, onComplete }) {
   const isFromMe = event.senderId === myClientId;
   const direction = isFromMe ? "ltr" : "rtl";
   useEffect(() => {
-    const timer = setTimeout(onComplete, 2800);
+    const timer = setTimeout(onComplete, 2000);
     return () => clearTimeout(timer);
   }, []);
   return (
     <div className={"premium-anim-overlay " + direction + " impact-" + (event.impactType || "explosion")}>
-      <div className="premium-anim-glow" />
       <div className="premium-anim-projectile">
         <img src={"/emojis/" + event.slug + ".svg"} alt="" className="premium-anim-img" />
         <div className="premium-anim-trail" />
