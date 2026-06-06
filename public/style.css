@@ -984,6 +984,22 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
   .lobby-card:hover, .power-btn:not(:disabled):hover {
     transform: none;
   }
+
+  /* 6. Kill onboarding pulse — infinite box-shadow animation on lobby drains battery */
+  .hero-cta.onboarding-pulse {
+    animation: none;
+  }
+
+  /* 7. Remove will-change on paused elements — still creates GPU layers even without animation */
+  .ocean-bg::before, .wave, .wave.w2, .wave.w3 {
+    will-change: auto;
+  }
+
+  /* 8. Disable backdrop-filter on profile/history views */
+  .history-view, .profile-view {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
 }
 
 /* Also apply reduced animations when battery saver / low-power mode is active

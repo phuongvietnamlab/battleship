@@ -430,7 +430,12 @@ const FLEET_DEF = [
 const SOCKET_URL = process.env.SERVER_URL || undefined;
 // autoConnect:false — connect only after the App effect attaches its listeners,
 // so the first "resume" isn't missed by a fast connect event.
-const socket = io(SOCKET_URL, { autoConnect: false });
+const socket = io(SOCKET_URL, {
+  autoConnect: false,
+  reconnectionDelay: 2000,      // start at 2s (default 1s)
+  reconnectionDelayMax: 15000,  // cap at 15s (default 5s) — saves mobile radio while staying responsive
+  reconnectionAttempts: 50,     // give up after 50 (~10min) instead of Infinity
+});
 
 // ---------- âm thanh (Web Audio, không cần file) ----------
 const Sound = (function () {
