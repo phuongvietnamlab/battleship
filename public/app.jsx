@@ -2812,9 +2812,9 @@ function App() {
     }
   }, [authUser]);
 
-  // Lock body scroll on battle/placement screens to prevent mobile bounce (Phase 15)
+  // Lock body scroll on battle screen to prevent mobile bounce (Phase 15)
   useEffect(() => {
-    if (screen === "battle" || screen === "placement") {
+    if (screen === "battle") {
       document.body.style.overflow = "hidden";
       document.body.style.position = "fixed";
       document.body.style.width = "100%";
