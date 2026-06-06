@@ -532,6 +532,9 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
   cursor:pointer; transition: background .15s, border-color .15s, opacity .15s; min-width:64px; }
 .shop-item:hover:not(:disabled) { background:rgba(255,255,255,.12); border-color:rgba(255,255,255,.3); }
 .shop-item:disabled { opacity:.4; cursor:not-allowed; }
+.shop-item.selected { border-color:#f0c040; background:rgba(240,192,64,.18); box-shadow: 0 0 8px rgba(240,192,64,.3); }
+.shop-item.selected:disabled { opacity:.85; }
+.shop-check { font-size:11px; color:#f0c040; font-weight:bold; margin-top:1px; }
 .shop-icon { font-size:22px; line-height:1; }
 .shop-name { font-size:10px; color:#cfe3f8; white-space:nowrap; }
 .shop-cap { font-size:11px; color:#ffa64d; margin-top:4px; }

@@ -1099,14 +1099,19 @@ function PlacementShop({ stake, balance, inventory, purchaseCount, onBuy, disabl
           { type: "cross", icon: "➕", nameKey: "pw.cross" },
           { type: "decoy", icon: "🎭", nameKey: "pw.decoy" },
           { type: "scatter", icon: "🌠", nameKey: "pw.scatter" },
-        ].map(({ type, icon, nameKey }) => (
-          <button key={type} className="shop-item"
-            onClick={() => onBuy(type)}
-            disabled={disabled || maxReached || !canAfford || (type === "decoy" && (inventory.decoy || 0) >= 1)}>
-            <span className="shop-icon">{icon}</span>
-            <span className="shop-name">{t(nameKey)}</span>
-          </button>
-        ))}
+        ].map(({ type, icon, nameKey }) => {
+          const owned = (inventory[type] || 0) > 0;
+          const isDisabled = disabled || maxReached || !canAfford || owned || (type === "decoy" && (inventory.decoy || 0) >= 1);
+          return (
+            <button key={type} className={"shop-item" + (owned ? " selected" : "")}
+              onClick={() => onBuy(type)}
+              disabled={isDisabled}>
+              <span className="shop-icon">{icon}</span>
+              <span className="shop-name">{t(nameKey)}</span>
+              {owned && <span className="shop-check">✓</span>}
+            </button>
+          );
+        })}
       </div>
       {maxReached && <div className="shop-cap">{t("shop.capReached")}</div>}
       {!maxReached && balanceLoaded && !canAfford && <div className="shop-cap">{t("wallet.insufficientBalance")}</div>}
