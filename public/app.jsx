@@ -30,7 +30,7 @@ const I18N = {
     "topbar.tagline": "Online · Sea Battle", "topbar.soundToggle": "Toggle sound",
     "lobby.title": "Sea Battle", "lobby.sub": "Play vs the bot, or create a room and send the code to a friend.",
     "lobby.playBot": "🤖 Play vs Bot", "lobby.createRoom": "⚓ Create new room", "lobby.enterCodeLabel": "Enter room code", "lobby.joinBtn": "Join room",
-    "mode.classic": "Classic", "mode.advance": "Advance ⚡", "mode.classicDesc": "Classic, no power-ups", "mode.advanceDesc": "Collect & use power-ups",
+    "mode.classic": "Classic", "mode.classicDesc": "Classic, no power-ups",
     "ship.carrier": "Carrier", "ship.battleship": "Battleship", "ship.cruiser": "Cruiser", "ship.submarine": "Submarine", "ship.destroyer": "Destroyer",
     "pw.scatter": "Scatter Blast", "pw.cross": "Cross Missile", "pw.double": "Extra Turn", "pw.reveal": "Reveal Cell", "pw.mine": "Sea Mine",
     "board.yourFleet": "Your fleet",
@@ -62,11 +62,6 @@ const I18N = {
     "help.objTitle": "🎯 Goal", "help.objBody": "Be the first to sink all 5 of your opponent's ships.",
     "help.setupTitle": "⚓ Place your fleet", "help.setupBody": "Your fleet starts placed at random. Drag a ship to move it, double-tap to rotate, or tap 🎲 Random for a new layout — then hit Ready.",
     "help.turnTitle": "💥 Taking turns", "help.turnBody": "Tap enemy waters to fire. A hit lets you fire again; a miss passes the turn. Each turn has a 20s timer — stall too long and you forfeit.",
-    "help.modesTitle": "🕹️ Modes", "help.modesBody": "Classic: pure battleship. Advance: power-ups appear on the enemy sea — hit them to collect, then use them on your turn.",
-    "help.powerTitle": "⚡ Power-ups (Advance mode)",
-    "help.pwScatter": "Blasts 3–5 random enemy cells.", "help.pwCross": "Fires in a plus shape (center + 4 neighbors).",
-    "help.pwDouble": "Your next miss still keeps the turn.", "help.pwReveal": "Reveals one hidden enemy ship cell.",
-    "help.pwMine": "Place on your own sea — if the enemy hits it, they lose their next turn.",
     "help.chatTitle": "💬 Chat", "help.chatBody": "Tap 💬 to send a quick emoji or message — it pops as a bubble over your avatar for a few seconds (no chat log).",
     "help.reconnectTitle": "📡 Reconnect", "help.reconnectBody": "If you disconnect or background the app, your seat is held for 3 minutes. Re-open to resume the match.",
     "footer": "Battleship Online · share the room code to invite friends",
@@ -164,8 +159,6 @@ const I18N = {
     "err.ALREADY_IN_ROOM": "You're already in a match",
     "err.RATE_LIMITED": "Too many attempts — wait a moment",
     "err.INSUFFICIENT_BALANCE": "Not enough points",
-    "err.PURCHASE_CAP_REACHED": "Purchase limit reached (3/match)",
-    "err.NOT_ADVANCE_MODE": "Power-ups can only be purchased in advance mode",
     "err.GUEST_NO_WALLET": "Sign in to purchase power-ups",
     "err.WAGERED_REQUIRES_ACCOUNT": "Sign in to play wagered matches",
     "wallet.balance": "Points",
@@ -222,7 +215,7 @@ const I18N = {
     "topbar.tagline": "Online · Hải chiến", "topbar.soundToggle": "Bật/tắt âm thanh",
     "lobby.title": "Trận hải chiến", "lobby.sub": "Chơi với máy, hoặc tạo phòng rồi gửi mã cho bạn bè.",
     "lobby.playBot": "🤖 Chơi với máy", "lobby.createRoom": "⚓ Tạo phòng mới", "lobby.enterCodeLabel": "Nhập mã phòng", "lobby.joinBtn": "Vào phòng",
-    "mode.classic": "Cổ điển", "mode.advance": "Nâng cao ⚡", "mode.classicDesc": "Cổ điển, không power-up", "mode.advanceDesc": "Nhặt & dùng power-up",
+    "mode.classic": "Cổ điển", "mode.classicDesc": "Cổ điển, không power-up",
     "ship.carrier": "Tàu sân bay", "ship.battleship": "Thiết giáp hạm", "ship.cruiser": "Tàu tuần dương", "ship.submarine": "Tàu ngầm", "ship.destroyer": "Khu trục hạm",
     "pw.scatter": "Nổ ngẫu nhiên", "pw.cross": "Tên lửa chữ thập", "pw.double": "Thêm lượt", "pw.reveal": "Lộ ô thuyền", "pw.mine": "Mìn nước",
     "board.yourFleet": "Hạm đội của bạn",
@@ -254,11 +247,6 @@ const I18N = {
     "help.objTitle": "🎯 Mục tiêu", "help.objBody": "Đánh chìm cả 5 thuyền của đối thủ trước là thắng.",
     "help.setupTitle": "⚓ Bố trí hạm đội", "help.setupBody": "Hạm đội được xếp ngẫu nhiên sẵn. Kéo thuyền để di chuyển, chạm 2 lần để xoay, hoặc bấm 🎲 Ngẫu nhiên để xếp lại — rồi bấm Sẵn sàng.",
     "help.turnTitle": "💥 Lượt bắn", "help.turnBody": "Chạm vào biển địch để bắn. Trúng thì bắn tiếp; trượt thì chuyển lượt. Mỗi lượt có 20 giây — chần chừ quá lâu sẽ bị xử thua.",
-    "help.modesTitle": "🕹️ Chế độ", "help.modesBody": "Classic: hải chiến thuần. Advance: power-up xuất hiện trên biển địch — bắn trúng để nhặt, rồi dùng trong lượt của bạn.",
-    "help.powerTitle": "⚡ Power-up (chế độ Advance)",
-    "help.pwScatter": "Nổ 3–5 ô ngẫu nhiên trên biển địch.", "help.pwCross": "Bắn theo hình chữ thập (tâm + 4 ô kề).",
-    "help.pwDouble": "Phát trượt kế tiếp vẫn giữ lượt.", "help.pwReveal": "Lộ 1 ô thuyền địch đang ẩn.",
-    "help.pwMine": "Đặt lên biển của mình — địch bắn trúng sẽ mất lượt kế tiếp.",
     "help.chatTitle": "💬 Trò chuyện", "help.chatBody": "Bấm 💬 để gửi emoji hoặc tin nhắn nhanh — nó hiện thành bong bóng trên avatar bạn vài giây (không có khung chat).",
     "help.reconnectTitle": "📡 Kết nối lại", "help.reconnectBody": "Nếu mất kết nối hoặc thoát nền app, ghế của bạn được giữ 3 phút. Mở lại để chơi tiếp.",
     "footer": "Battleship Online · chia sẻ mã phòng để mời bạn bè",
@@ -356,8 +344,6 @@ const I18N = {
     "err.ALREADY_IN_ROOM": "Bạn đang trong trận rồi",
     "err.RATE_LIMITED": "Quá nhiều lần thử — chờ một lát",
     "err.INSUFFICIENT_BALANCE": "Không đủ điểm",
-    "err.PURCHASE_CAP_REACHED": "Đã đạt giới hạn mua (3/trận)",
-    "err.NOT_ADVANCE_MODE": "Chỉ mua được power-up ở chế độ nâng cao",
     "err.GUEST_NO_WALLET": "Đăng nhập để mua power-up",
     "err.WAGERED_REQUIRES_ACCOUNT": "Đăng nhập để chơi trận cá cược",
     "wallet.balance": "Điểm",
@@ -899,7 +885,6 @@ function BottomSheet({ open, onClose, title, children }) {
 // ---------- Lobby ----------
 function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onHelp, onHistory, error, authUser, authError, verifyNotice, clientId, signInDisabled, onSignInDisable, onEmailAuthSuccess, balance }) {
   const [code, setCode] = useState("");
-  const [mode, setMode] = useState("classic");
   const [selectedTier, setSelectedTier] = useState(loadBotTier);
   const [roomStake, setRoomStake] = useState(0);
   const [botSheetOpen, setBotSheetOpen] = useState(false);
@@ -941,18 +926,8 @@ function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onHelp, onHistory, error
       {verifyNotice === "success" && <div className="notice verify-notice">{t("auth.verifySuccess")}</div>}
       {verifyNotice === "error" && <div className="error verify-notice">{t("auth.verifyError")}</div>}
 
-      {/* Mode toggle — compact segmented control (applies to Quick Play + Friends) */}
-      <div className="mode-toggle-compact" role="radiogroup" aria-label="Game mode">
-        <button className={mode === "classic" ? "active" : ""} role="radio" aria-checked={mode === "classic"} onClick={() => setMode("classic")}>
-          {t("mode.classic")}
-        </button>
-        <button className={mode === "advance" ? "active" : ""} role="radio" aria-checked={mode === "advance"} onClick={() => setMode("advance")}>
-          {t("mode.advance")}
-        </button>
-      </div>
-
       {/* Hero CTA — Quick Play */}
-      <button className={"btn primary hero-cta" + (showOnboarding ? " onboarding-pulse" : "")} onClick={() => { dismissOnboarding(); if (authUser) { setStakeSheetOpen(true); } else { onQuickMatch(0, mode); } }}>
+      <button className={"btn primary hero-cta" + (showOnboarding ? " onboarding-pulse" : "")} onClick={() => { dismissOnboarding(); if (authUser) { setStakeSheetOpen(true); } else { onQuickMatch(0); } }}>
         <span className="hero-icon">⚡</span>
         <span className="hero-text">
           <strong>{t("lobby.quickPlay")}</strong>
@@ -1000,7 +975,7 @@ function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onHelp, onHistory, error
 
       {/* Bottom Sheet: Friends / Room */}
       <BottomSheet open={friendSheetOpen} onClose={() => setFriendSheetOpen(false)} title={t("lobby.friendTitle")}>
-        <button className="btn steel" onClick={() => { onCreate(mode, roomStake); setFriendSheetOpen(false); }}>{t("lobby.createRoom")}</button>
+        <button className="btn steel" onClick={() => { onCreate("classic", roomStake); setFriendSheetOpen(false); }}>{t("lobby.createRoom")}</button>
         {authUser && (
           <div className="wager-chips" style={{ justifyContent: "center", margin: "10px 0" }}>
             {[0, 10, 25, 50, 100].map((s) => (
@@ -1045,7 +1020,7 @@ function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onHelp, onHistory, error
             </button>
           ))}
         </div>
-        <button className="btn primary" onClick={() => { onQuickMatch(sheetStake, mode); setStakeSheetOpen(false); }} disabled={sheetStake > 0 && (balance == null || balance < sheetStake)}>
+        <button className="btn primary" onClick={() => { onQuickMatch(sheetStake); setStakeSheetOpen(false); }} disabled={sheetStake > 0 && (balance == null || balance < sheetStake)}>
           {t("queue.quickMatch")}
         </button>
       </BottomSheet>
@@ -1054,9 +1029,7 @@ function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onHelp, onHistory, error
 }
 
 // ---------- Grid ----------
-const POWER_ICON = { scatter: "\u{1F320}", cross: "➕", double: "\u{1F501}", reveal: "\u{1F50D}", mine: "\u{1F6A7}" };
-const POWER_NAME = { scatter: t("pw.scatter"), cross: t("pw.cross"), double: t("pw.double"), reveal: t("pw.reveal"), mine: t("pw.mine") };
-function Grid({ enemy, occ, hits, incoming, onCellClick, hoverCells, onCellHover, shootable, sunk, flash, powerups, revealed, aimCells, mines, placeable }) {
+function Grid({ enemy, occ, hits, incoming, onCellClick, hoverCells, onCellHover, shootable, sunk, flash, revealed, aimCells, placeable }) {
   // occ: Set of "r,c" your ships (own board)
   // hits: Set of "r,c" shots you fired at enemy (enemy board)
   // incoming: Map "r,c" -> hit boolean (shots enemy fired at you, own board)
@@ -1072,17 +1045,13 @@ function Grid({ enemy, occ, hits, incoming, onCellClick, hoverCells, onCellHover
         } else if (shootable) {
           cls += " shootable";
         }
-        if (powerups && powerups.has(k) && !(hits && hits.has(k))) {
-          cls += " powerup"; content = POWER_ICON[powerups.get(k)] || "⭐";
-        }
         if (revealed && revealed.has(k) && !(hits && hits.has(k))) cls += " revealed";
         if (aimCells && aimCells.has(k)) cls += " aim";
         if (hoverCells && hoverCells.has(k)) cls += " ship";
       } else {
         if (occ && occ.has(k)) cls += " ship";
         if (incoming && incoming.has(k)) cls += incoming.get(k) ? " hit" : " miss";
-        if (mines && mines.has(k)) { cls += " mine"; content = POWER_ICON.mine; }
-        if (placeable && !(occ && occ.has(k)) && !(incoming && incoming.has(k)) && !(mines && mines.has(k))) cls += " selectable";
+        if (placeable && !(occ && occ.has(k)) && !(incoming && incoming.has(k))) cls += " selectable";
         if (hoverCells && hoverCells.has(k)) cls += " ship";
       }
       if (sunk && sunk.has(k)) cls += " sunk";
@@ -1307,21 +1276,6 @@ function Counter({ label, value, cls }) {
     </div>
   );
 }
-function PowerBar({ inv, aim, onPower, myTurn }) {
-  const items = ["scatter", "cross", "double", "reveal", "mine"];
-  return (
-    <div className="powerbar">
-      {items.map((t) => (
-        <button key={t} disabled={!myTurn || (inv[t] || 0) <= 0}
-          className={"power-btn" + (aim === t ? " aiming" : "")} onClick={() => onPower(t)}>
-          <span className="pi">{POWER_ICON[t]}</span>
-          <span className="pn">{POWER_NAME[t]}</span>
-          <span className="pc">{inv[t] || 0}</span>
-        </button>
-      ))}
-    </div>
-  );
-}
 // Player card: avatar + name + score, used on both sides of the scoreboard.
 function PlayerCard({ profile, fallbackName, score, active, isBot, side, bubble, onClick }) {
   const name = (profile && profile.name) || fallbackName;
@@ -1360,7 +1314,7 @@ function TurnRing({ secs, frac, show, myTurn }) {
     </div>
   );
 }
-function Battle({ myTurn, vsBot, occ, incoming, myShots, onFire, log, sunkOpp, sunkMine, sunkEnemyCells, sunkMyCells, myScore, oppScore, oppLabel, myProfile, oppProfile, myBubble, oppBubble, flashEnemy, flashMine, mode, inv, powerups, revealedEnemy, aim, onPower, myMines, onPlaceMine, turnDeadline, turnDur, shake }) {
+function Battle({ myTurn, vsBot, occ, incoming, myShots, onFire, log, sunkOpp, sunkMine, sunkEnemyCells, sunkMyCells, myScore, oppScore, oppLabel, myProfile, oppProfile, myBubble, oppBubble, flashEnemy, flashMine, turnDeadline, turnDur, shake }) {
   const [tab, setTab] = useState("enemy"); // enemy | own (mobile)
   const [oppStats, setOppStats] = useState(null); // { wins, losses, gamesPlayed, winRate } | null
   const [oppStatsOpen, setOppStatsOpen] = useState(false);
@@ -1400,10 +1354,9 @@ function Battle({ myTurn, vsBot, occ, incoming, myShots, onFire, log, sunkOpp, s
   }, [turnDeadline, turnDur]);
   // tự động chuyển tab theo lượt, delay ~2s để kịp nhìn địch bắn vào đâu rồi mới đổi bản đồ
   useEffect(() => {
-    if (aim === "mine") { setTab("own"); return; }
     const t = setTimeout(() => setTab(myTurn ? "enemy" : "own"), 1300);
     return () => clearTimeout(t);
-  }, [myTurn, aim]);
+  }, [myTurn]);
   // Bot mode: synthetic turn indicator (no server deadline, but show a visual ring)
   const showRing = turnDeadline != null || vsBot;
   const botFrac = vsBot ? (myTurn ? 1 : 0) : frac;
@@ -1425,28 +1378,17 @@ function Battle({ myTurn, vsBot, occ, incoming, myShots, onFire, log, sunkOpp, s
           )}
         </div>
       </div>
-      {mode === "advance" && (
-        <PowerBar inv={inv} aim={aim} onPower={onPower} myTurn={myTurn} />
-      )}
-      {aim && aim !== "mine" && (
-        <div className="aim-banner">{t("battle.aiming", { name: POWER_NAME[aim] })}</div>
-      )}
-      {aim === "mine" && (
-        <div className="aim-banner">{t("battle.aimingMine")}</div>
-      )}
       <div className={"boards tab-" + tab + (shake ? " shake" : "")}>
         <div className="board-wrap wrap-enemy">
           <div className="board-title enemy">{t("battle.enemyWaters")} {myTurn ? t("battle.fireSuffix") : ""}</div>
           <Grid enemy hits={myShots} shootable={myTurn} sunk={sunkEnemyCells} flash={flashEnemy}
-            powerups={powerups} revealed={revealedEnemy}
             onCellClick={(r, c) => myTurn && onFire(r, c)} />
           <Counter label={t("counter.sunkEnemy")} value={sunkOpp} cls="enemy" />
         </div>
         <div className="board-wrap wrap-own">
           <div className="board-title own">{t("board.yourFleet")}</div>
           <Grid occ={occ} incoming={incoming} sunk={sunkMyCells} flash={flashMine}
-            mines={myMines} placeable={aim === "mine"}
-            onCellClick={(r, c) => aim === "mine" && onPlaceMine(r, c)} />
+            onCellClick={() => {}} />
           <Counter label={t("counter.sunkOwn")} value={sunkMine} cls="own" />
         </div>
       </div>
@@ -1464,9 +1406,6 @@ function HelpModal({ open, onClose }) {
   const section = (title, body) => (
     <div className="help-sec"><h4>{title}</h4><p>{body}</p></div>
   );
-  const pw = (icon, name, desc) => (
-    <div className="help-pw"><span className="help-pw-i">{icon}</span><div><b>{name}</b><span>{desc}</span></div></div>
-  );
   return (
     <div className="overlay" onClick={onClose}>
       <div className="modal help-modal" onClick={(e) => e.stopPropagation()}>
@@ -1475,15 +1414,6 @@ function HelpModal({ open, onClose }) {
           {section(t("help.objTitle"), t("help.objBody"))}
           {section(t("help.setupTitle"), t("help.setupBody"))}
           {section(t("help.turnTitle"), t("help.turnBody"))}
-          {section(t("help.modesTitle"), t("help.modesBody"))}
-          <div className="help-sec">
-            <h4>{t("help.powerTitle")}</h4>
-            {pw(POWER_ICON.scatter, POWER_NAME.scatter, t("help.pwScatter"))}
-            {pw(POWER_ICON.cross, POWER_NAME.cross, t("help.pwCross"))}
-            {pw(POWER_ICON.double, POWER_NAME.double, t("help.pwDouble"))}
-            {pw(POWER_ICON.reveal, POWER_NAME.reveal, t("help.pwReveal"))}
-            {pw(POWER_ICON.mine, POWER_NAME.mine, t("help.pwMine"))}
-          </div>
           {section(t("help.chatTitle"), t("help.chatBody"))}
           {section(t("help.reconnectTitle"), t("help.reconnectBody"))}
         </div>
@@ -2372,12 +2302,6 @@ function App() {
   const [linkCopied, setLinkCopied] = useState(false);
   const [sunkOpp, setSunkOpp] = useState(0);   // địch bị ta đánh chìm
   const [sunkMine, setSunkMine] = useState(0); // thuyền của ta bị chìm
-  const [mode, setMode] = useState("classic"); // classic | advance
-  const [inv, setInv] = useState({ scatter: 0, cross: 0, double: 0, reveal: 0, mine: 0 });
-  const [myMines, setMyMines] = useState(new Set()); // mìn ta đã đặt trên hạm đội mình
-  const [powerups, setPowerups] = useState(new Map()); // ô power-up trên biển địch: key->type
-  const [revealedEnemy, setRevealedEnemy] = useState(new Set()); // ô thuyền địch đã bị lộ
-  const [aim, setAim] = useState(null); // power-up đang ngắm: null | "cluster" | "cross"
   const [flashEnemy, setFlashEnemy] = useState(null); // ô mình vừa bắn (biển địch)
   const [flashMine, setFlashMine] = useState(null);   // ô địch vừa bắn (hạm đội mình)
   const [shake, setShake] = useState(false);          // board recoil khi trúng/nổ
@@ -2418,10 +2342,6 @@ function App() {
   // Points economy (Phase 7)
   const [balance, setBalance]                   = useState(null);   // null = guest/unknown, number = signed-in
   const [stake, setStake]                       = useState(0);      // current match stake (0 = free)
-  const [purchasesRemaining, setPurchasesRemaining] = useState(0);  // power-up buys left this match
-  const [powerupPrice, setPowerupPrice]         = useState(5);      // price per power-up (from sync)
-  const [showShop, setShowShop]                 = useState(false);  // shop panel visible
-  const [oppBoughtNotice, setOppBoughtNotice]   = useState(false);  // brief "opp bought" toast
   const [queueStake, setQueueStake]             = useState(0);      // stake shown on queue wait screen
   // Premium emoji (Phase 14)
   const [premiumEmojis, setPremiumEmojis]       = useState([]);     // emoji catalog from API
@@ -2540,7 +2460,6 @@ function App() {
     socket.on("roomUpdate", (r) => {
       const has = r.playerCount >= 2;
       setOppPresent(has);
-      if (r.mode) setMode(r.mode);
       if (has) setScreen((s) => (s === "room" ? "placement" : s));
     });
     socket.on("opponentReady", () => { setOppReady(true); addLog(t("log.oppReady")); });
@@ -2570,16 +2489,10 @@ function App() {
       setSunkEnemyCells(new Set(st.sunkOppCells || []));
       setSunkMyCells(new Set(st.sunkMyCells || []));
       setMyScore(st.myScore || 0); setOppScore(st.oppScore || 0);
-      setMode(st.mode || "classic");
-      if (st.inv) setInv(st.inv);
-      setMyMines(new Set(st.myMines || []));
-      setPowerups(new Map((st.powerups || []).map((p) => [key(p.r, p.c), p.type])));
       setTurnDeadline(st.started ? (st.turnDeadline || null) : null);
       if (st.turnDur) setTurnDur(st.turnDur);
       if (st.oppProfile !== undefined) setOppProfile(st.oppProfile || null);
       if (typeof st.stake === "number") setStake(st.stake);
-      if (typeof st.purchasesRemaining === "number") setPurchasesRemaining(st.purchasesRemaining);
-      if (typeof st.powerupPrice === "number") setPowerupPrice(st.powerupPrice);
       if (st.started) { setMyTurn(st.yourTurn); setScreen("battle"); }
       else if (st.youReady) { setIReady(true); setScreen("placement"); }
       else { setScreen(st.oppPresent ? "placement" : "room"); }
@@ -2599,15 +2512,10 @@ function App() {
         if (r) { socket.emit("rejoin", { code: r, clientId }, (rr) => { if (!rr || !rr.ok) persistRoom(null); }); }
       });
     });
-    socket.on("gameStart", ({ yourTurn, mode: m }) => {
+    socket.on("gameStart", ({ yourTurn }) => {
       setScreen("battle"); setMyTurn(yourTurn); setTurnDeadline(null);
-      setMode(m || "classic");
-      setInv({ scatter: 0, cross: 0, double: 0, reveal: 0, mine: 0 });
-      setPowerups(new Map()); setRevealedEnemy(new Set()); setAim(null); setMyMines(new Set());
       addLog(yourTurn ? t("log.youFirst") : t("log.oppFirst"));
     });
-    socket.on("inventory", (i) => setInv(i));
-    socket.on("powerups", (list) => setPowerups(new Map((list || []).map((p) => [key(p.r, p.c), p.type]))));
     socket.on("turnUpdate", ({ yourTurn }) => setMyTurn(yourTurn));
     socket.on("turnTimer", ({ deadline, dur, yourTurn }) => { setTurnDeadline(deadline || null); if (dur) setTurnDur(dur); if (typeof yourTurn === "boolean") setMyTurn(yourTurn); });
     socket.on("oppProfile", (p) => setOppProfile(p || null));
@@ -2615,15 +2523,13 @@ function App() {
       if (you) { addLog(t("log.youTimeout")); showNotice(t("notice.youTimeout")); }
       else addLog(t("log.oppTimeout"));
     });
-    socket.on("incoming", ({ cells, sunkCells, sunkMineCount, newSunk, mineHit }) => {
+    socket.on("incoming", ({ cells, sunkCells, sunkMineCount, newSunk }) => {
       const list = cells || [];
       setIncoming((m) => { const n = new Map(m); list.forEach((s) => n.set(key(s.r, s.c), s.hit)); return n; });
       if (list.length) setFlashMine(key(list[list.length - 1].r, list[list.length - 1].c));
       if (typeof sunkMineCount === "number") setSunkMine(sunkMineCount);
       if (sunkCells) setSunkMyCells((s) => { const n = new Set(s); sunkCells.forEach((k) => n.add(k)); return n; });
-      if (mineHit) setMyMines((s) => { const n = new Set(s); list.forEach((c) => n.delete(key(c.r, c.c))); return n; });
       const anyHit = list.some((s) => s.hit);
-      if (mineHit) { addLog(t("log.enemyHitMine")); showNotice(t("notice.enemyHitMine")); Sound.mine(); }
       if (newSunk > 0) addLog(t("log.enemySunk", { n: newSunk }));
       else if (list.length > 1) addLog(anyHit ? t("log.enemyPowerHit") : t("log.enemyPowerMiss"));
       else if (list.length === 1) addLog(anyHit ? t("log.enemyFireHit", { cell: cellLabel(list[0].r, list[0].c) }) : t("log.enemyFireMiss", { cell: cellLabel(list[0].r, list[0].c) }));
@@ -2642,10 +2548,6 @@ function App() {
     socket.on("premiumEmoji", (data) => {
       setEmojiAnimQueue(prev => [...prev, { ...data, key: data.ts + "_" + data.slug }]);
     });
-    socket.on("oppBoughtPowerup", () => {
-      setOppBoughtNotice(true);
-      setTimeout(() => setOppBoughtNotice(false), 2500);
-    });
     socket.on("gameOver", ({ win, reason }) => { setOver({ win, reason }); setTurnDeadline(null); win ? Sound.win() : Sound.lose(); });
     socket.on("opponentLeft", () => {
       addLog(t("log.oppLeft")); setOppLeft(true);
@@ -2661,8 +2563,6 @@ function App() {
       setOcc(new Set()); setIncoming(new Map()); setMyShots(new Map()); setOver(null); setLog([]);
       setSunkOpp(0); setSunkMine(0);
       setSunkEnemyCells(new Set()); setSunkMyCells(new Set()); // giữ nguyên tỉ số
-      setInv({ scatter: 0, cross: 0, double: 0, reveal: 0, mine: 0 });
-      setPowerups(new Map()); setRevealedEnemy(new Set()); setAim(null); setMyMines(new Set());
     });
     // matchFound: server has paired this socket into a room — drop straight to placement (D-10).
     // Does NOT guard on s === "queue" — matchFound can arrive even if the player is on the lobby
@@ -2741,10 +2641,10 @@ function App() {
   function createRoom(mode, roomStakeVal) {
     setError(null);
     setMyScore(0); setOppScore(0); setOppProfile(null); // phòng mới: tỉ số về 0-0
-    setVsBot(false); setMode(mode === "advance" ? "advance" : "classic");
+    setVsBot(false);
     const stakeVal = roomStakeVal || 0;
     setStake(stakeVal);
-    socket.emit("createRoom", { clientId, mode, stake: stakeVal, profile }, (res) => {
+    socket.emit("createRoom", { clientId, stake: stakeVal, profile }, (res) => {
       if (res.ok) { setCode(res.code); persistRoom(res.code); setScreen("room"); }
       else if (res.code) { setError(errText(res)); }
     });
@@ -2772,7 +2672,7 @@ function App() {
   function handleQuickMatch(stake = 0, queueMode = "classic") {
     setError(null);
     if (stake > 0) {
-      socket.emit("joinQueue", { type: "wagered", stake, mode: queueMode, clientId, profile }, (res) => {
+      socket.emit("joinQueue", { type: "wagered", stake, clientId, profile }, (res) => {
         if (res && res.ok) {
           setQueueType("wagered");
           setQueueSince(Date.now());
@@ -2785,7 +2685,7 @@ function App() {
         }
       });
     } else {
-      socket.emit("joinQueue", { type: "free", mode: queueMode, clientId, profile }, (res) => {
+      socket.emit("joinQueue", { type: "free", clientId, profile }, (res) => {
         if (res && res.ok) {
           setQueueType("free");
           setQueueSince(Date.now());
@@ -3082,74 +2982,29 @@ function App() {
     }
   }
 
-  // áp dụng kết quả một loạt bắn (dùng chung cho fire + pháo kích)
+  // áp dụng kết quả một loạt bắn (dùng chung cho fire)
   function applyShotResult(res, label, isPower) {
     const cells = res.cells || [];
-    if (isPower) { Sound.explode(); triggerShake(); } // boom + recoil on power-up detonation
+    if (isPower) { Sound.explode(); triggerShake(); }
     setMyShots((m) => { const n = new Map(m); cells.forEach((s) => n.set(key(s.r, s.c), s.hit)); return n; });
     if (cells.length) setFlashEnemy(key(cells[cells.length - 1].r, cells[cells.length - 1].c));
     if (typeof res.sunkCount === "number") setSunkOpp(res.sunkCount);
     if (res.sunkCells) setSunkEnemyCells((s) => { const n = new Set(s); res.sunkCells.forEach((k) => n.add(k)); return n; });
-    if (res.collected && res.collected.length) addLog(t("log.collected", { list: res.collected.map((p) => POWER_NAME[p]).join(", ") }));
     const anyHit = cells.some((s) => s.hit);
     if (res.newSunk > 0) { addLog(t("log.youSunkN", { n: res.newSunk })); Sound.sunk(); triggerShake(); }
     else { addLog(anyHit ? t("log.labelHit", { label }) : t("log.labelMiss", { label })); if (anyHit) { Sound.hit(); triggerShake(); } else Sound.miss(); }
-    if (res.collected && res.collected.length) Sound.powerup();
-    if (res.mineHit) { addLog(t("log.youHitMine")); showNotice(t("notice.youHitMine")); Sound.mine(); return; }
     if (anyHit && !res.win) setMyTurn(true);
   }
 
   function fire(r, c) {
     if (vsBot) { if (myTurn) fireLocal(r, c); return; }
     if (!myTurn) return;
-    if (aim === "mine") { placeMine(r, c); return; }
-    const power = aim; // null | "cluster" | "cross"
-    if (!power && myShots.has(key(r, c))) return;
+    if (myShots.has(key(r, c))) return;
     Sound.fire();
-    socket.emit("fire", { r, c, power }, (res) => {
+    socket.emit("fire", { r, c }, (res) => {
       if (!res.ok) { if (res.code || res.error) addLog(errText(res)); return; }
-      setAim(null);
-      const label = power ? t("label.power", { name: POWER_NAME[power] }) : t("label.youFire", { cell: cellLabel(r, c) });
-      applyShotResult(res, label, !!power);
-    });
-  }
-  function placeMine(r, c) {
-    socket.emit("useAbility", { type: "mine", r, c }, (res) => {
-      if (!res.ok) { if (res.code || res.error) addLog(errText(res)); return; }
-      setMyMines((s) => new Set(s).add(key(res.r, res.c)));
-      setAim(null);
-      addLog(t("log.minePlaced", { cell: cellLabel(res.r, res.c) }));
-    });
-  }
-  // dùng power-up trong kho
-  function activatePower(type) {
-    if (!myTurn || (inv[type] || 0) <= 0) return;
-    if (type === "cross" || type === "mine") { setAim((a) => (a === type ? null : type)); return; }
-    if (type === "scatter") { Sound.fire(); }
-    socket.emit("useAbility", { type }, (res) => {
-      if (!res.ok) { if (res.code || res.error) addLog(errText(res)); return; }
-      if (res.type === "double") addLog(t("log.doubleActivated"));
-      else if (res.type === "reveal") {
-        setRevealedEnemy((s) => new Set(s).add(key(res.r, res.c)));
-        addLog(t("log.revealed", { cell: cellLabel(res.r, res.c) }));
-      }
-      else if (res.type === "scatter") {
-        addLog(t("log.scatterBoom"));
-        applyShotResult(res, POWER_NAME.scatter, true);
-      }
-    });
-  }
-  // Phase 7: Buy a power-up mid-match
-  function handleBuyPowerup(type) {
-    if (purchasesRemaining <= 0 || balance < powerupPrice) return;
-    socket.emit("buyPowerup", { type }, (res) => {
-      if (res && res.ok) {
-        setPurchasesRemaining((n) => n - 1);
-        // Balance will update via balanceUpdate event
-      } else {
-        const msg = res && res.code ? t("err." + res.code) : "";
-        if (msg) showNotice(msg);
-      }
+      const label = t("label.youFire", { cell: cellLabel(r, c) });
+      applyShotResult(res, label, false);
     });
   }
   function resetToLobby() {
@@ -3163,12 +3018,10 @@ function App() {
     setSunkOpp(0); setSunkMine(0); setVsBot(false);
     setSunkEnemyCells(new Set()); setSunkMyCells(new Set());
     setMyScore(0); setOppScore(0);
-    setMode("classic"); setInv({ scatter: 0, cross: 0, double: 0, reveal: 0, mine: 0 });
-    setPowerups(new Map()); setRevealedEnemy(new Set()); setAim(null); setMyMines(new Set());
     setOppLeft(false); setOppOffline(false); setGraceLeft(0); setConfirmLeave(false);
     setOppProfile(null);
     setChatOpen(false); setMyBubble(null); setOppBubble(null);
-    setStake(0); setPurchasesRemaining(0); setShowShop(false); setOppBoughtNotice(false);
+    setStake(0);
     if (myBubbleTimer.current) { clearTimeout(myBubbleTimer.current); myBubbleTimer.current = null; }
     if (oppBubbleTimer.current) { clearTimeout(oppBubbleTimer.current); oppBubbleTimer.current = null; }
     if (graceTimerRef.current) { clearInterval(graceTimerRef.current); graceTimerRef.current = null; }
@@ -3394,37 +3247,7 @@ function App() {
               💰 {t("game.pot", { n: stake * 2 })}
             </div>
           )}
-          {mode === "advance" && authUser && !vsBot && (
-            <div style={{ textAlign: "center", margin: "4px 0" }}>
-              <button className="btn ghost" style={{ fontSize: "0.85em", padding: "3px 10px" }} onClick={() => setShowShop((v) => !v)}>
-                🛒 {purchasesRemaining > 0 ? `(${purchasesRemaining})` : "—"}
-              </button>
-            </div>
-          )}
-          {showShop && mode === "advance" && authUser && !vsBot && (
-            <div style={{ background: "rgba(0,0,0,0.85)", border: "1px solid #4a90d9", borderRadius: 8, padding: 12, margin: "6px auto", maxWidth: 320 }}>
-              <h3 style={{ margin: "0 0 6px", fontSize: "0.95em" }}>{t("shop.title")}</h3>
-              <div style={{ fontSize: "0.8em", marginBottom: 8, color: "#aaa" }}>
-                {t("shop.price", { n: powerupPrice })} · {purchasesRemaining > 0 ? t("shop.remaining", { n: purchasesRemaining }) : t("shop.capReached")}
-              </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                {["scatter", "cross", "double", "reveal", "mine"].map((type) => (
-                  <button key={type} className="btn ghost" style={{ fontSize: "0.8em", padding: "3px 8px" }}
-                    onClick={() => handleBuyPowerup(type)}
-                    disabled={purchasesRemaining <= 0 || balance < powerupPrice}>
-                    {POWER_ICON[type]} {POWER_NAME[type]} — {powerupPrice} 💰
-                  </button>
-                ))}
-              </div>
-              <button className="btn ghost" style={{ marginTop: 6, fontSize: "0.8em", padding: "2px 10px" }} onClick={() => setShowShop(false)}>✕</button>
-            </div>
-          )}
-          {oppBoughtNotice && (
-            <div style={{ textAlign: "center", margin: "4px 0", fontSize: "0.85em", color: "#ff9800", fontWeight: "bold" }}>
-              {t("shop.oppBought")}
-            </div>
-          )}
-          <Battle myTurn={myTurn} vsBot={vsBot} occ={occ} incoming={incoming} myShots={myShots} onFire={fire} log={log} sunkOpp={sunkOpp} sunkMine={sunkMine} sunkEnemyCells={sunkEnemyCells} sunkMyCells={sunkMyCells} myScore={myScore} oppScore={oppScore} oppLabel={vsBot ? t("common.bot") : t("common.opponent")} myProfile={profile} oppProfile={vsBot ? null : oppProfile} myBubble={myBubble} oppBubble={vsBot ? null : oppBubble} flashEnemy={flashEnemy} flashMine={flashMine} mode={vsBot ? "classic" : mode} inv={inv} powerups={powerups} revealedEnemy={revealedEnemy} aim={aim} onPower={activatePower} myMines={myMines} onPlaceMine={placeMine} turnDeadline={vsBot ? null : turnDeadline} turnDur={turnDur} shake={shake} />
+          <Battle myTurn={myTurn} vsBot={vsBot} occ={occ} incoming={incoming} myShots={myShots} onFire={fire} log={log} sunkOpp={sunkOpp} sunkMine={sunkMine} sunkEnemyCells={sunkEnemyCells} sunkMyCells={sunkMyCells} myScore={myScore} oppScore={oppScore} oppLabel={vsBot ? t("common.bot") : t("common.opponent")} myProfile={profile} oppProfile={vsBot ? null : oppProfile} myBubble={myBubble} oppBubble={vsBot ? null : oppBubble} flashEnemy={flashEnemy} flashMine={flashMine} turnDeadline={vsBot ? null : turnDeadline} turnDur={turnDur} shake={shake} />
         </div>
       )}
 

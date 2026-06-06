@@ -110,6 +110,7 @@ Recent decisions affecting current work:
 - Phase 12 added: Merge Quick Play and Wagered Match — unified matchmaking button with conditional wager popup for logged-in users, free play for guests
 - Phase 13 added: Match history — view past battles with results, points, and win/loss status
 - Phase 14 added: Premium animated emoji — purchasable GIF stickers (6 initial) that fly from sender to receiver avatar with explosion effects, deducted from points
+- Phase 15 added: Power-up redesign — remove advance mode, new purchase-based power-up system (4 power-ups: Sonar Ping, Cross Missile, Decoy, Scatter Blast; buy during placement phase, max 2/game, 10% stake price)
 
 ### Pending Todos
 

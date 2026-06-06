@@ -153,13 +153,7 @@ const queues = {
 // Phase 7: valid wager presets for the wagered queue and room-code games
 const VALID_STAKES = [10, 25, 50, 100];
 
-// Power-up purchase economy constants (Phase 7)
-const POWERUP_FIXED_FLOOR = 5;     // minimum price regardless of stake
-const POWERUP_STAKE_PCT = 0.15;    // 15% of stake when that exceeds the floor
-const POWERUP_CAP_PER_MATCH = 3;   // max 3 purchases per player per match
-
 const joinQueueLimiter = new RateLimiterMemory({ points: 5, duration: 60 }); // 5/min per clientId
-const buyPowerupLimiter = new RateLimiterMemory({ points: 3, duration: 60 }); // 3 attempts/min
 const premiumEmojiLimiter = new RateLimiterMemory({ points: 1, duration: 5 }); // 1 per 5s per player (Phase 14)
 
 // ─── Auth rate limiter ───────────────────────────────────────────────────────
@@ -990,7 +984,6 @@ function serializeRooms() {
         occ: p.occ ? [...p.occ] : null,
         hits: [...(p.hits || [])],
         ships: p.ships ? p.ships.map((s) => [...s]) : null,
-        inv: p.inv || null,
         bonus: p.bonus || 0,
         skipNext: !!p.skipNext,
         timeouts: p.timeouts || 0,
@@ -998,8 +991,6 @@ function serializeRooms() {
         userId: p.userId ?? null,
       };
     }
-    const mines = {};
-    if (r.mines) for (const id in r.mines) mines[id] = [...r.mines[id]];
     out[code] = {
       code: r.code || code,
       order: r.order || [],
@@ -1010,11 +1001,8 @@ function serializeRooms() {
       lastStarter: r.lastStarter || null,
       mode: r.mode || "classic",
       recorded: !!r.recorded,
-      powerups: r.powerups || {},
-      mines,
       players,
       stake: r.stake || 0, // Phase 7
-      purchases: r.purchases || {}, // Phase 7: power-up purchase counts
     };
   }
   return out;
@@ -1039,7 +1027,6 @@ function restoreRooms(snap) {
         ships: p.ships ? p.ships.map((a) => new Set(a)) : undefined,
         online: false,
         timer: null,
-        inv: p.inv || newInv(),
         bonus: p.bonus || 0,
         skipNext: !!p.skipNext,
         timeouts: p.timeouts || 0,
@@ -1047,8 +1034,6 @@ function restoreRooms(snap) {
         userId: p.userId ?? null,
       };
     }
-    const mines = {};
-    if (s.mines) for (const id in s.mines) mines[id] = new Set(s.mines[id]);
     rooms[code] = {
       code: s.code || code,
       players,
@@ -1060,12 +1045,9 @@ function restoreRooms(snap) {
       lastStarter: s.lastStarter || null,
       mode: s.mode || "classic",
       recorded: !!s.recorded,
-      powerups: s.powerups || {},
-      mines,
       turnTimer: null,
       turnDeadline: null,
       stake: s.stake || 0, // Phase 7
-      purchases: s.purchases || {}, // Phase 7: power-up purchase counts
     };
     for (const id of rooms[code].order) scheduleSeatRelease(rooms[code], code, id, RESTORE_GRACE_MS);
     if (rooms[code].started) armTurnTimer(rooms[code]);
@@ -1105,7 +1087,7 @@ function roomPublic(room) {
     started: room.started,
     playerCount: room.order.length,
     onlineCount: present.length,
-    mode: room.mode || "classic",
+    mode: "classic",
     stake: room.stake || 0, // Phase 7
   };
 }
@@ -1138,9 +1120,7 @@ function emitScores(room) {
   }
 }
 
-// ---------- Advance mode: power-ups ----------
-const POWERS = ["scatter", "cross", "double", "reveal", "mine"];
-function newInv() { return { scatter: 0, cross: 0, double: 0, reveal: 0, mine: 0 }; }
+// ---------- Power-up helpers ----------
 function expandCells(power, r, c) {
   if (power === "cross") {
     const out = [[r, c]];
@@ -1150,44 +1130,6 @@ function expandCells(power, r, c) {
     return out;
   }
   return [[r, c]];
-}
-// power-ups sitting on the board that `attackerId` shoots (their opponent's board)
-function powerupsForAttacker(room, attackerId) {
-  const defId = opponentOf(room, attackerId);
-  const map = room.powerups && room.powerups[defId];
-  if (!map) return [];
-  return Object.keys(map).map((k) => {
-    const [r, c] = k.split(",").map(Number);
-    return { r, c, type: map[k] };
-  });
-}
-function emitInv(room, clientId) {
-  const p = room.players[clientId];
-  emitToClient(room, clientId, "inventory", (p && p.inv) || newInv());
-}
-// maybe drop a new power-up on defenderId's board (visible to the attacker)
-function maybeSpawn(room, defenderId) {
-  if (room.mode !== "advance") return;
-  if (Math.random() > 0.27) return; // ~1 power-up mỗi 3-4 lượt
-  const defData = room.players[defenderId];
-  const attackerId = opponentOf(room, defenderId);
-  const attacker = attackerId && room.players[attackerId];
-  if (!defData || !attacker) return;
-  room.powerups = room.powerups || {};
-  room.powerups[defenderId] = room.powerups[defenderId] || {};
-  const taken = room.powerups[defenderId];
-  const free = [];
-  for (let r = 0; r < BOARD; r++) for (let c = 0; c < BOARD; c++) {
-    const k = r + "," + c;
-    if (defData.occ && defData.occ.has(k)) continue; // not on a ship
-    if (attacker.hits.has(k)) continue;              // not an already-shot cell
-    if (taken[k]) continue;
-    free.push(k);
-  }
-  if (!free.length) return;
-  const k = free[Math.floor(Math.random() * free.length)];
-  taken[k] = POWERS[Math.floor(Math.random() * POWERS.length)];
-  emitToClient(room, attackerId, "powerups", powerupsForAttacker(room, attackerId));
 }
 
 // Build a full state snapshot so a (re)connecting client can restore its screen.
@@ -1231,17 +1173,8 @@ function syncPayload(room, code, clientId) {
     sunkMyCells: me ? sunkCellsList(me, opp ? opp.hits : new Set()) : [],
     myScore: (room.scores && room.scores[clientId]) || 0,
     oppScore: (room.scores && oppId && room.scores[oppId]) || 0,
-    mode: room.mode || "classic",
-    inv: me && me.inv ? me.inv : newInv(),
-    powerups: powerupsForAttacker(room, clientId),
-    myMines: (room.mines && room.mines[clientId]) ? [...room.mines[clientId]] : [],
+    mode: "classic",
     stake: room.stake || 0, // Phase 7
-    purchasesRemaining: room.started && room.mode === "advance" && room.players[clientId]?.userId
-      ? POWERUP_CAP_PER_MATCH - ((room.purchases && room.purchases[clientId]) || 0)
-      : 0,
-    powerupPrice: room.mode === "advance"
-      ? Math.max(POWERUP_FIXED_FLOOR, Math.round(POWERUP_STAKE_PCT * (room.stake || 0)))
-      : 0,
   };
 }
 
@@ -1364,23 +1297,16 @@ function doShot(room, clientId, cells) {
   const oppData = room.players[opp];
   const me = room.players[clientId];
   if (!oppData || !oppData.occ || !me) return { ok: false, code: "BAD_STATE" };
-  me.inv = me.inv || newInv();
   me.timeouts = 0; // người chơi vừa thao tác -> reset chuỗi bỏ lượt
   const before = sunkShipCount(oppData, me.hits);
-  room.powerups = room.powerups || {};
-  const pmap = room.powerups[opp] || {};
-  room.mines = room.mines || {};
-  const mineSet = room.mines[opp] || null;
-  const results = [], collected = [];
-  let anyHit = false, mineHit = false;
+  const results = [];
+  let anyHit = false;
   for (const [rr, cc] of cells) {
     const k = rr + "," + cc;
     const hit = oppData.occ.has(k);
     if (me.hits.has(k)) { results.push({ r: rr, c: cc, hit }); continue; }
     me.hits.add(k);
     if (hit) anyHit = true;
-    if (pmap[k]) { collected.push(pmap[k]); me.inv[pmap[k]] = (me.inv[pmap[k]] || 0) + 1; delete pmap[k]; }
-    if (mineSet && mineSet.has(k)) { mineHit = true; mineSet.delete(k); }
     results.push({ r: rr, c: cc, hit });
   }
   const sunkCount = sunkShipCount(oppData, me.hits);
@@ -1388,9 +1314,7 @@ function doShot(room, clientId, cells) {
   const sunkCells = sunkCellsList(oppData, me.hits);
   const win = sunkCount >= FLEET.length;
 
-  if (collected.length) emitToClient(room, clientId, "powerups", powerupsForAttacker(room, clientId));
-  emitInv(room, clientId);
-  emitToClient(room, opp, "incoming", { cells: results, sunkCells, sunkMineCount: sunkCount, newSunk, mineHit });
+  emitToClient(room, opp, "incoming", { cells: results, sunkCells, sunkMineCount: sunkCount, newSunk });
 
   if (win) {
     room.scores = room.scores || {};
@@ -1400,14 +1324,11 @@ function doShot(room, clientId, cells) {
     emitToClient(room, opp, "gameOver", { win: false });
     room.started = false;
     clearTurnTimer(room);
-    // Record match after gameOver emits (D-07: never block end-game on DB write).
-    // room.started was true entering doShot win; order.length===2 belt-and-suspenders.
-    // Bot/single-player never reach server (no server room created — no guard needed).
     if (!room.recorded && room.order.length === 2) {
-      room.recorded = true; // synchronous dedup guard (D-06) — set BEFORE the promise
+      room.recorded = true;
       const wId = room.players[clientId]?.userId ?? null;
       const lId = room.players[opp]?.userId ?? null;
-      recordMatch(wId, lId, "normal", room.mode, room.startedAt, room.stake || 0).catch(() => {});
+      recordMatch(wId, lId, "normal", room.mode || "classic", room.startedAt, room.stake || 0).catch(() => {});
       // Phase 7: push balance update to winner after wagered win
       if (room.stake > 0 && wId) {
         getWalletBalance(wId).then((bal) => {
@@ -1415,17 +1336,15 @@ function doShot(room, clientId, cells) {
         }).catch(() => {});
       }
     }
-    return { ok: true, cells: results, collected, sunkCells, sunkCount, newSunk, win, anyHit, mineHit };
+    return { ok: true, cells: results, sunkCells, sunkCount, newSunk, win, anyHit };
   }
-  // turn: a hit keeps it; a clean miss can be saved by a bonus shot; a mine forces a loss + skip
+  // turn: a hit keeps it; a clean miss can be saved by a bonus shot
   let keep = anyHit;
   if (!keep && (me.bonus || 0) > 0) { me.bonus--; keep = true; }
-  if (mineHit) { me.skipNext = true; keep = false; }
   if (!keep) giveTurn(room, opp, clientId);
-  maybeSpawn(room, opp);
   for (const id of room.order) emitToClient(room, id, "turnUpdate", { yourTurn: room.turn === id });
   armTurnTimer(room);
-  return { ok: true, cells: results, collected, sunkCells, sunkCount, newSunk, win, anyHit, mineHit };
+  return { ok: true, cells: results, sunkCells, sunkCount, newSunk, win, anyHit };
 }
 
 // Reattach `socket` to a seat in `room`, migrating the seat's data to
@@ -1442,8 +1361,6 @@ function reclaimSeat(room, code, seatId, newClientId, socket) {
     if (room.turn === seatId) room.turn = newClientId;
     if (room.lastStarter === seatId) room.lastStarter = newClientId;
     if (room.scores && room.scores[seatId] != null) { room.scores[newClientId] = room.scores[seatId]; delete room.scores[seatId]; }
-    if (room.powerups && room.powerups[seatId]) { room.powerups[newClientId] = room.powerups[seatId]; delete room.powerups[seatId]; }
-    if (room.mines && room.mines[seatId]) { room.mines[newClientId] = room.mines[seatId]; delete room.mines[seatId]; }
   }
   p.sid = socket.id; p.online = true;
   socket.join(code);
@@ -1493,15 +1410,14 @@ function removeFromQueues(queueKey) {
 
 // Return a valid pair from entries in the given queue type.
 // For free, any two entries pair (FIFO).
-// For wagered: pair only entries with the same stake level AND same mode.
-// For free: pair only entries with the same mode (Phase 12).
+// For wagered: pair only entries with the same stake level.
 function findPair(type, entries) {
   if (entries.length < 2) return null;
   if (type === "wagered") {
-    // Match only entries with the same stake level AND same mode
+    // Match only entries with the same stake level
     const byKey = {};
     for (const e of entries) {
-      const k = e.stake + "_" + (e.mode || "classic");
+      const k = String(e.stake);
       (byKey[k] = byKey[k] || []).push(e);
     }
     for (const group of Object.values(byKey)) {
@@ -1509,16 +1425,8 @@ function findPair(type, entries) {
     }
     return null;
   }
-  // Free queue: group by mode, pair within same mode
-  const byMode = {};
-  for (const e of entries) {
-    const m = e.mode || "classic";
-    (byMode[m] = byMode[m] || []).push(e);
-  }
-  for (const group of Object.values(byMode)) {
-    if (group.length >= 2) return [group[0], group[1]];
-  }
-  return null;
+  // Free queue: FIFO — first two entries pair
+  return [entries[0], entries[1]];
 }
 
 // Attempt to pair the two oldest non-pairing entries in the given queue.
@@ -1584,12 +1492,10 @@ async function createMatchedRoom(entryA, entryB, type) {
     return;
   }
   const code = newCode();
-  // Phase 12: use mode from first entry (both players matched from same queue type)
-  const matchMode = entryA.mode || "classic";
   rooms[code] = {
     code, players: {}, order: [], started: false, turn: null, scores: {},
-    lastStarter: null, mode: matchMode,
-    powerups: {}, turnTimer: null, turnDeadline: null,
+    lastStarter: null, mode: "classic",
+    turnTimer: null, turnDeadline: null,
     resolving: false, lastActivityAt: Date.now(),
     matchQueueType: type, // D-11: preserved for partner re-queue on pre-start disconnect
     stake: type === "wagered" ? (entryA.stake || 0) : 0, // Phase 7: carry stake from queue entries
@@ -1597,7 +1503,7 @@ async function createMatchedRoom(entryA, entryB, type) {
   for (const entry of [entryA, entryB]) {
     rooms[code].players[entry.clientId] = {
       sid: entry.socketId, ready: false, occ: null, hits: new Set(), online: true,
-      timer: null, inv: newInv(), bonus: 0,
+      timer: null, bonus: 0,
       profile: entry.profile,
       userId: entry.userId ?? null,
       matchQueueType: type, // D-11: retained so disconnect handler can re-queue survivor
@@ -1650,7 +1556,6 @@ io.on("connection", (socket) => {
     if (typeof arg === "function") { cb = arg; arg = {}; }
     const clientId = (arg && arg.clientId) || socket.id;
     const code = newCode();
-    const mode = (arg && arg.mode) === "advance" ? "advance" : "classic";
     // Phase 7: stake for room-code games (0 = free, or from VALID_STAKES)
     const stake = VALID_STAKES.includes(arg && arg.stake) ? arg.stake : 0;
     if (stake > 0) {
@@ -1670,9 +1575,9 @@ io.on("connection", (socket) => {
       var hostWagerId = referenceId;
     }
     // room.recorded is the D-06 dedup flag set synchronously at end paths (Task 2 — endGameForfeit/doShot/scheduleSeatRelease/leaveRoom)
-    rooms[code] = { code, players: {}, order: [], started: false, turn: null, scores: {}, lastStarter: null, mode, powerups: {}, turnTimer: null, turnDeadline: null, resolving: false, lastActivityAt: Date.now(), stake, hostWagerId: hostWagerId || null };
+    rooms[code] = { code, players: {}, order: [], started: false, turn: null, scores: {}, lastStarter: null, mode: "classic", turnTimer: null, turnDeadline: null, resolving: false, lastActivityAt: Date.now(), stake, hostWagerId: hostWagerId || null };
     rooms[code].players[clientId] = {
-      sid: socket.id, ready: false, occ: null, hits: new Set(), online: true, timer: null, inv: newInv(), bonus: 0,
+      sid: socket.id, ready: false, occ: null, hits: new Set(), online: true, timer: null, bonus: 0,
       profile: sanitizeProfile(arg && arg.profile),
       userId: socket.data.userId ?? null,
       wagerId: hostWagerId || null, // Phase 7: track for refund
@@ -1753,7 +1658,6 @@ io.on("connection", (socket) => {
       pairing: false,
       profile: sanitizeProfile(arg && arg.profile), // T-5-01
       queueType: type,
-      mode: (arg && arg.mode === "advance") ? "advance" : "classic", // Phase 12: carry mode preference
     };
     socket.data.queueType = type;
     socket.data.queueKey = queueKey;
@@ -1852,7 +1756,7 @@ io.on("connection", (socket) => {
     }
 
     room.players[clientId] = {
-      sid: socket.id, ready: false, occ: null, hits: new Set(), online: true, timer: null, inv: newInv(), bonus: 0,
+      sid: socket.id, ready: false, occ: null, hits: new Set(), online: true, timer: null, bonus: 0,
       profile: sanitizeProfile(arg && arg.profile),
       userId: socket.data.userId ?? null,
       wagerId: joinerWagerId, // Phase 7: track for refund
@@ -1992,19 +1896,15 @@ io.on("connection", (socket) => {
         room.turn = ids[Math.floor(Math.random() * 2)];
       }
       room.lastStarter = room.turn;
-      room.powerups = {}; room.mines = {};
-      room.purchases = {};
-      for (const id of ids) { room.players[id].inv = newInv(); room.players[id].bonus = 0; room.players[id].skipNext = false; room.players[id].timeouts = 0; room.purchases[id] = 0; }
+      for (const id of ids) { room.players[id].bonus = 0; room.players[id].skipNext = false; room.players[id].timeouts = 0; }
       for (const id of ids) {
-        emitToClient(room, id, "gameStart", { yourTurn: room.turn === id, mode: room.mode || "classic" });
-        emitInv(room, id);
-        emitToClient(room, id, "powerups", []);
+        emitToClient(room, id, "gameStart", { yourTurn: room.turn === id });
       }
       armTurnTimer(room);
     }
   });
 
-  socket.on("fire", async ({ r, c, power }, cb) => {
+  socket.on("fire", async ({ r, c }, cb) => {
     // Rate limit: 2 shots/s per player (D-06/D-07, SEC-01)
     const rlKey = socket.data.clientId || socket.id;
     try {
@@ -2024,27 +1924,18 @@ io.on("connection", (socket) => {
     // D-09: race guard — prevent simultaneous fire + turn-timeout from both resolving
     if (room.resolving) return cb && cb({ ok: false, code: "BAD_STATE" });
     touchRoom(room); // SEC-03: stamp activity so idle sweep doesn't evict active games
-    const me = room.players[clientId];
-    me.inv = me.inv || newInv();
-
-    // aimed power-up shots consume inventory; classic mode ignores power entirely
-    if (room.mode === "advance" && power === "cross") {
-      if ((me.inv[power] || 0) <= 0) return cb && cb({ ok: false, code: "NO_POWERUP" });
-      me.inv[power]--;
-    } else {
-      power = null;
-    }
     room.resolving = true;
     let summary;
     try {
-      summary = doShot(room, clientId, expandCells(power, r, c));
+      summary = doShot(room, clientId, [[r, c]]);
     } finally {
       room.resolving = false;
     }
     cb && cb(summary);
   });
 
-  // Advance abilities that aren't an aimed shot
+  // Ability handler shell — old types (double, reveal, mine, scatter) removed in Phase 15-01.
+  // Plan 15-03 will rewrite this with new power-up implementations.
   socket.on("useAbility", async ({ type, r, c }, cb) => {
     // Rate limit: 1 ability/s per player (D-06/D-07, SEC-01)
     const rlKey = socket.data.clientId || socket.id;
@@ -2061,70 +1952,7 @@ io.on("connection", (socket) => {
     const room = rooms[code];
     if (!room || !room.started) return cb && cb({ ok: false });
     if (room.turn !== clientId) return cb && cb({ ok: false, code: "NOT_YOUR_TURN" });
-    const me = room.players[clientId];
-    me.inv = me.inv || newInv();
-    if ((me.inv[type] || 0) <= 0) return cb && cb({ ok: false, code: "NO_POWERUP" });
-
-    if (type === "double") {
-      me.inv.double--; me.bonus = (me.bonus || 0) + 1;
-      me.timeouts = 0; armTurnTimer(room);
-      emitInv(room, clientId);
-      return cb && cb({ ok: true, type: "double" });
-    }
-    if (type === "reveal") {
-      const opp = opponentOf(room, clientId);
-      const oppData = opp && room.players[opp];
-      const cand = [];
-      if (oppData && oppData.occ) for (const k of oppData.occ) if (!me.hits.has(k)) cand.push(k);
-      if (!cand.length) return cb && cb({ ok: false, code: "NO_REVEAL" });
-      me.inv.reveal--;
-      me.timeouts = 0; armTurnTimer(room);
-      const k = cand[Math.floor(Math.random() * cand.length)];
-      const [rr, cc] = k.split(",").map(Number);
-      emitInv(room, clientId);
-      return cb && cb({ ok: true, type: "reveal", r: rr, c: cc });
-    }
-    if (type === "mine") {
-      // đặt mìn lên ô trống của chính mình
-      if (!inBounds(r, c)) return cb && cb({ ok: false, code: "BAD_CELL" });
-      const k = r + "," + c;
-      const opp = opponentOf(room, clientId);
-      const oppHits = opp && room.players[opp] ? room.players[opp].hits : new Set();
-      if (me.occ && me.occ.has(k)) return cb && cb({ ok: false, code: "MINE_ON_SHIP" });
-      if (oppHits.has(k)) return cb && cb({ ok: false, code: "CELL_SHOT" });
-      room.mines = room.mines || {};
-      room.mines[clientId] = room.mines[clientId] || new Set();
-      if (room.mines[clientId].has(k)) return cb && cb({ ok: false, code: "MINE_EXISTS" });
-      me.inv.mine--;
-      room.mines[clientId].add(k);
-      me.timeouts = 0; armTurnTimer(room);
-      emitInv(room, clientId);
-      return cb && cb({ ok: true, type: "mine", r, c });
-    }
-    if (type === "scatter") {
-      // nổ ngẫu nhiên 3-5 vị trí trên biển địch
-      const cand = [];
-      for (let rr = 0; rr < BOARD; rr++) for (let cc = 0; cc < BOARD; cc++) {
-        const k = rr + "," + cc;
-        if (!me.hits.has(k)) cand.push([rr, cc]);
-      }
-      if (!cand.length) return cb && cb({ ok: false, code: "NO_CELLS" });
-      // D-09: race guard for scatter (also calls doShot)
-      if (room.resolving) return cb && cb({ ok: false, code: "BAD_STATE" });
-      me.inv.scatter--;
-      const n = Math.min(cand.length, 3 + Math.floor(Math.random() * 3)); // 3..5
-      const pick = [];
-      for (let i = 0; i < n; i++) pick.push(cand.splice(Math.floor(Math.random() * cand.length), 1)[0]);
-      emitInv(room, clientId);
-      room.resolving = true;
-      let summary;
-      try {
-        summary = doShot(room, clientId, pick);
-      } finally {
-        room.resolving = false;
-      }
-      return cb && cb(Object.assign({ type: "scatter" }, summary));
-    }
+    // No power-ups currently implemented — Plan 15-03 will add new types
     cb && cb({ ok: false });
   });
 
@@ -2220,81 +2048,6 @@ io.on("connection", (socket) => {
     cb && cb({ ok: true, balance: debitResult.balance });
   });
 
-  // ─── Power-up purchase handler (Phase 7, Plan 04) ─────────────────────────
-  socket.on("buyPowerup", async (arg, cb) => {
-    const clientId = socket.data.clientId;
-    const code = socket.data.code;
-    const room = rooms[code];
-
-    // Guard: must be in an active game
-    if (!room || !clientId || !room.players[clientId] || !room.started || room.resolving) {
-      return cb && cb({ ok: false, code: "NOT_IN_GAME" });
-    }
-
-    // Guard: advance mode only
-    if (room.mode !== "advance") {
-      return cb && cb({ ok: false, code: "NOT_ADVANCE_MODE" });
-    }
-
-    // Guard: must be signed in (guests have no wallet)
-    const userId = room.players[clientId].userId;
-    if (!userId) {
-      return cb && cb({ ok: false, code: "GUEST_NO_WALLET" });
-    }
-
-    // Guard: valid power-up type
-    const type = arg && arg.type;
-    if (!POWERS.includes(type)) {
-      return cb && cb({ ok: false, code: "INVALID_TYPE" });
-    }
-
-    // Guard: purchase cap
-    room.purchases = room.purchases || {};
-    room.purchases[clientId] = room.purchases[clientId] || 0;
-    if (room.purchases[clientId] >= POWERUP_CAP_PER_MATCH) {
-      return cb && cb({ ok: false, code: "PURCHASE_CAP_REACHED" });
-    }
-
-    // Rate limit
-    try {
-      await buyPowerupLimiter.consume(socket.id);
-    } catch (e) {
-      return cb && cb({ ok: false, code: "RATE_LIMITED" });
-    }
-
-    // Calculate price: max(FIXED_FLOOR, round(STAKE_PCT * stake))
-    const stake = room.stake || 0;
-    const price = Math.max(POWERUP_FIXED_FLOOR, Math.round(POWERUP_STAKE_PCT * stake));
-
-    // Debit wallet
-    const referenceId = `powerup_${code}_${clientId}_${room.purchases[clientId]}`;
-    const result = await debitWallet(userId, price, "powerup_purchase", referenceId);
-    if (!result.ok) {
-      return cb && cb({ ok: false, code: result.code || "INSUFFICIENT_BALANCE" });
-    }
-
-    // Grant power-up
-    const me = room.players[clientId];
-    me.inv = me.inv || newInv();
-    me.inv[type] = (me.inv[type] || 0) + 1;
-    room.purchases[clientId]++;
-
-    // Emit inventory update to buyer
-    emitInv(room, clientId);
-
-    // Emit balance update to buyer
-    socket.emit("balanceUpdate", { balance: result.balance });
-
-    // Notify opponent (no type revealed)
-    const oppId = opponentOf(room, clientId);
-    if (oppId) {
-      emitToClient(room, oppId, "oppBoughtPowerup", {});
-    }
-
-    // Success callback
-    cb && cb({ ok: true, type, price, newBalance: result.balance, remaining: POWERUP_CAP_PER_MATCH - room.purchases[clientId] });
-  });
-
   socket.on("rematch", () => {
     const code = socket.data.code;
     const room = rooms[code];
@@ -2303,12 +2056,10 @@ io.on("connection", (socket) => {
       room.players[id].ready = false;
       room.players[id].occ = null;
       room.players[id].hits = new Set();
-      room.players[id].inv = newInv();
       room.players[id].bonus = 0;
       room.players[id].skipNext = false;
       room.players[id].timeouts = 0;
     }
-    room.powerups = {}; room.mines = {}; room.purchases = {};
     room.started = false;
     room.recorded = false; // CR-01: clear dedup flag so the rematch game records its own match (MATCH-01)
     room.startedAt = null; // re-captured at battle start in placeShips allReady
@@ -2544,7 +2295,6 @@ module.exports = {
     createMatchedRoom,
     queueKeyFor,
     VALID_STAKES, // Phase 7
-    POWERUP_FIXED_FLOOR, POWERUP_STAKE_PCT, POWERUP_CAP_PER_MATCH, // Phase 7: purchase economy
     // CR-01/WR-05 test helpers: override the socket-liveness predicate so unit
     // tests can simulate live/dead sockets without a running Socket.IO server.
     setSocketIsLive: (fn) => { socketIsLive = fn; },
