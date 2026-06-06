@@ -2413,6 +2413,18 @@ io.on("connection", (socket) => {
         if (room.stake > 0 && dcUserId) {
           creditWallet(dcUserId, room.stake, "wager_refund", "prestart_dc_" + code).catch(() => {});
         }
+        // Phase 15: refund disconnecting player's power-up purchases (match never started)
+        const dcPurchases = (room.purchases && room.purchases[clientId]) || 0;
+        if (dcPurchases > 0 && dcUserId) {
+          const puPrice = Math.round((room.stake || 0) * POWERUP_PRICE_PCT);
+          creditWallet(dcUserId, dcPurchases * puPrice, "powerup_refund", "prestart_dc_pu_" + code + "_" + Date.now()).catch(() => {});
+        }
+        // Phase 15: refund opponent's power-up purchases too (they're being re-queued, room torn down)
+        const oppPuCount = (room.purchases && room.purchases[oppId]) || 0;
+        if (oppPuCount > 0 && oppPlayer.userId) {
+          const puPrice = Math.round((room.stake || 0) * POWERUP_PRICE_PCT);
+          creditWallet(oppPlayer.userId, oppPuCount * puPrice, "powerup_refund", "prestart_dc_pu_" + code + "_" + oppId + "_" + Date.now()).catch(() => {});
+        }
         // Tear down the dead room before emitting so it cannot be re-paired
         clearTurnTimer(room);
         delete rooms[code];
