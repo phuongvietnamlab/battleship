@@ -1097,7 +1097,7 @@ function PlacementShop({ stake, balance, inventory, purchaseCount, onBuy, disabl
         {[
           { type: "sonar", icon: "🔊", nameKey: "pw.sonar" },
           { type: "cross", icon: "➕", nameKey: "pw.cross" },
-          { type: "decoy", icon: "🪤", nameKey: "pw.decoy" },
+          { type: "decoy", icon: "🎭", nameKey: "pw.decoy" },
           { type: "scatter", icon: "🌠", nameKey: "pw.scatter" },
         ].map(({ type, icon, nameKey }) => (
           <button key={type} className="shop-item"
@@ -1324,7 +1324,7 @@ function Placement({ onConfirm, ready, waiting, stake, balance, authUser, vsBot,
             {/* Decoy marker */}
             {decoyCell && (
               <div className="decoy-marker" style={{ left: PAD + decoyCell.c * PITCH, top: PAD + decoyCell.r * PITCH, width: CELL, height: CELL }}>
-                🪤
+                🎭
               </div>
             )}
           </div>
@@ -1395,7 +1395,7 @@ function TurnRing({ secs, frac, show, myTurn }) {
 }
 
 // ---------- Power-up Icons (Phase 15-05) ----------
-const POWER_ICON = { sonar: "🔊", cross: "➕", decoy: "🪤", scatter: "🌠" };
+const POWER_ICON = { sonar: "🔊", cross: "➕", decoy: "🎭", scatter: "🌠" };
 
 // ---------- PowerBar (battle phase — shows only purchased power-ups) ----------
 function PowerBar({ inv, aim, onPower, myTurn }) {

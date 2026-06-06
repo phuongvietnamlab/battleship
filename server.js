@@ -162,7 +162,7 @@ const VALID_STAKES = [10, 25, 50, 100];
 
 const joinQueueLimiter = new RateLimiterMemory({ points: 5, duration: 60 }); // 5/min per clientId
 const premiumEmojiLimiter = new RateLimiterMemory({ points: 1, duration: 5 }); // 1 per 5s per player (Phase 14)
-const buyPlacementPowerupLimiter = new RateLimiterMemory({ points: 3, duration: 60 }); // 3 purchases/min per player (Phase 15-02)
+const buyPlacementPowerupLimiter = new RateLimiterMemory({ points: 10, duration: 10 }); // 10 purchases/10s per player (Phase 15-02)
 
 // ─── Auth rate limiter ───────────────────────────────────────────────────────
 // 10 auth attempts/min per IP — protects against auth-route brute-force (T-02-09).
@@ -951,6 +951,38 @@ function scheduleSeatRelease(room, code, clientId, ms) {
           stake: r2.stake || 0, // Phase 7
         };
         r2.recorded = true; // synchronous dedup guard (D-06) — set BEFORE delete
+      }
+    }
+    // Phase 15: refund power-up purchases if game never started (disconnect abandon)
+    if (!r2.started && r2.stake > 0) {
+      const dcPlayer = r2.players[clientId];
+      const dcUserId = dcPlayer?.userId;
+      const dcPurchases = (r2.purchases && r2.purchases[clientId]) || 0;
+      if (dcPurchases > 0 && dcUserId) {
+        const puPrice = Math.round(r2.stake * POWERUP_PRICE_PCT);
+        const refundAmt = dcPurchases * puPrice;
+        creditWallet(dcUserId, refundAmt, "powerup_refund", "dc_pu_" + code + "_" + clientId + "_" + Date.now()).catch(() => {});
+      }
+      // Also refund wager for the disconnected player
+      if (dcUserId) {
+        creditWallet(dcUserId, r2.stake, "wager_refund", "dc_wager_" + code + "_" + clientId + "_" + Date.now()).catch(() => {});
+      }
+      // Refund opponent's power-ups + wager too (room is being torn down)
+      const oppId2 = r2.order.find(id => id !== clientId);
+      if (oppId2) {
+        const oppPlayer2 = r2.players[oppId2];
+        const oppUserId2 = oppPlayer2?.userId;
+        const oppPurchases2 = (r2.purchases && r2.purchases[oppId2]) || 0;
+        if (oppPurchases2 > 0 && oppUserId2) {
+          const puPrice = Math.round(r2.stake * POWERUP_PRICE_PCT);
+          creditWallet(oppUserId2, oppPurchases2 * puPrice, "powerup_refund", "dc_pu_" + code + "_" + oppId2 + "_" + Date.now()).catch(() => {});
+        }
+        if (oppUserId2) {
+          creditWallet(oppUserId2, r2.stake, "wager_refund", "dc_wager_" + code + "_" + oppId2 + "_" + Date.now()).catch(() => {});
+          getWalletBalance(oppUserId2).then((bal) => {
+            if (r2.players[oppId2]) emitToClient(r2, oppId2, "balanceUpdate", { balance: bal });
+          }).catch(() => {});
+        }
       }
     }
     r2.order = r2.order.filter((id) => id !== clientId);
