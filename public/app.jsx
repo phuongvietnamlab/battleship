@@ -1576,13 +1576,15 @@ function PremiumEmojiAnimation({ event, myClientId, onComplete }) {
   } else if (impact === "splash") {
     impactEl = (
       <>
-        <div className="pe-fx pe-splash-bucket" />
+        <div className="pe-fx pe-splash-burst" />
+        <div className="pe-fx pe-splash-ring" />
         <div className="pe-fx pe-splash-drop dr1" />
         <div className="pe-fx pe-splash-drop dr2" />
         <div className="pe-fx pe-splash-drop dr3" />
         <div className="pe-fx pe-splash-drop dr4" />
         <div className="pe-fx pe-splash-drop dr5" />
-        <div className="pe-fx pe-splash-wave" />
+        <div className="pe-fx pe-splash-drop dr6" />
+        <div className="pe-fx pe-splash-drop dr7" />
       </>
     );
   } else if (impact === "hearts") {
@@ -3229,6 +3231,7 @@ function App() {
         setTimeout(() => setEmojiCooldown(false), 5000);
       }
     });
+    setChatOpen(false); // đóng popup sau khi gửi emoji
   }
 
   function handleEmojiAnimComplete(key) {

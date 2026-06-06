@@ -1259,66 +1259,49 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 }
 
 /* ════════ SPLASH (Water 💦) ══════════════════════════════════════════════════ */
-/* Water splashes FROM the direction the emoji flew in */
-.pe-splash-bucket {
-  width:50px; height:45px; margin:-22px 0 0 -25px;
-  background:linear-gradient(135deg, rgba(41,182,246,.85) 0%, rgba(41,182,246,.3) 100%);
-  border-radius:0 60% 50% 0; opacity:0;
-  animation:pe-splash-pour-ltr 0.55s ease-out 0.8s forwards;
+/* Water bursts out from impact point — droplets scatter in throw direction */
+.pe-splash-burst {
+  width:60px; height:60px; margin:-30px 0 0 -30px; border-radius:50%;
+  background:radial-gradient(circle, rgba(41,182,246,.7) 0%, rgba(41,182,246,.2) 50%, transparent 72%);
+  opacity:0; animation:pe-splash-burst 0.4s ease-out 0.82s forwards;
 }
-/* From left: water sprays rightward onto avatar */
-.pe-anim.from-left .pe-splash-bucket {
-  margin:-22px 0 0 -40px;
-  border-radius:0 60% 50% 0;
-  animation-name:pe-splash-pour-ltr;
-}
-/* From right: water sprays leftward onto avatar */
-.pe-anim.from-right .pe-splash-bucket {
-  margin:-22px 0 0 -10px;
-  border-radius:60% 0 0 50%;
-  animation-name:pe-splash-pour-rtl;
-}
-@keyframes pe-splash-pour-ltr {
-  0% { opacity:0; transform:translate(-30px, -10px) scaleX(0.3) rotate(-15deg); transform-origin:left center; }
-  30% { opacity:0.9; transform:translate(-10px, 0) scaleX(1) rotate(-5deg); }
-  70% { opacity:0.6; transform:translate(5px, 5px) scaleX(1.1) rotate(0deg); }
-  100% { opacity:0; transform:translate(10px, 12px) scaleX(0.8) rotate(5deg); }
-}
-@keyframes pe-splash-pour-rtl {
-  0% { opacity:0; transform:translate(30px, -10px) scaleX(0.3) rotate(15deg); transform-origin:right center; }
-  30% { opacity:0.9; transform:translate(10px, 0) scaleX(1) rotate(5deg); }
-  70% { opacity:0.6; transform:translate(-5px, 5px) scaleX(1.1) rotate(0deg); }
-  100% { opacity:0; transform:translate(-10px, 12px) scaleX(0.8) rotate(-5deg); }
+@keyframes pe-splash-burst {
+  0% { opacity:0; transform:scale(0.2); }
+  35% { opacity:1; transform:scale(1.1); }
+  100% { opacity:0; transform:scale(1.5); }
 }
 .pe-splash-drop {
-  width:5px; height:9px; border-radius:50% 50% 50% 50% / 60% 60% 40% 40%;
-  background:rgba(41,182,246,.85); opacity:0;
-  animation:pe-drop-fall-ltr 0.5s ease-in forwards;
+  width:6px; height:10px; border-radius:50% 50% 45% 45% / 60% 60% 40% 40%;
+  background:rgba(41,182,246,.9); opacity:0;
+  box-shadow:0 0 3px rgba(41,182,246,.4);
 }
-.pe-anim.from-left .pe-splash-drop { animation-name:pe-drop-fall-ltr; }
-.pe-anim.from-right .pe-splash-drop { animation-name:pe-drop-fall-rtl; }
-.pe-splash-drop.dr1 { animation-delay:0.88s; --ddx:8px; --ddy:30px; }
-.pe-splash-drop.dr2 { animation-delay:0.91s; --ddx:15px; --ddy:25px; width:4px; height:7px; }
-.pe-splash-drop.dr3 { animation-delay:0.86s; --ddx:3px; --ddy:35px; }
-.pe-splash-drop.dr4 { animation-delay:0.93s; --ddx:20px; --ddy:20px; width:4px; height:6px; }
-.pe-splash-drop.dr5 { animation-delay:0.9s; --ddx:12px; --ddy:32px; }
-/* Drops spray in the direction of momentum (from-left → drops go right + down) */
-@keyframes pe-drop-fall-ltr {
-  0% { opacity:1; transform:translate(-15px, -10px) rotate(-10deg); }
-  100% { opacity:0; transform:translate(var(--ddx), var(--ddy)) rotate(5deg); }
+/* From-left: drops spray rightward + slightly up/down (matching momentum) */
+.pe-anim.from-left .pe-splash-drop { animation:pe-drop-ltr 0.5s ease-out forwards; }
+.pe-anim.from-right .pe-splash-drop { animation:pe-drop-rtl 0.5s ease-out forwards; }
+.pe-splash-drop.dr1 { animation-delay:0.83s; --dx:28px; --dy:-18px; }
+.pe-splash-drop.dr2 { animation-delay:0.85s; --dx:22px; --dy:14px; width:5px; height:8px; }
+.pe-splash-drop.dr3 { animation-delay:0.84s; --dx:32px; --dy:-5px; width:7px; height:11px; }
+.pe-splash-drop.dr4 { animation-delay:0.86s; --dx:18px; --dy:22px; width:4px; height:7px; }
+.pe-splash-drop.dr5 { animation-delay:0.82s; --dx:25px; --dy:-25px; width:5px; height:8px; }
+.pe-splash-drop.dr6 { animation-delay:0.87s; --dx:15px; --dy:8px; width:4px; height:6px; }
+.pe-splash-drop.dr7 { animation-delay:0.84s; --dx:35px; --dy:2px; width:5px; height:9px; }
+@keyframes pe-drop-ltr {
+  0% { opacity:1; transform:translate(0, 0) scale(1); }
+  100% { opacity:0; transform:translate(var(--dx), var(--dy)) scale(0.3); }
 }
-@keyframes pe-drop-fall-rtl {
-  0% { opacity:1; transform:translate(15px, -10px) rotate(10deg); }
-  100% { opacity:0; transform:translate(calc(var(--ddx) * -1), var(--ddy)) rotate(-5deg); }
+@keyframes pe-drop-rtl {
+  0% { opacity:1; transform:translate(0, 0) scale(1); }
+  100% { opacity:0; transform:translate(calc(var(--dx) * -1), var(--dy)) scale(0.3); }
 }
-.pe-splash-wave {
-  width:50px; height:16px; margin:-2px 0 0 -25px;
-  border-radius:50%; background:rgba(41,182,246,.35);
-  opacity:0; animation:pe-wave-spread 0.45s ease-out 0.95s forwards;
+/* Splash ring expanding at impact */
+.pe-splash-ring {
+  width:50px; height:50px; margin:-25px 0 0 -25px; border-radius:50%;
+  border:2.5px solid rgba(41,182,246,.6); opacity:0;
+  animation:pe-splash-ring-expand 0.45s ease-out 0.84s forwards;
 }
-@keyframes pe-wave-spread {
-  0% { opacity:0.7; transform:scaleX(0.5) scaleY(1); }
-  100% { opacity:0; transform:scaleX(1.5) scaleY(0.3); }
+@keyframes pe-splash-ring-expand {
+  0% { opacity:1; transform:scale(0.3); }
+  100% { opacity:0; transform:scale(1.7); }
 }
 
 /* ════════ HEARTS (Kiss 💋) ═══════════════════════════════════════════════════ */
