@@ -2306,11 +2306,11 @@ function ProfileView({ userId, currentUserId, onBack, onSignOut }) {
             </div>
           ) : (
             <div className="profile-name">
-              {data.displayName || "—"}
+              <span className="profile-name-text">{data.displayName || "—"}</span>
               {isOwn && (
                 <button
                   onClick={startEdit}
-                  style={{ background: "none", border: "none", color: "#a9ccec", cursor: "pointer", fontSize: 13, marginLeft: 8, padding: "2px 6px" }}
+                  style={{ background: "none", border: "none", color: "#a9ccec", cursor: "pointer", fontSize: 13, padding: "2px 6px", flexShrink: 0 }}
                   title={t("profile.editName")}
                 >
                   ✏️
