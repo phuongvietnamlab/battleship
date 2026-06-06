@@ -425,6 +425,10 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 .sonar-tap-hint { font-size:11px; color:#ffe9b0; margin-top:4px; }
 .sonar-cancel-btn { font-size:11px; margin-top:4px; padding:3px 14px; }
 
+/* sonar scan highlight on grid cells (red glow like the reference image) */
+.cell.sonar-hl { background:rgba(220,50,70,.45) !important; box-shadow: inset 0 0 0 2px rgba(255,60,80,.7); animation: sonar-pulse .6s ease-in-out infinite alternate; }
+@keyframes sonar-pulse { from { background:rgba(220,50,70,.35); } to { background:rgba(220,50,70,.55); } }
+
 /* bảng điểm 2 người trong room */
 .scoreboard {
   display:flex; align-items:center; justify-content:center; gap:10px;

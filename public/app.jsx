@@ -1041,7 +1041,7 @@ function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onHelp, onHistory, error
 }
 
 // ---------- Grid ----------
-function Grid({ enemy, occ, hits, incoming, onCellClick, hoverCells, onCellHover, shootable, sunk, flash, revealed, aimCells, placeable }) {
+function Grid({ enemy, occ, hits, incoming, onCellClick, hoverCells, onCellHover, shootable, sunk, flash, revealed, aimCells, placeable, sonarScan }) {
   // occ: Set of "r,c" your ships (own board)
   // hits: Set of "r,c" shots you fired at enemy (enemy board)
   // incoming: Map "r,c" -> hit boolean (shots enemy fired at you, own board)
@@ -1060,6 +1060,11 @@ function Grid({ enemy, occ, hits, incoming, onCellClick, hoverCells, onCellHover
         if (revealed && revealed.has(k) && !(hits && hits.has(k))) cls += " revealed";
         if (aimCells && aimCells.has(k)) cls += " aim";
         if (hoverCells && hoverCells.has(k)) cls += " ship";
+        // Sonar scan highlight (row or column glows red/pink)
+        if (sonarScan) {
+          if (sonarScan.axis === "row" && r === sonarScan.index) cls += " sonar-hl";
+          if (sonarScan.axis === "col" && c === sonarScan.index) cls += " sonar-hl";
+        }
       } else {
         if (occ && occ.has(k)) cls += " ship";
         if (incoming && incoming.has(k)) cls += incoming.get(k) ? " hit" : " miss";
@@ -1510,7 +1515,7 @@ function SonarDrag({ onDrop, onCancel }) {
   );
 }
 
-function Battle({ myTurn, vsBot, occ, incoming, myShots, onFire, log, sunkOpp, sunkMine, sunkEnemyCells, sunkMyCells, myScore, oppScore, oppLabel, myProfile, oppProfile, myBubble, oppBubble, flashEnemy, flashMine, turnDeadline, turnDur, shake, inv, aim, onPower, onCrossHover, hoverCells }) {
+function Battle({ myTurn, vsBot, occ, incoming, myShots, onFire, log, sunkOpp, sunkMine, sunkEnemyCells, sunkMyCells, myScore, oppScore, oppLabel, myProfile, oppProfile, myBubble, oppBubble, flashEnemy, flashMine, turnDeadline, turnDur, shake, inv, aim, onPower, onCrossHover, hoverCells, sonarScan }) {
   const [tab, setTab] = useState("enemy"); // enemy | own (mobile)
   const [oppStats, setOppStats] = useState(null); // { wins, losses, gamesPlayed, winRate } | null
   const [oppStatsOpen, setOppStatsOpen] = useState(false);
@@ -1581,6 +1586,7 @@ function Battle({ myTurn, vsBot, occ, incoming, myShots, onFire, log, sunkOpp, s
           {aim === "sonar" && <SonarDrag onDrop={(axis, index) => onPower("sonar-fire", { axis, index })} onCancel={() => onPower("sonar")} />}
           <Grid enemy hits={myShots} shootable={myTurn && aim !== "sonar"} sunk={sunkEnemyCells} flash={flashEnemy}
             aimCells={aim === "cross" ? hoverCells : null}
+            sonarScan={sonarScan}
             onCellClick={(r, c) => myTurn && onFire(r, c)}
             onCellHover={(r, c) => onCrossHover && onCrossHover(r, c)} />
           <Counter label={t("counter.sunkEnemy")} value={sunkOpp} cls="enemy" />
@@ -2553,6 +2559,7 @@ function App() {
   const [inv, setInv]                           = useState({ sonar: 0, cross: 0, decoy: 0, scatter: 0 });
   const [aim, setAim]                           = useState(null);   // null | "sonar" | "cross"
   const [crossHover, setCrossHover]             = useState(null);   // Set of "r,c" for cross preview
+  const [sonarScan, setSonarScan]               = useState(null);   // { axis, index } — highlight during scan animation
   // Premium emoji (Phase 14)
   const [premiumEmojis, setPremiumEmojis]       = useState([]);     // emoji catalog from API
   const [emojiCooldown, setEmojiCooldown]       = useState(false);  // 5s cooldown between sends
@@ -2613,19 +2620,25 @@ function App() {
 
   // ---------- Battle-phase power-up activation (Phase 15-05) ----------
   function activatePower(type, payload) {
-    // Sonar fire (from SonarDrag drop)
+    // Sonar fire (from SonarDrag tap)
     if (type === "sonar-fire" && payload) {
       const { axis, index } = payload;
       Sound.fire();
+      // Highlight the scanned row/col immediately
+      setSonarScan({ axis, index });
+      setAim(null);
       socket.emit("useAbility", { type: "sonar", axis, index }, (res) => {
-        if (!res || !res.ok) { addLog(errText(res)); setAim(null); return; }
-        const target = axis === "row" ? (ROWS[index] || index) : (COLS[index] || (index + 1));
-        const label = (axis === "row" ? (LANG === "vi" ? "hàng " : "row ") : (LANG === "vi" ? "cột " : "column ")) + target;
-        const msg = res.result === "YES" ? t("log.sonarYes", { target: label }) : t("log.sonarNo", { target: label });
-        addLog(msg);
-        // Show prominent popup result
-        showNotice(res.result === "YES" ? ("🔊 " + label.toUpperCase() + " — ✅ " + (LANG === "vi" ? "CÓ TÀU!" : "SHIPS FOUND!")) : ("🔊 " + label.toUpperCase() + " — ❌ " + (LANG === "vi" ? "KHÔNG CÓ TÀU" : "NO SHIPS")));
-        setAim(null);
+        if (!res || !res.ok) { addLog(errText(res)); setSonarScan(null); return; }
+        // Show result after a brief highlight animation
+        setTimeout(() => {
+          const found = res.result === "YES";
+          showNotice(found
+            ? ("🔊 ✅ " + (LANG === "vi" ? "CÓ TÀU!" : "SHIPS DETECTED!"))
+            : ("🔊 ❌ " + (LANG === "vi" ? "KHÔNG CÓ TÀU" : "NO SHIPS")));
+          addLog(found ? t("log.sonarYes", { target: "" }) : t("log.sonarNo", { target: "" }));
+          // Keep highlight a bit longer then clear
+          setTimeout(() => setSonarScan(null), 1500);
+        }, 600);
       });
       return;
     }
@@ -3595,7 +3608,7 @@ function App() {
               💰 {t("game.pot", { n: stake * 2 })}
             </div>
           )}
-          <Battle myTurn={myTurn} vsBot={vsBot} occ={occ} incoming={incoming} myShots={myShots} onFire={fire} log={log} sunkOpp={sunkOpp} sunkMine={sunkMine} sunkEnemyCells={sunkEnemyCells} sunkMyCells={sunkMyCells} myScore={myScore} oppScore={oppScore} oppLabel={vsBot ? t("common.bot") : t("common.opponent")} myProfile={profile} oppProfile={vsBot ? null : oppProfile} myBubble={myBubble} oppBubble={vsBot ? null : oppBubble} flashEnemy={flashEnemy} flashMine={flashMine} turnDeadline={vsBot ? null : turnDeadline} turnDur={turnDur} shake={shake} inv={inv} aim={aim} onPower={activatePower} onCrossHover={handleCrossHover} hoverCells={crossHover} />
+          <Battle myTurn={myTurn} vsBot={vsBot} occ={occ} incoming={incoming} myShots={myShots} onFire={fire} log={log} sunkOpp={sunkOpp} sunkMine={sunkMine} sunkEnemyCells={sunkEnemyCells} sunkMyCells={sunkMyCells} myScore={myScore} oppScore={oppScore} oppLabel={vsBot ? t("common.bot") : t("common.opponent")} myProfile={profile} oppProfile={vsBot ? null : oppProfile} myBubble={myBubble} oppBubble={vsBot ? null : oppBubble} flashEnemy={flashEnemy} flashMine={flashMine} turnDeadline={vsBot ? null : turnDeadline} turnDur={turnDur} shake={shake} inv={inv} aim={aim} onPower={activatePower} onCrossHover={handleCrossHover} hoverCells={crossHover} sonarScan={sonarScan} />
         </div>
       )}
 
