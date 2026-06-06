@@ -1489,13 +1489,14 @@ function HelpModal({ open, onClose }) {
 // ─── Premium Emoji Animation (Phase 14) ──────────────────────────────────────
 // Full-screen overlay that animates a premium emoji from sender avatar → receiver avatar.
 // Uses actual DOM positions of avatars for accurate flight path.
+// Each impactType has unique ending effect at the receiver avatar.
 function PremiumEmojiAnimation({ event, myClientId, onComplete }) {
   const isFromMe = event.senderId === myClientId;
   const ref = useRef(null);
   const [coords, setCoords] = useState(null);
+  const impact = event.impactType || "explosion";
 
   useEffect(() => {
-    // Get avatar positions from DOM
     const meAvatar = document.querySelector('.pcard.me .pc-avatar');
     const oppAvatar = document.querySelector('.pcard.opp .pc-avatar');
     if (!meAvatar || !oppAvatar) { setTimeout(onComplete, 100); return; }
@@ -1510,16 +1511,14 @@ function PremiumEmojiAnimation({ event, myClientId, onComplete }) {
       endY: to.top + to.height / 2,
     });
 
-    const timer = setTimeout(onComplete, 1800);
+    const timer = setTimeout(onComplete, 2200);
     return () => clearTimeout(timer);
   }, []);
 
   if (!coords) return null;
 
   const dx = coords.endX - coords.startX;
-  const dy = coords.endY - coords.startY;
-  // Arc peak: lift upward by 30-60px depending on distance
-  const arcPeak = Math.min(60, Math.abs(dx) * 0.3 + 20);
+  const arcPeak = impact === "hearts" ? 70 : Math.min(60, Math.abs(dx) * 0.3 + 20);
 
   const style = {
     '--start-x': coords.startX + 'px',
@@ -1530,13 +1529,70 @@ function PremiumEmojiAnimation({ event, myClientId, onComplete }) {
     '--mid-y': (Math.min(coords.startY, coords.endY) - arcPeak) + 'px',
   };
 
+  // Per-type impact elements
+  let impactEl = null;
+  if (impact === "explosion") {
+    impactEl = (
+      <>
+        <div className="pe-fx pe-explosion-flash" />
+        <div className="pe-fx pe-explosion-ring" />
+        <div className="pe-fx pe-explosion-ring r2" />
+        <div className="pe-fx pe-debris d1" />
+        <div className="pe-fx pe-debris d2" />
+        <div className="pe-fx pe-debris d3" />
+        <div className="pe-fx pe-debris d4" />
+        <div className="pe-fx pe-debris d5" />
+      </>
+    );
+  } else if (impact === "shake") {
+    impactEl = (
+      <>
+        <div className="pe-fx pe-shake-star s1">✦</div>
+        <div className="pe-fx pe-shake-star s2">✦</div>
+        <div className="pe-fx pe-shake-star s3">✦</div>
+        <div className="pe-fx pe-shake-mark" />
+      </>
+    );
+  } else if (impact === "splash") {
+    impactEl = (
+      <>
+        <div className="pe-fx pe-splash-bucket" />
+        <div className="pe-fx pe-splash-drop dr1" />
+        <div className="pe-fx pe-splash-drop dr2" />
+        <div className="pe-fx pe-splash-drop dr3" />
+        <div className="pe-fx pe-splash-drop dr4" />
+        <div className="pe-fx pe-splash-drop dr5" />
+        <div className="pe-fx pe-splash-wave" />
+      </>
+    );
+  } else if (impact === "hearts") {
+    impactEl = (
+      <>
+        <div className="pe-fx pe-heart h1">❤️</div>
+        <div className="pe-fx pe-heart h2">💕</div>
+        <div className="pe-fx pe-heart h3">💗</div>
+        <div className="pe-fx pe-heart h4">❤️</div>
+        <div className="pe-fx pe-heart h5">💖</div>
+      </>
+    );
+  } else if (impact === "bounce") {
+    impactEl = (
+      <>
+        <div className="pe-fx pe-bounce-face">
+          <img src={"/emojis/" + event.slug + ".svg"} alt="" className="pe-bounce-img" />
+        </div>
+      </>
+    );
+  }
+
   return (
-    <div className={"pe-anim" + " impact-" + (event.impactType || "explosion")} ref={ref} style={style}>
+    <div className={"pe-anim impact-" + impact} ref={ref} style={style}>
       <div className="pe-anim-emoji">
         <img src={"/emojis/" + event.slug + ".svg"} alt="" className="pe-anim-img" />
       </div>
-      <div className="pe-anim-impact" />
-      <div className="pe-anim-ring" />
+      <div className="pe-impact-zone">
+        {impactEl}
+      </div>
     </div>
   );
 }
