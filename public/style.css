@@ -407,7 +407,7 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 .aim-banner { position:fixed; left:50%; bottom:14px; transform:translateX(-50%); z-index:150; width:max-content; max-width:92vw; background:rgba(40,30,8,.96); border:1px solid var(--gold); color:#ffe9b0; padding:9px 14px; border-radius:12px; font-size:13px; text-align:center; box-shadow:0 6px 22px rgba(0,0,0,.5); }
 
 /* battle-phase power bar container */
-.power-bar { display:flex; gap:6px; justify-content:center; margin:6px auto 8px; flex-wrap:wrap; max-width:520px; }
+.power-bar { display:flex; gap:6px; justify-content:center; margin:4px auto 4px; flex-wrap:wrap; max-width:520px; }
 
 /* aim hint banner (inline, not fixed) */
 .aim-hint { text-align:center; font-size:12px; color:#ffe9b0; background:rgba(40,30,8,.85); border:1px solid var(--gold); border-radius:8px; padding:5px 12px; margin:4px auto 6px; max-width:92vw; width:fit-content; }
@@ -614,10 +614,15 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
   .room-code-box .code{ font-size:22px !important; letter-spacing:4px; padding:5px 12px; }
   /* power-bar: thu gọn để 5 nút vừa 1 hàng */
   .powerbar{ gap:5px; }
-  .power-bar{ gap:4px; }
-  .power-btn{ min-width:0; flex:1 1 0; padding:6px 4px; }
+  .power-bar{ gap:4px; margin:2px auto 4px; }
+  .power-btn{ min-width:0; flex:1 1 0; padding:4px 3px; }
   .power-btn .pn{ font-size:9px; line-height:1.1; }
   .power-btn .pi{ font-size:15px; }
+  .sonar-drag{ margin:2px 0; }
+  .sonar-drag-blocks{ gap:8px; }
+  .sonar-block{ padding:6px 10px; }
+  .sonar-block-cells{ font-size:14px; }
+  .sonar-cancel-btn{ margin-top:3px; padding:2px 10px; font-size:10px; }
 }
 @media (max-width:380px){
   .logo h1{ font-size:18px; }
