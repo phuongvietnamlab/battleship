@@ -1086,7 +1086,7 @@ function Grid({ enemy, occ, hits, incoming, onCellClick, hoverCells, onCellHover
 function PlacementShop({ stake, balance, inventory, purchaseCount, onBuy, disabled }) {
   const price = Math.round(stake * 0.10);
   const maxReached = purchaseCount >= 2;
-  const canAfford = balance >= price;
+  const canAfford = balance != null && balance >= price;
 
   return (
     <div className="placement-shop">
@@ -1107,7 +1107,7 @@ function PlacementShop({ stake, balance, inventory, purchaseCount, onBuy, disabl
         ))}
       </div>
       {maxReached && <div className="shop-cap">{t("shop.capReached")}</div>}
-      {!maxReached && !canAfford && <div className="shop-cap">{t("wallet.insufficientBalance")}</div>}
+      {!maxReached && balance != null && !canAfford && <div className="shop-cap">{t("wallet.insufficientBalance")}</div>}
     </div>
   );
 }
@@ -2528,6 +2528,8 @@ function App() {
         setPlacementInv(prev => ({ ...prev, [type]: (prev[type] || 0) + 1 }));
         setPlacementPurchases(n => n + 1);
         if (type === "decoy") setDecoyPending(true);
+        // Update balance immediately from callback (don't rely solely on balanceUpdate event)
+        if (typeof res.newBalance === "number") setBalance(res.newBalance);
       } else {
         showNotice(t("err." + (res?.code || "UNKNOWN")));
       }
