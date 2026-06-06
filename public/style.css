@@ -414,18 +414,19 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 
 /* sonar drag-and-drop blocks */
 .sonar-drag { text-align:center; margin:4px 0; }
-.sonar-drag-hint { font-size:11px; color:#ffe9b0; margin-bottom:6px; }
 .sonar-drag-blocks { display:flex; gap:12px; justify-content:center; align-items:center; }
-.sonar-block { display:flex; flex-direction:column; align-items:center; gap:3px; padding:8px 14px;
+.sonar-block { display:flex; flex-direction:column; align-items:center; gap:3px; padding:10px 16px;
   border:2px dashed rgba(240,193,75,.5); border-radius:10px; background:rgba(240,193,75,.08);
   cursor:grab; touch-action:none; user-select:none; transition: border-color .15s, background .15s; }
 .sonar-block:active { cursor:grabbing; border-color:#f0c040; background:rgba(240,193,75,.15); }
-.sonar-block.dragging { opacity:.4; }
-.sonar-block-cells { font-size:16px; color:#f0c040; line-height:1.1; letter-spacing:2px; }
+.sonar-block.active { opacity:.4; border-style:solid; }
+.sonar-block-cells { font-size:18px; color:#f0c040; line-height:1.1; letter-spacing:3px; }
+.sonar-col-cells { letter-spacing:0; line-height:1.3; }
 .sonar-block-label { font-size:10px; color:#b0d0f0; font-weight:600; }
 .sonar-cancel-btn { font-size:11px; margin-top:6px; padding:3px 14px; }
-.sonar-ghost { position:fixed; z-index:999; pointer-events:none; font-size:24px; color:#f0c040;
-  filter: drop-shadow(0 4px 8px rgba(0,0,0,.6)); opacity:.85; }
+.sonar-ghost { position:fixed; z-index:999; pointer-events:none; font-size:20px; color:#f0c040;
+  filter: drop-shadow(0 4px 8px rgba(0,0,0,.6)); opacity:.85; white-space:pre; }
+.sonar-hl-cell { background:rgba(240,193,75,.25); border:1px solid rgba(240,193,75,.5); border-radius:3px; }
 
 /* bảng điểm 2 người trong room */
 .scoreboard {

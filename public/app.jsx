@@ -1461,16 +1461,28 @@ function PowerBar({ inv, aim, onPower, myTurn }) {
   );
 }
 
-// ---------- Sonar Drag (row/col drag-and-drop blocks) ----------
+// ---------- Sonar Drag (row/col drag-and-drop blocks onto enemy grid) ----------
 function SonarDrag({ onDrop, onCancel }) {
-  const [dragging, setDragging] = useState(null); // null | { axis: "row"|"col", startX, startY }
+  const [dragging, setDragging] = useState(null); // null | { axis: "row"|"col" }
   const [pos, setPos] = useState({ x: 0, y: 0 });
-  const ghostRef = useRef(null);
+  const [hoverIndex, setHoverIndex] = useState(-1); // which row/col is highlighted
 
   function startDrag(e, axis) {
     e.preventDefault();
     setDragging({ axis });
     setPos({ x: e.clientX, y: e.clientY });
+    setHoverIndex(-1);
+  }
+
+  function getGridInfo(clientX, clientY) {
+    const gridEl = document.querySelector(".grid.enemy");
+    if (!gridEl) return null;
+    const rect = gridEl.getBoundingClientRect();
+    const PAD = 2;
+    const pitch = (rect.width - PAD * 2) / BOARD;
+    const col = Math.floor((clientX - rect.left - PAD) / pitch);
+    const row = Math.floor((clientY - rect.top - PAD) / pitch);
+    return { row, col, pitch, rect, PAD };
   }
 
   useEffect(() => {
@@ -1478,55 +1490,89 @@ function SonarDrag({ onDrop, onCancel }) {
     function move(e) {
       if (e.cancelable) e.preventDefault();
       setPos({ x: e.clientX, y: e.clientY });
+      const info = getGridInfo(e.clientX, e.clientY);
+      if (info) {
+        const idx = dragging.axis === "row" ? info.row : info.col;
+        setHoverIndex(idx >= 0 && idx < BOARD ? idx : -1);
+      } else {
+        setHoverIndex(-1);
+      }
     }
     function up(e) {
-      // Find the grid element (.grid.enemy) under the drop point
-      const el = document.elementFromPoint(e.clientX, e.clientY);
-      const gridEl = el && el.closest(".grid.enemy");
-      if (gridEl) {
-        const rect = gridEl.getBoundingClientRect();
-        const PAD = 2;
-        const pitch = (rect.width - PAD * 2) / BOARD;
-        const col = Math.floor((e.clientX - rect.left - PAD) / pitch);
-        const row = Math.floor((e.clientY - rect.top - PAD) / pitch);
-        if (row >= 0 && row < BOARD && col >= 0 && col < BOARD) {
-          const index = dragging.axis === "row" ? row : col;
-          onDrop(dragging.axis, index);
+      const info = getGridInfo(e.clientX, e.clientY);
+      if (info) {
+        const idx = dragging.axis === "row" ? info.row : info.col;
+        if (idx >= 0 && idx < BOARD) {
+          onDrop(dragging.axis, idx);
         }
       }
       setDragging(null);
+      setHoverIndex(-1);
     }
     window.addEventListener("pointermove", move, { passive: false });
     window.addEventListener("pointerup", up);
-    window.addEventListener("pointercancel", () => setDragging(null));
+    window.addEventListener("pointercancel", () => { setDragging(null); setHoverIndex(-1); });
     return () => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
-      window.removeEventListener("pointercancel", () => {});
     };
   }, [dragging]);
 
+  // Build highlight cells for the hovered row or column
+  const highlightCells = new Set();
+  if (dragging && hoverIndex >= 0) {
+    for (let i = 0; i < BOARD; i++) {
+      if (dragging.axis === "row") highlightCells.add(hoverIndex + "," + i);
+      else highlightCells.add(i + "," + hoverIndex);
+    }
+  }
+
   return (
     <div className="sonar-drag">
-      <div className="sonar-drag-hint">{t("battle.aimingSonar")}</div>
       <div className="sonar-drag-blocks">
-        <div className={"sonar-block row-block" + (dragging && dragging.axis === "row" ? " dragging" : "")}
+        <div className={"sonar-block" + (dragging && dragging.axis === "row" ? " active" : "")}
           onPointerDown={(e) => startDrag(e, "row")}>
-          <span className="sonar-block-cells">▬▬▬</span>
+          <span className="sonar-block-cells">■ ■ ■</span>
           <span className="sonar-block-label">{LANG === "vi" ? "Hàng" : "Row"}</span>
         </div>
-        <div className={"sonar-block col-block" + (dragging && dragging.axis === "col" ? " dragging" : "")}
+        <div className={"sonar-block" + (dragging && dragging.axis === "col" ? " active" : "")}
           onPointerDown={(e) => startDrag(e, "col")}>
-          <span className="sonar-block-cells">▮<br/>▮<br/>▮</span>
+          <span className="sonar-block-cells sonar-col-cells">■<br/>■<br/>■</span>
           <span className="sonar-block-label">{LANG === "vi" ? "Cột" : "Col"}</span>
         </div>
       </div>
       <button className="btn ghost sonar-cancel-btn" onClick={onCancel}>{LANG === "vi" ? "Hủy" : "Cancel"}</button>
       {dragging && (
         <div className="sonar-ghost" style={{ left: pos.x - 20, top: pos.y - 20 }}>
-          {dragging.axis === "row" ? "▬▬▬" : "▮▮▮"}
+          {dragging.axis === "row" ? "■ ■ ■" : "■\n■\n■"}
         </div>
       )}
+      {highlightCells.size > 0 && <SonarHighlight cells={highlightCells} />}
+    </div>
+  );
+}
+
+// Overlay that highlights a row/column on the enemy grid during sonar drag
+function SonarHighlight({ cells }) {
+  const gridEl = document.querySelector(".grid.enemy");
+  if (!gridEl) return null;
+  const rect = gridEl.getBoundingClientRect();
+  const PAD = 2;
+  const pitch = (rect.width - PAD * 2) / BOARD;
+  return (
+    <div className="sonar-highlight-overlay" style={{ position: "fixed", left: rect.left, top: rect.top, width: rect.width, height: rect.height, pointerEvents: "none", zIndex: 40 }}>
+      {[...cells].map((k) => {
+        const [r, c] = k.split(",").map(Number);
+        return (
+          <div key={k} className="sonar-hl-cell" style={{
+            position: "absolute",
+            left: PAD + c * pitch,
+            top: PAD + r * pitch,
+            width: pitch - 1,
+            height: pitch - 1,
+          }} />
+        );
+      })}
     </div>
   );
 }
@@ -1534,7 +1580,6 @@ function SonarDrag({ onDrop, onCancel }) {
 function Battle({ myTurn, vsBot, occ, incoming, myShots, onFire, log, sunkOpp, sunkMine, sunkEnemyCells, sunkMyCells, myScore, oppScore, oppLabel, myProfile, oppProfile, myBubble, oppBubble, flashEnemy, flashMine, turnDeadline, turnDur, shake, inv, aim, onPower, onCrossHover, hoverCells }) {
   const [tab, setTab] = useState("enemy"); // enemy | own (mobile)
   const [oppStats, setOppStats] = useState(null); // { wins, losses, gamesPlayed, winRate } | null
-  const enemyGridRef = useRef(null);
   const [oppStatsOpen, setOppStatsOpen] = useState(false);
   const oppStatsCache = useRef(null);
 
@@ -1601,12 +1646,10 @@ function Battle({ myTurn, vsBot, occ, incoming, myShots, onFire, log, sunkOpp, s
           <div className="board-title enemy">{t("battle.enemyWaters")} {myTurn && !aim ? t("battle.fireSuffix") : ""}</div>
           <PowerBar inv={inv} aim={aim} onPower={onPower} myTurn={myTurn} />
           {aim === "sonar" && <SonarDrag onDrop={(axis, index) => onPower("sonar-fire", { axis, index })} onCancel={() => onPower("sonar")} />}
-          <div ref={enemyGridRef}>
-            <Grid enemy hits={myShots} shootable={myTurn && aim !== "sonar"} sunk={sunkEnemyCells} flash={flashEnemy}
-              aimCells={aim === "cross" ? hoverCells : null}
-              onCellClick={(r, c) => myTurn && onFire(r, c)}
-              onCellHover={(r, c) => onCrossHover && onCrossHover(r, c)} />
-          </div>
+          <Grid enemy hits={myShots} shootable={myTurn && aim !== "sonar"} sunk={sunkEnemyCells} flash={flashEnemy}
+            aimCells={aim === "cross" ? hoverCells : null}
+            onCellClick={(r, c) => myTurn && onFire(r, c)}
+            onCellHover={(r, c) => onCrossHover && onCrossHover(r, c)} />
           <Counter label={t("counter.sunkEnemy")} value={sunkOpp} cls="enemy" />
         </div>
         <div className="board-wrap wrap-own">
@@ -2637,7 +2680,7 @@ function App() {
 
   // ---------- Battle-phase power-up activation (Phase 15-05) ----------
   function activatePower(type, payload) {
-    // Sonar fire (from SonarPanel selection)
+    // Sonar fire (from SonarDrag drop)
     if (type === "sonar-fire" && payload) {
       const { axis, index } = payload;
       Sound.fire();
@@ -2645,7 +2688,10 @@ function App() {
         if (!res || !res.ok) { addLog(errText(res)); setAim(null); return; }
         const target = axis === "row" ? (ROWS[index] || index) : (COLS[index] || (index + 1));
         const label = (axis === "row" ? (LANG === "vi" ? "hàng " : "row ") : (LANG === "vi" ? "cột " : "column ")) + target;
-        addLog(res.result === "YES" ? t("log.sonarYes", { target: label }) : t("log.sonarNo", { target: label }));
+        const msg = res.result === "YES" ? t("log.sonarYes", { target: label }) : t("log.sonarNo", { target: label });
+        addLog(msg);
+        // Show prominent popup result
+        showNotice(res.result === "YES" ? ("🔊 " + label.toUpperCase() + " — ✅ " + (LANG === "vi" ? "CÓ TÀU!" : "SHIPS FOUND!")) : ("🔊 " + label.toUpperCase() + " — ❌ " + (LANG === "vi" ? "KHÔNG CÓ TÀU" : "NO SHIPS")));
         setAim(null);
       });
       return;
