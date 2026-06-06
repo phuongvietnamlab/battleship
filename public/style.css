@@ -928,14 +928,18 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
    Reduces GPU/CPU load on mobile devices to prevent overheating and lag.
    ========================================================================== */
 
-/* 1. Kill continuous background animations on mobile — biggest perf win.
-      Waves rotate 360° infinitely which hammers the GPU compositor. */
+/* 1. Replace CSS animations with a lightweight animated GIF on mobile.
+      CSS keyframes hammer the GPU compositor; the GIF decodes at 6fps
+      with zero compositor layers — much lighter on battery/thermals. */
 @media (max-width: 768px) {
+  .ocean-bg {
+    background: url('/ocean-bg-mobile.gif') center/cover no-repeat;
+  }
   .ocean-bg::before {
-    animation: none;
+    display: none;
   }
   .wave, .wave.w2, .wave.w3 {
-    animation: none;
+    display: none;
   }
 
   /* 2. Replace expensive backdrop-filter blur with solid backgrounds.

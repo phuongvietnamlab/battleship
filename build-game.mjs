@@ -25,5 +25,7 @@ await esbuild.build({
 
 copyFileSync("public/index.html", `${OUT}/index.html`);
 copyFileSync("public/style.css", `${OUT}/style.css`);
+// Copy animated ocean background GIF for mobile (replaces CSS animations to avoid overheating)
+try { copyFileSync("public/ocean-bg-mobile.gif", `${OUT}/ocean-bg-mobile.gif`); } catch(e) {}
 
 console.log(`Game built → ${OUT}/  (SERVER_URL=${SERVER_URL || "(same-origin)"})`);
