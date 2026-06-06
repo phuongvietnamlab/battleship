@@ -1086,7 +1086,9 @@ function Grid({ enemy, occ, hits, incoming, onCellClick, hoverCells, onCellHover
 function PlacementShop({ stake, balance, inventory, purchaseCount, onBuy, disabled }) {
   const price = Math.round(stake * 0.10);
   const maxReached = purchaseCount >= 2;
-  const canAfford = balance != null && balance >= price;
+  // balance=null means still loading; allow clicks (server validates anyway)
+  const canAfford = balance == null || balance >= price;
+  const balanceLoaded = balance != null;
 
   return (
     <div className="placement-shop">
@@ -1107,7 +1109,7 @@ function PlacementShop({ stake, balance, inventory, purchaseCount, onBuy, disabl
         ))}
       </div>
       {maxReached && <div className="shop-cap">{t("shop.capReached")}</div>}
-      {!maxReached && balance != null && !canAfford && <div className="shop-cap">{t("wallet.insufficientBalance")}</div>}
+      {!maxReached && balanceLoaded && !canAfford && <div className="shop-cap">{t("wallet.insufficientBalance")}</div>}
     </div>
   );
 }

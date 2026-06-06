@@ -2264,11 +2264,20 @@ io.on("connection", (socket) => {
       }
       // Phase 7: refund wagered pre-start leave (game not started yet)
       if (!room.started && room.stake > 0) {
-        // Refund the leaving player
+        // Refund the leaving player's wager
         const leavingUserId = room.players[clientId]?.userId;
         const leavingWagerId = room.players[clientId]?.wagerId;
         if (leavingUserId) {
           creditWallet(leavingUserId, room.stake, "wager_refund", leavingWagerId || "leave_" + code).then((res) => {
+            if (res.ok) socket.emit("balanceUpdate", { balance: res.balance });
+          }).catch(() => {});
+        }
+        // Refund the leaving player's power-up purchases (Phase 15)
+        const leavingPurchases = (room.purchases && room.purchases[clientId]) || 0;
+        if (leavingPurchases > 0 && leavingUserId) {
+          const powerupPrice = Math.round(room.stake * POWERUP_PRICE_PCT);
+          const refundAmount = leavingPurchases * powerupPrice;
+          creditWallet(leavingUserId, refundAmount, "powerup_refund", "leave_pu_" + code + "_" + clientId).then((res) => {
             if (res.ok) socket.emit("balanceUpdate", { balance: res.balance });
           }).catch(() => {});
         }
@@ -2279,6 +2288,13 @@ io.on("connection", (socket) => {
           const oppWagerId = room.players[oppId]?.wagerId;
           if (oppUserId) {
             creditWallet(oppUserId, room.stake, "wager_refund", oppWagerId || "leave_opp_" + code).catch(() => {});
+            // Refund opponent's power-up purchases too (Phase 15)
+            const oppPurchases = (room.purchases && room.purchases[oppId]) || 0;
+            if (oppPurchases > 0) {
+              const powerupPrice = Math.round(room.stake * POWERUP_PRICE_PCT);
+              const oppRefund = oppPurchases * powerupPrice;
+              creditWallet(oppUserId, oppRefund, "powerup_refund", "leave_pu_" + code + "_" + oppId).catch(() => {});
+            }
             emitToClient(room, oppId, "balanceUpdate", { balance: -1 }); // client will re-fetch
             getWalletBalance(oppUserId).then((bal) => {
               emitToClient(room, oppId, "balanceUpdate", { balance: bal });
