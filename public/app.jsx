@@ -1108,6 +1108,7 @@ function PlacementShop({ stake, balance, inventory, purchaseCount, onBuy, disabl
   }
   function onHoldEnd() {
     if (holdTimer.current) { clearTimeout(holdTimer.current); holdTimer.current = null; }
+    setTooltip(null);
   }
 
   return (
@@ -1128,6 +1129,8 @@ function PlacementShop({ stake, balance, inventory, purchaseCount, onBuy, disabl
               onPointerDown={() => onHoldStart(type)}
               onPointerUp={onHoldEnd}
               onPointerLeave={onHoldEnd}
+              onMouseEnter={() => { if (window.matchMedia("(hover: hover)").matches) setTooltip(type); }}
+              onMouseLeave={() => { if (window.matchMedia("(hover: hover)").matches) setTooltip(null); }}
               disabled={isDisabled}>
               <span className="shop-icon">{icon}</span>
               <span className="shop-name">{t(nameKey)}</span>
