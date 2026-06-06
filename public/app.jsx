@@ -1487,31 +1487,56 @@ function HelpModal({ open, onClose }) {
 
 // ---------- Chat (in-room, ephemeral) ----------
 // ─── Premium Emoji Animation (Phase 14) ──────────────────────────────────────
-// Full-screen overlay that animates a premium emoji from sender → receiver avatar.
+// Full-screen overlay that animates a premium emoji from sender avatar → receiver avatar.
+// Uses actual DOM positions of avatars for accurate flight path.
 function PremiumEmojiAnimation({ event, myClientId, onComplete }) {
   const isFromMe = event.senderId === myClientId;
-  const direction = isFromMe ? "ltr" : "rtl";
+  const ref = useRef(null);
+  const [coords, setCoords] = useState(null);
+
   useEffect(() => {
-    const timer = setTimeout(onComplete, 2000);
+    // Get avatar positions from DOM
+    const meAvatar = document.querySelector('.pcard.me .pc-avatar');
+    const oppAvatar = document.querySelector('.pcard.opp .pc-avatar');
+    if (!meAvatar || !oppAvatar) { setTimeout(onComplete, 100); return; }
+
+    const from = isFromMe ? meAvatar.getBoundingClientRect() : oppAvatar.getBoundingClientRect();
+    const to = isFromMe ? oppAvatar.getBoundingClientRect() : meAvatar.getBoundingClientRect();
+
+    setCoords({
+      startX: from.left + from.width / 2,
+      startY: from.top + from.height / 2,
+      endX: to.left + to.width / 2,
+      endY: to.top + to.height / 2,
+    });
+
+    const timer = setTimeout(onComplete, 1800);
     return () => clearTimeout(timer);
   }, []);
+
+  if (!coords) return null;
+
+  const dx = coords.endX - coords.startX;
+  const dy = coords.endY - coords.startY;
+  // Arc peak: lift upward by 30-60px depending on distance
+  const arcPeak = Math.min(60, Math.abs(dx) * 0.3 + 20);
+
+  const style = {
+    '--start-x': coords.startX + 'px',
+    '--start-y': coords.startY + 'px',
+    '--end-x': coords.endX + 'px',
+    '--end-y': coords.endY + 'px',
+    '--mid-x': (coords.startX + dx * 0.5) + 'px',
+    '--mid-y': (Math.min(coords.startY, coords.endY) - arcPeak) + 'px',
+  };
+
   return (
-    <div className={"premium-anim-overlay " + direction + " impact-" + (event.impactType || "explosion")}>
-      <div className="premium-anim-projectile">
-        <img src={"/emojis/" + event.slug + ".svg"} alt="" className="premium-anim-img" />
-        <div className="premium-anim-trail" />
-        <div className="premium-anim-trail t2" />
-        <div className="premium-anim-trail t3" />
+    <div className={"pe-anim" + " impact-" + (event.impactType || "explosion")} ref={ref} style={style}>
+      <div className="pe-anim-emoji">
+        <img src={"/emojis/" + event.slug + ".svg"} alt="" className="pe-anim-img" />
       </div>
-      <div className="premium-anim-impact">
-        <div className="impact-ring" />
-        <div className="impact-ring r2" />
-        <div className="impact-flash" />
-      </div>
-      <div className="premium-anim-particles">
-        <span className="pa-p p1" /><span className="pa-p p2" /><span className="pa-p p3" />
-        <span className="pa-p p4" /><span className="pa-p p5" /><span className="pa-p p6" />
-      </div>
+      <div className="pe-anim-impact" />
+      <div className="pe-anim-ring" />
     </div>
   );
 }
