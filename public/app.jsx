@@ -34,6 +34,10 @@ const I18N = {
     "ship.carrier": "Carrier", "ship.battleship": "Battleship", "ship.cruiser": "Cruiser", "ship.submarine": "Submarine", "ship.destroyer": "Destroyer",
     "pw.scatter": "Scatter Blast", "pw.cross": "Cross Missile", "pw.double": "Extra Turn", "pw.reveal": "Reveal Cell", "pw.mine": "Sea Mine", "pw.sonar": "Sonar Ping", "pw.decoy": "Decoy",
     "shop.capReached": "Max (2/2)", "decoy.place": "Tap an empty cell to place your decoy", "decoy.onShip": "Cannot place decoy on a ship", "decoy.invalidated": "Decoy position invalidated — place it again",
+    "log.sonarYes": "🔊 Sonar scanned {target} — YES! Ships detected.", "log.sonarNo": "🔊 Sonar scanned {target} — NO ships.",
+    "log.scatterBoom": "🌠 Scatter Blast!", "log.crossFire": "➕ Cross Missile at {cell}!",
+    "battle.aimingSonar": "Pick a row or column to scan (tap button to cancel).",
+    "battle.aimingCross": "Aiming Cross Missile — tap enemy waters to fire (tap button to cancel).",
     "board.yourFleet": "Your fleet",
     "place.shipTitle": "Drag to move · double-tap to rotate",
     "place.hint": "Your fleet starts placed at random. Drag a ship to move it, double-tap to rotate, or tap 🎲 Random for a new layout.",
@@ -82,7 +86,7 @@ const I18N = {
     "log.collected": "You collected a power-up: {list}!", "log.youSunkN": "You SANK {n} ships! Fire again!",
     "log.labelHit": "{label} — HIT! Fire again!", "log.labelMiss": "{label} — missed.", "log.youHitMine": "You hit the ENEMY's mine — you lose your next turn!",
     "log.minePlaced": "Mine placed at {cell}. If the enemy hits it they lose a turn!", "log.doubleActivated": "Extra Turn activated — your next miss still keeps the turn!",
-    "log.revealed": "Revealed an enemy ship cell at {cell}!", "log.scatterBoom": "💥 Scatter Blast!",
+    "log.revealed": "Revealed an enemy ship cell at {cell}!",
     "notice.youTimeout": "⏱️ Time's up! You lost your turn.", "notice.enemyHitMine": "💥 Enemy stepped on YOUR mine! They lose their next turn.",
     "notice.youHitMine": "💥 You stepped on the ENEMY's mine! You lose your next turn.", "notice.shareFail": "Couldn't open Messenger — send the room code manually.",
     "label.power": "Power-up {name}", "label.youFire": "You fired {cell}",
@@ -219,6 +223,10 @@ const I18N = {
     "ship.carrier": "Tàu sân bay", "ship.battleship": "Thiết giáp hạm", "ship.cruiser": "Tàu tuần dương", "ship.submarine": "Tàu ngầm", "ship.destroyer": "Khu trục hạm",
     "pw.scatter": "Nổ ngẫu nhiên", "pw.cross": "Tên lửa chữ thập", "pw.double": "Thêm lượt", "pw.reveal": "Lộ ô thuyền", "pw.mine": "Mìn nước", "pw.sonar": "Dò sóng", "pw.decoy": "Mồi nhử",
     "shop.capReached": "Tối đa (2/2)", "decoy.place": "Chạm vào ô trống để đặt mồi nhử", "decoy.onShip": "Không đặt được mồi nhử lên thuyền", "decoy.invalidated": "Vị trí mồi nhử bị vô hiệu — đặt lại",
+    "log.sonarYes": "🔊 Dò sóng {target} — CÓ tàu!", "log.sonarNo": "🔊 Dò sóng {target} — KHÔNG có tàu.",
+    "log.scatterBoom": "🌠 Nổ ngẫu nhiên!", "log.crossFire": "➕ Tên lửa chữ thập tại {cell}!",
+    "battle.aimingSonar": "Chọn hàng hoặc cột để dò (chạm lại nút để hủy).",
+    "battle.aimingCross": "Đang ngắm Tên lửa chữ thập — chạm biển địch để bắn (chạm lại nút để hủy).",
     "board.yourFleet": "Hạm đội của bạn",
     "place.shipTitle": "Kéo để di chuyển · chạm 2 lần để xoay",
     "place.hint": "Hạm đội được xếp ngẫu nhiên sẵn. Kéo thuyền để di chuyển, chạm 2 lần để xoay, hoặc bấm 🎲 Ngẫu nhiên để xếp lại.",
@@ -267,7 +275,7 @@ const I18N = {
     "log.collected": "Bạn nhặt được power-up: {list}!", "log.youSunkN": "Bạn ĐÁNH CHÌM {n} thuyền! Bắn tiếp!",
     "log.labelHit": "{label} — TRÚNG! Bắn tiếp!", "log.labelMiss": "{label} — trượt.", "log.youHitMine": "Bạn bắn trúng MÌN của địch — bạn mất lượt kế tiếp!",
     "log.minePlaced": "Đã đặt mìn tại {cell}. Địch bắn trúng sẽ mất lượt!", "log.doubleActivated": "Kích hoạt Thêm lượt — phát trượt kế tiếp vẫn giữ lượt!",
-    "log.revealed": "Lộ 1 ô thuyền địch tại {cell}!", "log.scatterBoom": "💥 Nổ ngẫu nhiên!",
+    "log.revealed": "Lộ 1 ô thuyền địch tại {cell}!",
     "notice.youTimeout": "⏱️ Hết giờ! Bạn mất lượt.", "notice.enemyHitMine": "💥 Địch dẫm phải MÌN của bạn! Địch mất lượt kế tiếp.",
     "notice.youHitMine": "💥 Bạn dẫm phải MÌN của địch! Bạn mất lượt kế tiếp.", "notice.shareFail": "Không mở được Messenger — hãy gửi mã phòng thủ công.",
     "label.power": "Power-up {name}", "label.youFire": "Bạn bắn {cell}",
@@ -1383,7 +1391,62 @@ function TurnRing({ secs, frac, show, myTurn }) {
     </div>
   );
 }
-function Battle({ myTurn, vsBot, occ, incoming, myShots, onFire, log, sunkOpp, sunkMine, sunkEnemyCells, sunkMyCells, myScore, oppScore, oppLabel, myProfile, oppProfile, myBubble, oppBubble, flashEnemy, flashMine, turnDeadline, turnDur, shake }) {
+
+// ---------- Power-up Icons (Phase 15-05) ----------
+const POWER_ICON = { sonar: "🔊", cross: "➕", decoy: "🪤", scatter: "🌠" };
+
+// ---------- PowerBar (battle phase — shows only purchased power-ups) ----------
+function PowerBar({ inv, aim, onPower, myTurn }) {
+  const items = [
+    { type: "sonar", icon: POWER_ICON.sonar, name: t("pw.sonar") },
+    { type: "cross", icon: POWER_ICON.cross, name: t("pw.cross") },
+    { type: "scatter", icon: POWER_ICON.scatter, name: t("pw.scatter") },
+  ].filter(({ type }) => (inv[type] || 0) > 0);
+
+  if (items.length === 0) return null;
+
+  return (
+    <div className="power-bar">
+      {items.map(({ type, icon, name }) => (
+        <button key={type} disabled={!myTurn}
+          className={"power-btn" + (aim === type ? " aiming" : "")}
+          onClick={() => onPower(type)}>
+          <span className="pi">{icon}</span>
+          <span className="pn">{name}</span>
+          <span className="pc">×{inv[type]}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ---------- Sonar Panel (row/col selection UI) ----------
+function SonarPanel({ onSelect, onCancel }) {
+  return (
+    <div className="sonar-panel">
+      <div className="sonar-hint">{t("battle.aimingSonar")}</div>
+      <div className="sonar-section">
+        <div className="sonar-label">≡ {LANG === "vi" ? "Hàng" : "Row"}</div>
+        <div className="sonar-btns">
+          {ROWS.map((label, i) => (
+            <button key={"r" + i} className="sonar-pick" onClick={() => onSelect("row", i)}>{label}</button>
+          ))}
+        </div>
+      </div>
+      <div className="sonar-section">
+        <div className="sonar-label">⦀ {LANG === "vi" ? "Cột" : "Col"}</div>
+        <div className="sonar-btns">
+          {COLS.map((label, i) => (
+            <button key={"c" + i} className="sonar-pick" onClick={() => onSelect("col", i)}>{label}</button>
+          ))}
+        </div>
+      </div>
+      <button className="btn secondary sonar-cancel" onClick={onCancel}>{LANG === "vi" ? "Hủy" : "Cancel"}</button>
+    </div>
+  );
+}
+
+function Battle({ myTurn, vsBot, occ, incoming, myShots, onFire, log, sunkOpp, sunkMine, sunkEnemyCells, sunkMyCells, myScore, oppScore, oppLabel, myProfile, oppProfile, myBubble, oppBubble, flashEnemy, flashMine, turnDeadline, turnDur, shake, inv, aim, onPower, onCrossHover, hoverCells }) {
   const [tab, setTab] = useState("enemy"); // enemy | own (mobile)
   const [oppStats, setOppStats] = useState(null); // { wins, losses, gamesPlayed, winRate } | null
   const [oppStatsOpen, setOppStatsOpen] = useState(false);
@@ -1449,9 +1512,11 @@ function Battle({ myTurn, vsBot, occ, incoming, myShots, onFire, log, sunkOpp, s
       </div>
       <div className={"boards tab-" + tab + (shake ? " shake" : "")}>
         <div className="board-wrap wrap-enemy">
-          <div className="board-title enemy">{t("battle.enemyWaters")} {myTurn ? t("battle.fireSuffix") : ""}</div>
-          <Grid enemy hits={myShots} shootable={myTurn} sunk={sunkEnemyCells} flash={flashEnemy}
-            onCellClick={(r, c) => myTurn && onFire(r, c)} />
+          <div className="board-title enemy">{t("battle.enemyWaters")} {myTurn && !aim ? t("battle.fireSuffix") : ""}</div>
+          <Grid enemy hits={myShots} shootable={myTurn && aim !== "sonar"} sunk={sunkEnemyCells} flash={flashEnemy}
+            aimCells={aim === "cross" ? hoverCells : null}
+            onCellClick={(r, c) => myTurn && onFire(r, c)}
+            onCellHover={(r, c) => onCrossHover && onCrossHover(r, c)} />
           <Counter label={t("counter.sunkEnemy")} value={sunkOpp} cls="enemy" />
         </div>
         <div className="board-wrap wrap-own">
@@ -1461,6 +1526,9 @@ function Battle({ myTurn, vsBot, occ, incoming, myShots, onFire, log, sunkOpp, s
           <Counter label={t("counter.sunkOwn")} value={sunkMine} cls="own" />
         </div>
       </div>
+      {aim === "cross" && <div className="aim-hint">{t("battle.aimingCross")}</div>}
+      <PowerBar inv={inv} aim={aim} onPower={onPower} myTurn={myTurn} />
+      {aim === "sonar" && <SonarPanel onSelect={(axis, index) => onPower("sonar-fire", { axis, index })} onCancel={() => onPower("sonar")} />}
       <div className="log">
         {log.length === 0 && <div>{t("battle.logStart")}</div>}
         {log.map((l, i) => <div key={i}>{l}</div>)}
@@ -2417,6 +2485,10 @@ function App() {
   const [placementPurchases, setPlacementPurchases] = useState(0);
   const [decoyPending, setDecoyPending]         = useState(false);
   const [decoyCell, setDecoyCell]               = useState(null);   // {r,c} or null
+  // Battle-phase power-up state (Phase 15-05)
+  const [inv, setInv]                           = useState({ sonar: 0, cross: 0, decoy: 0, scatter: 0 });
+  const [aim, setAim]                           = useState(null);   // null | "sonar" | "cross"
+  const [crossHover, setCrossHover]             = useState(null);   // Set of "r,c" for cross preview
   // Premium emoji (Phase 14)
   const [premiumEmojis, setPremiumEmojis]       = useState([]);     // emoji catalog from API
   const [emojiCooldown, setEmojiCooldown]       = useState(false);  // 5s cooldown between sends
@@ -2471,6 +2543,60 @@ function App() {
       setDecoyCell(cell);
       setDecoyPending(false);
     }
+  }
+
+  // ---------- Battle-phase power-up activation (Phase 15-05) ----------
+  function activatePower(type, payload) {
+    // Sonar fire (from SonarPanel selection)
+    if (type === "sonar-fire" && payload) {
+      const { axis, index } = payload;
+      Sound.fire();
+      socket.emit("useAbility", { type: "sonar", axis, index }, (res) => {
+        if (!res || !res.ok) { addLog(errText(res)); setAim(null); return; }
+        const target = axis === "row" ? (ROWS[index] || index) : (COLS[index] || (index + 1));
+        const label = (axis === "row" ? (LANG === "vi" ? "hàng " : "row ") : (LANG === "vi" ? "cột " : "column ")) + target;
+        addLog(res.result === "YES" ? t("log.sonarYes", { target: label }) : t("log.sonarNo", { target: label }));
+        setAim(null);
+      });
+      return;
+    }
+    if (!myTurn || (inv[type] || 0) <= 0) {
+      // If toggling off current aim
+      if (aim === type) { setAim(null); setCrossHover(null); return; }
+      return;
+    }
+    if (type === "sonar") {
+      setAim(a => a === "sonar" ? null : "sonar");
+      setCrossHover(null);
+      return;
+    }
+    if (type === "cross") {
+      setAim(a => { setCrossHover(null); return a === "cross" ? null : "cross"; });
+      return;
+    }
+    if (type === "scatter") {
+      Sound.explode();
+      socket.emit("useAbility", { type: "scatter" }, (res) => {
+        if (!res || !res.ok) { addLog(errText(res)); return; }
+        addLog(t("log.scatterBoom"));
+        applyShotResult(res, t("pw.scatter"), true);
+        setAim(null);
+      });
+      return;
+    }
+  }
+
+  // Cross Missile: hover preview (shows cross pattern on enemy grid)
+  function handleCrossHover(r, c) {
+    if (aim !== "cross") { setCrossHover(null); return; }
+    if (r < 0 || c < 0) { setCrossHover(null); return; }
+    const cells = new Set();
+    cells.add(key(r, c));
+    if (r > 0) cells.add(key(r - 1, c));
+    if (r < BOARD - 1) cells.add(key(r + 1, c));
+    if (c > 0) cells.add(key(r, c - 1));
+    if (c < BOARD - 1) cells.add(key(r, c + 1));
+    setCrossHover(cells);
   }
 
   // Sign-out: destroy current session, revert UI to guest.
@@ -2612,9 +2738,14 @@ function App() {
     });
     socket.on("gameStart", ({ yourTurn }) => {
       setScreen("battle"); setMyTurn(yourTurn); setTurnDeadline(null);
+      // Transfer placement inventory to battle-phase state
+      setInv(prev => ({ ...prev })); // will be overridden below
+      setPlacementInv(pi => { setInv({ ...pi }); return pi; });
+      setAim(null); setCrossHover(null);
       addLog(yourTurn ? t("log.youFirst") : t("log.oppFirst"));
     });
-    socket.on("turnUpdate", ({ yourTurn }) => setMyTurn(yourTurn));
+    socket.on("invUpdate", ({ inv: newInv }) => { setInv(newInv); });
+    socket.on("turnUpdate", ({ yourTurn }) => { setMyTurn(yourTurn); if (!yourTurn) { setAim(null); setCrossHover(null); } });
     socket.on("turnTimer", ({ deadline, dur, yourTurn }) => { setTurnDeadline(deadline || null); if (dur) setTurnDur(dur); if (typeof yourTurn === "boolean") setMyTurn(yourTurn); });
     socket.on("oppProfile", (p) => setOppProfile(p || null));
     socket.on("turnSkipped", ({ you }) => {
@@ -2661,6 +2792,9 @@ function App() {
       setOcc(new Set()); setIncoming(new Map()); setMyShots(new Map()); setOver(null); setLog([]);
       setSunkOpp(0); setSunkMine(0);
       setSunkEnemyCells(new Set()); setSunkMyCells(new Set()); // giữ nguyên tỉ số
+      setPlacementInv({ sonar: 0, cross: 0, decoy: 0, scatter: 0 }); setPlacementPurchases(0);
+      setDecoyPending(false); setDecoyCell(null);
+      setInv({ sonar: 0, cross: 0, decoy: 0, scatter: 0 }); setAim(null); setCrossHover(null);
     });
     // matchFound: server has paired this socket into a room — drop straight to placement (D-10).
     // Does NOT guard on s === "queue" — matchFound can arrive even if the player is on the lobby
@@ -2819,6 +2953,8 @@ function App() {
       setIReady(true);
       botData.current = genFleet();
       const youFirst = Math.random() < 0.5;
+      // Transfer placement inventory to battle inv (bot mode — no server invUpdate)
+      setInv({ ...placementInv }); setAim(null); setCrossHover(null);
       setScreen("battle");
       addLog(youFirst ? t("log.youFirst") : t("log.botFirst"));
       if (youFirst) setMyTurn(true);
@@ -2867,6 +3003,7 @@ function App() {
     botRemainingRef.current = FLEET_DEF.map((f) => f.size);
     setPlacementInv({ sonar: 0, cross: 0, decoy: 0, scatter: 0 });
     setPlacementPurchases(0); setDecoyPending(false); setDecoyCell(null);
+    setInv({ sonar: 0, cross: 0, decoy: 0, scatter: 0 }); setAim(null); setCrossHover(null);
     setScreen("placement");
   }
   function rematchAction() {
@@ -3094,12 +3231,26 @@ function App() {
     const anyHit = cells.some((s) => s.hit);
     if (res.newSunk > 0) { addLog(t("log.youSunkN", { n: res.newSunk })); Sound.sunk(); triggerShake(); }
     else { addLog(anyHit ? t("log.labelHit", { label }) : t("log.labelMiss", { label })); if (anyHit) { Sound.hit(); triggerShake(); } else Sound.miss(); }
-    if (anyHit && !res.win) setMyTurn(true);
+    // Power-ups always end turn (server sends turnUpdate) — don't optimistically keep turn
+    if (!isPower && anyHit && !res.win) setMyTurn(true);
   }
 
   function fire(r, c) {
     if (vsBot) { if (myTurn) fireLocal(r, c); return; }
     if (!myTurn) return;
+    // Sonar aim mode: grid clicks are ignored (use the panel buttons)
+    if (aim === "sonar") return;
+    // Cross Missile aim mode: fire cross pattern instead of single shot
+    if (aim === "cross") {
+      Sound.explode();
+      socket.emit("useAbility", { type: "cross", r, c }, (res) => {
+        if (!res || !res.ok) { addLog(errText(res)); setAim(null); setCrossHover(null); return; }
+        addLog(t("log.crossFire", { cell: cellLabel(r, c) }));
+        applyShotResult(res, t("pw.cross"), true);
+        setAim(null); setCrossHover(null);
+      });
+      return;
+    }
     if (myShots.has(key(r, c))) return;
     Sound.fire();
     socket.emit("fire", { r, c }, (res) => {
@@ -3125,6 +3276,7 @@ function App() {
     setStake(0);
     setPlacementInv({ sonar: 0, cross: 0, decoy: 0, scatter: 0 });
     setPlacementPurchases(0); setDecoyPending(false); setDecoyCell(null);
+    setInv({ sonar: 0, cross: 0, decoy: 0, scatter: 0 }); setAim(null); setCrossHover(null);
     if (myBubbleTimer.current) { clearTimeout(myBubbleTimer.current); myBubbleTimer.current = null; }
     if (oppBubbleTimer.current) { clearTimeout(oppBubbleTimer.current); oppBubbleTimer.current = null; }
     if (graceTimerRef.current) { clearInterval(graceTimerRef.current); graceTimerRef.current = null; }
@@ -3354,7 +3506,7 @@ function App() {
               💰 {t("game.pot", { n: stake * 2 })}
             </div>
           )}
-          <Battle myTurn={myTurn} vsBot={vsBot} occ={occ} incoming={incoming} myShots={myShots} onFire={fire} log={log} sunkOpp={sunkOpp} sunkMine={sunkMine} sunkEnemyCells={sunkEnemyCells} sunkMyCells={sunkMyCells} myScore={myScore} oppScore={oppScore} oppLabel={vsBot ? t("common.bot") : t("common.opponent")} myProfile={profile} oppProfile={vsBot ? null : oppProfile} myBubble={myBubble} oppBubble={vsBot ? null : oppBubble} flashEnemy={flashEnemy} flashMine={flashMine} turnDeadline={vsBot ? null : turnDeadline} turnDur={turnDur} shake={shake} />
+          <Battle myTurn={myTurn} vsBot={vsBot} occ={occ} incoming={incoming} myShots={myShots} onFire={fire} log={log} sunkOpp={sunkOpp} sunkMine={sunkMine} sunkEnemyCells={sunkEnemyCells} sunkMyCells={sunkMyCells} myScore={myScore} oppScore={oppScore} oppLabel={vsBot ? t("common.bot") : t("common.opponent")} myProfile={profile} oppProfile={vsBot ? null : oppProfile} myBubble={myBubble} oppBubble={vsBot ? null : oppBubble} flashEnemy={flashEnemy} flashMine={flashMine} turnDeadline={vsBot ? null : turnDeadline} turnDur={turnDur} shake={shake} inv={inv} aim={aim} onPower={activatePower} onCrossHover={handleCrossHover} hoverCells={crossHover} />
         </div>
       )}
 
