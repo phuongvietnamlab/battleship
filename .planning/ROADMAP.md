@@ -180,12 +180,12 @@ Plans:
 
 - EMOJI-01: Database table `premium_emojis` — stores emoji catalog (id, name, slug, animation_url, preview_url, cost_points, description, sort_order, active)
 - EMOJI-02: 6 initial animated emoji seeded into the catalog:
-  1. 💣 Bomb (quả bom) — flies and explodes on impact (cost: 5 pts)
-  2. 🚀 Rocket (tên lửa) — launches across screen, blast on hit (cost: 5 pts)
-  3. 🥊 Boxing Glove (đấm) — punches the opponent's avatar with knockback shake (cost: 3 pts)
-  4. 🌊 Tsunami Wave (sóng thần) — wave crashes over opponent's avatar (cost: 5 pts)
-  5. ⚡ Lightning Strike (sét đánh) — bolt zaps from above onto opponent (cost: 3 pts)
-  6. 🔥 Fireball (cầu lửa) — fireball hurls across and ignites on contact (cost: 5 pts)
+  1. 💣 Bomb (quả bom) — flies spinning and explodes on impact (cost: 5 pts)
+  2. 🥊 Boxing Glove (đấm) — punches forward, receiver avatar shakes (cost: 3 pts)
+  3. 💦 Splash (dội nước) — bucket of water flies and splashes on receiver (cost: 3 pts)
+  4. 👋 Slap (tát) — hand flies fast, red impact mark + shake (cost: 3 pts)
+  5. 😜 Tease (lêu lêu) — teasing face bounces in front of receiver (cost: 2 pts)
+  6. 💋 Kiss (hôn) — lips float slowly with hearts trail (cost: 2 pts)
 - EMOJI-03: Socket event `sendPremiumEmoji` — client sends emoji_id; server validates balance ≥ cost, deducts points atomically, broadcasts animation event to room
 - EMOJI-04: Server-side validation — reject if: insufficient points, emoji not active, user is guest (must be authenticated), not in active battle phase
 - EMOJI-05: Client animation system — emoji sprite/GIF flies from sender avatar position → receiver avatar position with easing curve, then plays impact animation (CSS/JS keyframes or Lottie)

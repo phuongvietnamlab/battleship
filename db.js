@@ -854,6 +854,23 @@ async function getUserStats(userId) {
   return { wins, losses, gamesPlayed: total, winRate };
 }
 
+// ─── Premium Emoji helpers (Phase 14) ────────────────────────────────────────
+
+async function getPremiumEmojis() {
+  const { rows } = await pool.query(
+    "SELECT id, name, slug, emoji_char, cost, description_en, description_vi, animation_file, impact_type, sort_order FROM premium_emojis WHERE active = true ORDER BY sort_order"
+  );
+  return rows;
+}
+
+async function getPremiumEmojiById(emojiId) {
+  const { rows } = await pool.query(
+    "SELECT id, slug, cost, active, impact_type FROM premium_emojis WHERE id = $1",
+    [emojiId]
+  );
+  return rows[0] || null;
+}
+
 module.exports = {
   pool,
   runMigrations,
@@ -880,4 +897,6 @@ module.exports = {
   getWebAuthnCredentialById,
   saveWebAuthnCredential,
   updateWebAuthnCounter,
+  getPremiumEmojis,
+  getPremiumEmojiById,
 };

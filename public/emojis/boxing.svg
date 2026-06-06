@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <!-- Spring coil -->
+  <path d="M20 80 Q28 75 24 70 Q20 65 28 60 Q36 55 32 50 Q28 45 36 40" fill="none" stroke="#888" stroke-width="4" stroke-linecap="round"/>
+  <!-- Glove body -->
+  <ellipse cx="78" cy="52" rx="32" ry="28" fill="#E53935" stroke="#000" stroke-width="4"/>
+  <!-- Glove thumb -->
+  <ellipse cx="54" cy="62" rx="10" ry="14" fill="#E53935" stroke="#000" stroke-width="3"/>
+  <!-- Glove cuff -->
+  <rect x="44" y="72" width="30" height="14" rx="6" fill="#FFFFFF" stroke="#000" stroke-width="3"/>
+  <!-- Glove highlight -->
+  <ellipse cx="82" cy="42" rx="12" ry="8" fill="#EF5350" opacity="0.7"/>
+  <!-- Impact lines -->
+  <line x1="108" y1="30" x2="118" y2="22" stroke="#FFD600" stroke-width="3" stroke-linecap="round"/>
+  <line x1="112" y1="45" x2="124" y2="43" stroke="#FFD600" stroke-width="3" stroke-linecap="round"/>
+  <line x1="106" y1="58" x2="118" y2="62" stroke="#FFD600" stroke-width="3" stroke-linecap="round"/>
+  <!-- Impact star -->
+  <polygon points="114,32 116,28 118,32 122,30 119,34 123,36 118,36 116,40 114,36 110,36 113,34 110,30" fill="#FFD600"/>
+</svg>

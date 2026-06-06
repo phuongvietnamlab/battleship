@@ -66,13 +66,15 @@ Key user vision: "khi user nào mua và ấn nó trong game, thì nó sẽ bay t
 <specifics>
 ## Specific Ideas
 
-The 6 emoji suggested by user (with point costs):
-1. 💣 Bomb — flies + explodes on impact (5 pts)
-2. 🚀 Rocket — launches across, blast on hit (5 pts)
-3. 🥊 Boxing Glove — punches with knockback shake (3 pts)
-4. 🌊 Tsunami Wave — wave crashes over opponent (5 pts)
-5. ⚡ Lightning Strike — bolt zaps from above (3 pts)
-6. 🔥 Fireball — hurls across + ignites (5 pts)
+The 6 emoji (user-chosen, SVG assets created):
+1. 💣 Bomb — bay xoay + nổ tung khi chạm (5 pts)
+2. 🥊 Boxing — đấm thẳng + receiver shake (3 pts)
+3. 💦 Splash (dội nước) — bay vòng cung + splash (3 pts)
+4. 👋 Slap (tát) — bay nhanh + vết đỏ + shake (3 pts)
+5. 😜 Tease (lêu lêu) — bounce nhẹ trước mặt receiver (2 pts)
+6. 💋 Kiss — bay chậm + hearts trail (2 pts)
+
+Assets: `/public/emojis/{slug}.svg` — SVG vector, transparent, ~2-4KB each
 
 </specifics>
 

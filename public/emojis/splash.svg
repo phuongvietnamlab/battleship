@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <!-- Bucket -->
+  <path d="M36 50 L40 95 L88 95 L92 50 Z" fill="#607D8B" stroke="#000" stroke-width="3"/>
+  <!-- Bucket rim -->
+  <ellipse cx="64" cy="50" rx="28" ry="8" fill="#78909C" stroke="#000" stroke-width="3"/>
+  <!-- Bucket handle -->
+  <path d="M42 45 Q64 25 86 45" fill="none" stroke="#333" stroke-width="4" stroke-linecap="round"/>
+  <!-- Water pouring out -->
+  <path d="M55 45 Q50 30 45 20 Q42 14 48 12 Q54 10 56 16 Q58 22 60 30" fill="#29B6F6" stroke="#0288D1" stroke-width="2"/>
+  <path d="M65 42 Q68 28 72 18 Q74 12 68 10 Q62 8 64 14 Q66 20 64 30" fill="#29B6F6" stroke="#0288D1" stroke-width="2"/>
+  <!-- Water droplets -->
+  <ellipse cx="40" cy="16" rx="4" ry="5" fill="#29B6F6" stroke="#0288D1" stroke-width="1.5"/>
+  <ellipse cx="78" cy="12" rx="3" ry="4" fill="#29B6F6" stroke="#0288D1" stroke-width="1.5"/>
+  <circle cx="48" cy="8" r="3" fill="#4FC3F7"/>
+  <circle cx="72" cy="6" r="2.5" fill="#4FC3F7"/>
+  <circle cx="58" cy="5" r="2" fill="#4FC3F7"/>
+  <!-- Splash effect at bottom -->
+  <ellipse cx="64" cy="98" rx="30" ry="6" fill="#29B6F6" opacity="0.4"/>
+  <!-- Water inside bucket -->
+  <ellipse cx="64" cy="70" rx="22" ry="6" fill="#29B6F6" opacity="0.5"/>
+</svg>

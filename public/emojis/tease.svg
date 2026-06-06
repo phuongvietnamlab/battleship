@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <!-- Face circle -->
+  <circle cx="64" cy="68" r="40" fill="#FFCA28" stroke="#000" stroke-width="4"/>
+  <!-- Left eye (winking) -->
+  <path d="M44 60 Q48 56 52 60" fill="none" stroke="#000" stroke-width="3" stroke-linecap="round"/>
+  <!-- Right eye (open) -->
+  <circle cx="80" cy="58" r="5" fill="#000"/>
+  <circle cx="82" cy="56" r="2" fill="#FFF"/>
+  <!-- Eyebrows -->
+  <path d="M40 52 Q46 48 54 50" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M74 50 Q82 47 88 50" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- Mouth open -->
+  <ellipse cx="64" cy="80" rx="14" ry="10" fill="#000"/>
+  <!-- Tongue sticking out -->
+  <ellipse cx="64" cy="88" rx="10" ry="8" fill="#FF5252"/>
+  <ellipse cx="64" cy="86" rx="7" ry="5" fill="#FF8A80"/>
+  <!-- Hands doing "lêu lêu" gesture (fingers spread near face) -->
+  <!-- Left hand -->
+  <path d="M20 75 L26 70 M20 78 L27 75 M20 82 L26 80 M20 86 L27 85 M22 90 L27 88" stroke="#FFCC80" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="18" cy="82" r="6" fill="#FFCC80" stroke="#000" stroke-width="2"/>
+  <!-- Right hand -->
+  <path d="M108 75 L102 70 M108 78 L101 75 M108 82 L102 80 M108 86 L101 85 M106 90 L101 88" stroke="#FFCC80" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="110" cy="82" r="6" fill="#FFCC80" stroke="#000" stroke-width="2"/>
+  <!-- Cheek blush -->
+  <ellipse cx="44" cy="72" rx="6" ry="4" fill="#FF8A65" opacity="0.5"/>
+  <ellipse cx="84" cy="72" rx="6" ry="4" fill="#FF8A65" opacity="0.5"/>
+</svg>

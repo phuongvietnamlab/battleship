@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <!-- Lips -->
+  <!-- Upper lip -->
+  <path d="M30 68 Q44 50 64 58 Q84 50 98 68" fill="#E91E63" stroke="#880E4F" stroke-width="3"/>
+  <!-- Lower lip -->
+  <path d="M30 68 Q48 90 64 88 Q80 90 98 68" fill="#F06292" stroke="#880E4F" stroke-width="3"/>
+  <!-- Lip line -->
+  <path d="M30 68 Q47 72 64 68 Q81 72 98 68" fill="none" stroke="#880E4F" stroke-width="2"/>
+  <!-- Lip highlight -->
+  <ellipse cx="58" cy="62" rx="8" ry="4" fill="#F48FB1" opacity="0.6"/>
+  <ellipse cx="60" cy="78" rx="10" ry="5" fill="#F8BBD0" opacity="0.4"/>
+  <!-- Heart flying out -->
+  <path d="M95 40 Q95 32 100 32 Q105 32 105 40 Q105 32 110 32 Q115 32 115 40 Q115 50 105 56 Q95 50 95 40 Z" fill="#FF1744" stroke="#B71C1C" stroke-width="2"/>
+  <!-- Small hearts -->
+  <path d="M108 20 Q108 17 110 17 Q112 17 112 20 Q112 17 114 17 Q116 17 116 20 Q116 24 112 26 Q108 24 108 20 Z" fill="#FF5252" opacity="0.8"/>
+  <path d="M85 28 Q85 25.5 87 25.5 Q89 25.5 89 28 Q89 25.5 91 25.5 Q93 25.5 93 28 Q93 31 89 33 Q85 31 85 28 Z" fill="#FF8A80" opacity="0.6"/>
+  <!-- Sparkles -->
+  <circle cx="112" cy="12" r="2" fill="#FFD600"/>
+  <circle cx="80" cy="22" r="1.5" fill="#FFD600"/>
+  <circle cx="118" cy="35" r="1.5" fill="#FFD600"/>
+</svg>

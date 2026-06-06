@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <!-- Bomb body -->
+  <circle cx="64" cy="72" r="38" fill="#2d2d2d" stroke="#000" stroke-width="4"/>
+  <!-- Highlight -->
+  <ellipse cx="50" cy="58" rx="10" ry="8" fill="#555" opacity="0.6"/>
+  <!-- Fuse base -->
+  <rect x="60" y="30" width="8" height="12" fill="#8B4513" stroke="#000" stroke-width="2" rx="2"/>
+  <!-- Fuse string -->
+  <path d="M64 30 Q68 20 72 18 Q78 16 76 10" fill="none" stroke="#8B4513" stroke-width="3" stroke-linecap="round"/>
+  <!-- Spark/flame -->
+  <ellipse cx="76" cy="8" rx="6" ry="8" fill="#FF6600"/>
+  <ellipse cx="76" cy="7" rx="4" ry="6" fill="#FFCC00"/>
+  <ellipse cx="76" cy="6" rx="2" ry="4" fill="#FFFFFF"/>
+  <!-- Spark particles -->
+  <circle cx="82" cy="5" r="2" fill="#FF6600"/>
+  <circle cx="70" cy="4" r="1.5" fill="#FFCC00"/>
+  <circle cx="80" cy="12" r="1.5" fill="#FF6600"/>
+</svg>

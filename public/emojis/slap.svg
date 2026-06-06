@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <!-- Hand/palm -->
+  <path d="M30 55 Q28 40 35 35 L40 30 Q44 28 46 32 L48 38 Q50 28 54 26 Q58 24 60 28 L61 38 Q63 28 67 27 Q71 26 72 30 L72 40 Q74 32 78 31 Q82 30 83 34 L82 50 Q80 65 72 72 L65 76 Q55 80 45 78 L35 74 Q28 70 30 55 Z" fill="#FFCC80" stroke="#000" stroke-width="3"/>
+  <!-- Thumb -->
+  <path d="M30 55 Q26 58 25 64 Q24 70 28 72 Q32 74 35 70" fill="#FFCC80" stroke="#000" stroke-width="3"/>
+  <!-- Palm lines -->
+  <path d="M40 50 Q50 48 60 50" fill="none" stroke="#E6A54A" stroke-width="1.5" opacity="0.6"/>
+  <path d="M42 56 Q52 54 62 56" fill="none" stroke="#E6A54A" stroke-width="1.5" opacity="0.6"/>
+  <!-- Impact red mark -->
+  <ellipse cx="100" cy="55" rx="16" ry="20" fill="#FF1744" opacity="0.7"/>
+  <ellipse cx="100" cy="55" rx="10" ry="14" fill="#FF5252" opacity="0.5"/>
+  <!-- Motion lines -->
+  <line x1="85" y1="40" x2="95" y2="35" stroke="#FF1744" stroke-width="3" stroke-linecap="round"/>
+  <line x1="88" y1="55" x2="98" y2="55" stroke="#FF1744" stroke-width="3" stroke-linecap="round"/>
+  <line x1="85" y1="70" x2="95" y2="75" stroke="#FF1744" stroke-width="3" stroke-linecap="round"/>
+  <!-- Small stars -->
+  <circle cx="105" cy="38" r="3" fill="#FFD600"/>
+  <circle cx="112" cy="60" r="2.5" fill="#FFD600"/>
+  <circle cx="108" cy="75" r="2" fill="#FFD600"/>
+</svg>

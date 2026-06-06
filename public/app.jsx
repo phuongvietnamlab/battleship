@@ -57,6 +57,7 @@ const I18N = {
     "leave.bodyRoom": "You'll leave the room and return to the lobby. Your opponent will be notified.", "leave.stay": "Stay",
     "roombar.vsBot": "🤖 vs Bot", "roombar.room": "Room",
     "chat.title": "Chat", "chat.placeholder": "Type a message…", "chat.send": "Send",
+    "premiumEmoji.title": "Premium ✨", "premiumEmoji.free": "Free", "premiumEmoji.pts": "pts", "premiumEmoji.signIn": "Sign in to use", "premiumEmoji.needBattle": "Only in battle",
     "help.open": "❓ How to play", "help.title": "How to play", "help.close": "Got it",
     "help.objTitle": "🎯 Goal", "help.objBody": "Be the first to sink all 5 of your opponent's ships.",
     "help.setupTitle": "⚓ Place your fleet", "help.setupBody": "Your fleet starts placed at random. Drag a ship to move it, double-tap to rotate, or tap 🎲 Random for a new layout — then hit Ready.",
@@ -248,6 +249,7 @@ const I18N = {
     "leave.bodyRoom": "Bạn sẽ rời phòng và quay lại sảnh. Đối thủ sẽ được thông báo.", "leave.stay": "Ở lại",
     "roombar.vsBot": "🤖 Với máy", "roombar.room": "Phòng",
     "chat.title": "Trò chuyện", "chat.placeholder": "Nhập tin nhắn…", "chat.send": "Gửi",
+    "premiumEmoji.title": "Đặc biệt ✨", "premiumEmoji.free": "Miễn phí", "premiumEmoji.pts": "đ", "premiumEmoji.signIn": "Đăng nhập để dùng", "premiumEmoji.needBattle": "Chỉ dùng trong trận",
     "help.open": "❓ Cách chơi", "help.title": "Cách chơi", "help.close": "Đã hiểu",
     "help.objTitle": "🎯 Mục tiêu", "help.objBody": "Đánh chìm cả 5 thuyền của đối thủ trước là thắng.",
     "help.setupTitle": "⚓ Bố trí hạm đội", "help.setupBody": "Hạm đội được xếp ngẫu nhiên sẵn. Kéo thuyền để di chuyển, chạm 2 lần để xoay, hoặc bấm 🎲 Ngẫu nhiên để xếp lại — rồi bấm Sẵn sàng.",
@@ -1477,12 +1479,32 @@ function HelpModal({ open, onClose }) {
 }
 
 // ---------- Chat (in-room, ephemeral) ----------
+// ─── Premium Emoji Animation (Phase 14) ──────────────────────────────────────
+// Full-screen overlay that animates a premium emoji from sender → receiver avatar.
+function PremiumEmojiAnimation({ event, myClientId, onComplete }) {
+  const isFromMe = event.senderId === myClientId;
+  const direction = isFromMe ? "ltr" : "rtl";
+  useEffect(() => {
+    const timer = setTimeout(onComplete, 2200);
+    return () => clearTimeout(timer);
+  }, []);
+  return (
+    <div className={"premium-anim-overlay " + direction + " impact-" + (event.impactType || "explosion")}>
+      <div className="premium-anim-projectile">
+        <img src={"/emojis/" + event.slug + ".svg"} alt="" className="premium-anim-img" />
+      </div>
+      <div className={"premium-anim-impact impact-" + (event.impactType || "explosion")} />
+    </div>
+  );
+}
+
 // Messages are NOT logged — each one pops as a 3s speech bubble over the sender's
 // avatar (see PlayerCard `bubble`). This composer only sends.
 // Expressive taunt / mock / praise / challenge set — more fun than plain reactions.
 const CHAT_EMOJIS = ["😏", "😈", "💪", "🫵", "🥱", "🤡", "💀", "🤣", "👏", "🫡", "👑", "🔥", "🎯", "🤝"];
-function ChatComposer({ open, onSend, onToggle }) {
+function ChatComposer({ open, onSend, onToggle, premiumEmojis, balance, isGuest, emojiCooldown, onSendPremium, inBattle }) {
   const [text, setText] = useState("");
+  const [tab, setTab] = useState("free"); // "free" | "premium"
   if (!open) return null;
   function submit(e) { if (e) e.preventDefault(); const tx = text.trim(); if (!tx) return; onSend(tx); setText(""); }
   return (
@@ -1491,9 +1513,48 @@ function ChatComposer({ open, onSend, onToggle }) {
         <b>{t("chat.title")}</b>
         <button className="btn ghost" onClick={onToggle} style={{ width: "auto", padding: "2px 10px" }}>✕</button>
       </div>
-      <div className="chat-emojis">
-        {CHAT_EMOJIS.map((e) => <button key={e} className="chat-emoji" onClick={() => onSend(e)}>{e}</button>)}
+      {/* Tab toggle */}
+      <div className="chat-tabs">
+        <button className={"chat-tab" + (tab === "free" ? " active" : "")} onClick={() => setTab("free")}>
+          {t("premiumEmoji.free") || "Free"}
+        </button>
+        <button className={"chat-tab" + (tab === "premium" ? " active" : "")} onClick={() => setTab("premium")}>
+          {t("premiumEmoji.title") || "Premium ✨"}
+        </button>
       </div>
+      {tab === "free" && (
+        <div className="chat-emojis">
+          {CHAT_EMOJIS.map((e) => <button key={e} className="chat-emoji" onClick={() => onSend(e)}>{e}</button>)}
+        </div>
+      )}
+      {tab === "premium" && (
+        <div className="premium-emoji-section">
+          {isGuest ? (
+            <div className="premium-emoji-locked">{t("premiumEmoji.signIn") || "Đăng nhập để dùng"}</div>
+          ) : !inBattle ? (
+            <div className="premium-emoji-locked">{t("premiumEmoji.needBattle") || "Chỉ dùng trong trận"}</div>
+          ) : (
+            <>
+              <div className="premium-balance">{balance ?? 0} {t("premiumEmoji.pts") || "pts"}</div>
+              <div className="premium-emoji-grid">
+                {premiumEmojis.map(em => (
+                  <button
+                    key={em.id}
+                    className={"premium-emoji-btn" + ((balance < em.cost || emojiCooldown) ? " disabled" : "")}
+                    disabled={balance < em.cost || emojiCooldown}
+                    onClick={() => onSendPremium(em.id)}
+                    title={lang === "vi" ? em.description_vi : em.description_en}
+                  >
+                    <img src={"/emojis/" + em.animation_file} alt={em.name} className="pe-img" />
+                    <span className="pe-cost">{em.cost}{t("premiumEmoji.pts") || "pts"}</span>
+                    {emojiCooldown && <span className="pe-cooldown">⏳</span>}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
       <form className="chat-input" onSubmit={submit}>
         <input value={text} onChange={(e) => setText(e.target.value)} maxLength={200} placeholder={t("chat.placeholder")} />
         <button className="btn primary" type="submit" style={{ width: "auto" }}>{t("chat.send")}</button>
@@ -2238,6 +2299,10 @@ function App() {
   const [showShop, setShowShop]                 = useState(false);  // shop panel visible
   const [oppBoughtNotice, setOppBoughtNotice]   = useState(false);  // brief "opp bought" toast
   const [queueStake, setQueueStake]             = useState(0);      // stake shown on queue wait screen
+  // Premium emoji (Phase 14)
+  const [premiumEmojis, setPremiumEmojis]       = useState([]);     // emoji catalog from API
+  const [emojiCooldown, setEmojiCooldown]       = useState(false);  // 5s cooldown between sends
+  const [emojiAnimQueue, setEmojiAnimQueue]     = useState([]);     // animation queue
   const myBubbleTimer = useRef(null);
   const oppBubbleTimer = useRef(null);
   const graceTimerRef = useRef(null);
@@ -2450,6 +2515,9 @@ function App() {
     });
     socket.on("scoreUpdate", ({ you, opp }) => { setMyScore(you); setOppScore(opp); });
     socket.on("balanceUpdate", (data) => setBalance(data.balance));
+    socket.on("premiumEmoji", (data) => {
+      setEmojiAnimQueue(prev => [...prev, { ...data, key: data.ts + "_" + data.slug }]);
+    });
     socket.on("oppBoughtPowerup", () => {
       setOppBoughtNotice(true);
       setTimeout(() => setOppBoughtNotice(false), 2500);
@@ -3019,6 +3087,25 @@ function App() {
     try { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); } catch (e) {}
   }
 
+  // ─── Premium Emoji (Phase 14) ───────────────────────────────────────────────
+  useEffect(() => {
+    fetch("/api/emojis").then(r => r.json()).then(d => setPremiumEmojis(d.emojis || [])).catch(() => {});
+  }, []);
+
+  function sendPremiumEmoji(emojiId) {
+    if (emojiCooldown || vsBot) return;
+    socket.emit("sendPremiumEmoji", { emojiId }, (res) => {
+      if (res && res.ok) {
+        setEmojiCooldown(true);
+        setTimeout(() => setEmojiCooldown(false), 5000);
+      }
+    });
+  }
+
+  function handleEmojiAnimComplete(key) {
+    setEmojiAnimQueue(prev => prev.filter(e => e.key !== key));
+  }
+
   return (
     <div className="app">
       <div className="ocean-bg"><div className="wave"></div><div className="wave w2"></div><div className="wave w3"></div></div>
@@ -3262,7 +3349,12 @@ function App() {
         </div>
       )}
 
-      {!vsBot && <ChatComposer open={chatOpen} onSend={sendChat} onToggle={toggleChat} />}
+      {!vsBot && <ChatComposer open={chatOpen} onSend={sendChat} onToggle={toggleChat} premiumEmojis={premiumEmojis} balance={balance} isGuest={!authUser} emojiCooldown={emojiCooldown} onSendPremium={sendPremiumEmoji} inBattle={!!screen && screen === "battle" && !over} />}
+
+      {/* Premium emoji animations (Phase 14) */}
+      {emojiAnimQueue.map(ev => (
+        <PremiumEmojiAnimation key={ev.key} event={ev} myClientId={clientId} onComplete={() => handleEmojiAnimComplete(ev.key)} />
+      ))}
 
       <div className="footer-note">{t("footer")}</div>
     </div>

@@ -9,7 +9,7 @@ const path = require("path");
 const crypto = require("crypto");
 const { Server } = require("socket.io");
 const store = require("./store"); // optional Redis snapshot; no-op without REDIS_URL
-const { pool, runMigrations, upsertGuestCredential, linkOrPromoteAccount, createEmailAccount, verifyEmailLogin, recordMatch, getMatchHistory, getUserStats, resolveUserIdFromClientId, getWalletBalance, debitWallet, creditWallet, createWallet, getUserById, setEmailPassword, linkEmailToUser } = require("./db"); // Postgres: identity persistence + wallet
+const { pool, runMigrations, upsertGuestCredential, linkOrPromoteAccount, createEmailAccount, verifyEmailLogin, recordMatch, getMatchHistory, getUserStats, resolveUserIdFromClientId, getWalletBalance, debitWallet, creditWallet, createWallet, getUserById, setEmailPassword, linkEmailToUser, getPremiumEmojis, getPremiumEmojiById } = require("./db"); // Postgres: identity persistence + wallet + emoji
 
 // Helper: resolve userId for match recording — uses room player userId first, falls back to DB lookup via clientId
 async function resolveMatchUserId(room, clientId) {
@@ -160,6 +160,7 @@ const POWERUP_CAP_PER_MATCH = 3;   // max 3 purchases per player per match
 
 const joinQueueLimiter = new RateLimiterMemory({ points: 5, duration: 60 }); // 5/min per clientId
 const buyPowerupLimiter = new RateLimiterMemory({ points: 3, duration: 60 }); // 3 attempts/min
+const premiumEmojiLimiter = new RateLimiterMemory({ points: 1, duration: 5 }); // 1 per 5s per player (Phase 14)
 
 // ─── Auth rate limiter ───────────────────────────────────────────────────────
 // 10 auth attempts/min per IP — protects against auth-route brute-force (T-02-09).
@@ -237,6 +238,25 @@ app.get("/api/matches", async (req, res) => {
     console.error("[api] /api/matches error:", e.message);
     res.status(500).json({ error: "SERVER_ERROR" });
   }
+});
+
+// ─── Premium Emoji catalog endpoint (Phase 14) ──────────────────────────────
+let emojiCache = null;
+let emojiCacheAt = 0;
+const EMOJI_CACHE_TTL = 300_000; // 5 minutes
+
+app.get("/api/emojis", async (req, res) => {
+  const now = Date.now();
+  if (!emojiCache || now - emojiCacheAt > EMOJI_CACHE_TTL) {
+    try {
+      emojiCache = await getPremiumEmojis();
+      emojiCacheAt = now;
+    } catch (e) {
+      console.error("[emojis] fetch failed:", e.message);
+      return res.status(500).json({ error: "SERVER_ERROR" });
+    }
+  }
+  res.json({ emojis: emojiCache });
 });
 
 // ─── Email auth routes ───────────────────────────────────────────────────────
@@ -2134,6 +2154,70 @@ io.on("connection", (socket) => {
     const now = Date.now();
     if (opp) emitToClient(room, opp, "chat", { text, ts: now });
     cb && cb({ ok: true });
+  });
+
+  // ─── Premium Emoji handler (Phase 14) ─────────────────────────────────────
+  socket.on("sendPremiumEmoji", async (arg, cb) => {
+    // Rate limit: 1 per 5s per player
+    const rlKey = socket.data.clientId || socket.id;
+    try {
+      await premiumEmojiLimiter.consume(rlKey);
+    } catch (e) {
+      return cb && cb({ ok: false, code: "COOLDOWN" });
+    }
+
+    // Must be authenticated
+    const userId = socket.data.userId;
+    if (!userId) return cb && cb({ ok: false, code: "AUTH_REQUIRED" });
+
+    // Must be in a room in battle phase
+    const code = socket.data.code;
+    const clientId = socket.data.clientId;
+    const room = rooms[code];
+    if (!room || !room.started || room.gameOver) {
+      return cb && cb({ ok: false, code: "NOT_IN_BATTLE" });
+    }
+
+    // Validate emoji exists and is active
+    const emojiId = arg && arg.emojiId;
+    if (!emojiId || typeof emojiId !== "number") {
+      return cb && cb({ ok: false, code: "INVALID_EMOJI" });
+    }
+
+    let emoji;
+    try {
+      emoji = await getPremiumEmojiById(emojiId);
+    } catch (e) {
+      return cb && cb({ ok: false, code: "SERVER_ERROR" });
+    }
+    if (!emoji || !emoji.active) {
+      return cb && cb({ ok: false, code: "INVALID_EMOJI" });
+    }
+
+    // Debit wallet atomically
+    const referenceId = `emoji_${emoji.slug}_${Date.now()}_${socket.id}`;
+    const debitResult = await debitWallet(userId, emoji.cost, "emoji_purchase", referenceId);
+    if (!debitResult.ok) {
+      return cb && cb({ ok: false, code: "INSUFFICIENT_BALANCE" });
+    }
+
+    // Broadcast animation to both players
+    const opp = opponentOf(room, clientId);
+    const payload = {
+      emojiId: emoji.id,
+      slug: emoji.slug,
+      impactType: emoji.impact_type,
+      senderId: clientId,
+      ts: Date.now()
+    };
+    emitToClient(room, clientId, "premiumEmoji", payload);
+    if (opp) emitToClient(room, opp, "premiumEmoji", payload);
+
+    // Push updated balance to sender
+    socket.emit("balanceUpdate", { balance: debitResult.balance });
+
+    touchRoom(room);
+    cb && cb({ ok: true, balance: debitResult.balance });
   });
 
   // ─── Power-up purchase handler (Phase 7, Plan 04) ─────────────────────────
