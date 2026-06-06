@@ -408,16 +408,17 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 
 /* bảng điểm 2 người trong room */
 .scoreboard {
-  display:flex; align-items:center; justify-content:space-between; gap:10px;
+  display:flex; align-items:center; justify-content:center; gap:10px;
   margin:0 auto 14px; padding:8px 12px; max-width:420px;
   background:rgba(8,30,58,.7); border:1px solid rgba(120,190,255,.25);
   border-radius:12px; color:#cfe8ff;
 }
+.scoreboard > .pcard-wrap { flex:1; min-width:0; }
 .scoreboard b { font-size:20px; color:var(--gold); margin:0 4px; }
 .sc-sep { opacity:.5; }
 
 /* Player cards on each side of the scoreboard */
-.pcard { display:flex; align-items:center; gap:8px; flex:1; min-width:0; padding:3px; border-radius:10px; border:1px solid transparent; transition:border-color .2s, background .2s; }
+.pcard { display:flex; align-items:center; gap:8px; min-width:0; padding:3px; border-radius:10px; border:1px solid transparent; transition:border-color .2s, background .2s; }
 .pcard.opp { flex-direction:row-reverse; text-align:right; }
 .pcard.active { border-color:rgba(127,240,170,.45); background:rgba(127,240,170,.08); }
 .pc-avatar { width:38px; height:38px; border-radius:50%; object-fit:cover; flex:none; background:#0d2236; }

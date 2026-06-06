@@ -1335,19 +1335,20 @@ function PlayerCard({ profile, fallbackName, score, active, isBot, side, bubble,
 }
 // Circular countdown ring in the center of the scoreboard.
 function TurnRing({ secs, frac, show, myTurn }) {
-  if (!show || secs == null) return null;
+  if (!show) return null;
   const R = 22, C = 2 * Math.PI * R;
-  const low = secs <= 10;
+  const isNum = typeof secs === "number";
+  const low = isNum && secs <= 10;
   const color = low ? "#ff6b78" : (myTurn ? "#7ff0aa" : "#9fb6cc");
   return (
     <div className={"turn-ring" + (low ? " low" : "")}>
       <svg width="56" height="56" viewBox="0 0 56 56">
         <circle cx="28" cy="28" r={R} fill="none" stroke="rgba(255,255,255,.12)" strokeWidth="5" />
         <circle cx="28" cy="28" r={R} fill="none" stroke={color} strokeWidth="5" strokeLinecap="round"
-          strokeDasharray={C} strokeDashoffset={C * (1 - frac)} transform="rotate(-90 28 28)"
-          style={{ transition: "stroke-dashoffset 1s linear" }} />
+          strokeDasharray={C} strokeDashoffset={isNum ? C * (1 - frac) : 0} transform="rotate(-90 28 28)"
+          style={{ transition: isNum ? "stroke-dashoffset 1s linear" : "none" }} />
       </svg>
-      <span className="turn-ring-sec" style={{ color }}>{secs}</span>
+      <span className="turn-ring-sec" style={{ color, fontSize: isNum ? "18px" : "22px" }}>{secs}</span>
     </div>
   );
 }
@@ -1395,13 +1396,19 @@ function Battle({ myTurn, vsBot, occ, incoming, myShots, onFire, log, sunkOpp, s
     const t = setTimeout(() => setTab(myTurn ? "enemy" : "own"), 1300);
     return () => clearTimeout(t);
   }, [myTurn, aim]);
+  // Bot mode: synthetic turn indicator (no server deadline, but show a visual ring)
+  const showRing = turnDeadline != null || vsBot;
+  const botFrac = vsBot ? (myTurn ? 1 : 0) : frac;
+  const botSecs = vsBot ? (myTurn ? "⚡" : "⏳") : secs;
   return (
     <div>
       <div className="scoreboard">
-        <PlayerCard side="me" profile={myProfile} fallbackName={t("battle.you")} score={myScore} active={myTurn && turnDeadline != null} bubble={myBubble} />
-        <TurnRing secs={secs} frac={frac} show={turnDeadline != null} myTurn={myTurn} />
-        <div style={{position:"relative"}}>
-          <PlayerCard side="opp" profile={oppProfile} fallbackName={oppLabel} score={oppScore} active={!myTurn && turnDeadline != null} isBot={vsBot} bubble={oppBubble} onClick={handleOppClick} />
+        <div className="pcard-wrap">
+          <PlayerCard side="me" profile={myProfile} fallbackName={t("battle.you")} score={myScore} active={myTurn} bubble={myBubble} />
+        </div>
+        <TurnRing secs={turnDeadline != null ? secs : botSecs} frac={turnDeadline != null ? frac : botFrac} show={showRing} myTurn={myTurn} />
+        <div className="pcard-wrap" style={{position:"relative"}}>
+          <PlayerCard side="opp" profile={oppProfile} fallbackName={oppLabel} score={oppScore} active={!myTurn} isBot={vsBot} bubble={oppBubble} onClick={handleOppClick} />
           {oppStatsOpen && oppStats && (
             <div className="opp-stats-popup" onClick={() => setOppStatsOpen(false)}>
               <div className="stat-row"><span className="stat-value">{oppStats.winRate}%</span> {LANG === "vi" ? "thắng" : "wins"}</div>
