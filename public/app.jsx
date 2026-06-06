@@ -33,6 +33,8 @@ const I18N = {
     "mode.classic": "Classic", "mode.classicDesc": "Classic, no power-ups",
     "ship.carrier": "Carrier", "ship.battleship": "Battleship", "ship.cruiser": "Cruiser", "ship.submarine": "Submarine", "ship.destroyer": "Destroyer",
     "pw.scatter": "Scatter Blast", "pw.cross": "Cross Missile", "pw.double": "Extra Turn", "pw.reveal": "Reveal Cell", "pw.mine": "Sea Mine", "pw.sonar": "Sonar Ping", "pw.decoy": "Decoy",
+    "pw.sonarDesc": "Scan a row or column — YES/NO if ships are there. Costs your turn.", "pw.crossDesc": "Fire in a cross pattern (5 cells). Costs your turn.", "pw.decoyDesc": "Place a fake target. Enemy hits it thinking it's a ship.", "pw.scatterDesc": "Fire 2-3 random cells. Costs your turn.",
+    "shop.maxHint": "max 2",
     "shop.capReached": "Max (2/2)", "decoy.place": "Tap an empty cell to place your decoy", "decoy.onShip": "Cannot place decoy on a ship", "decoy.invalidated": "Decoy position invalidated — place it again",
     "log.sonarYes": "🔊 Sonar scanned {target} — YES! Ships detected.", "log.sonarNo": "🔊 Sonar scanned {target} — NO ships.",
     "log.scatterBoom": "🌠 Scatter Blast!", "log.crossFire": "➕ Cross Missile at {cell}!",
@@ -222,6 +224,8 @@ const I18N = {
     "mode.classic": "Cổ điển", "mode.classicDesc": "Cổ điển, không power-up",
     "ship.carrier": "Tàu sân bay", "ship.battleship": "Thiết giáp hạm", "ship.cruiser": "Tàu tuần dương", "ship.submarine": "Tàu ngầm", "ship.destroyer": "Khu trục hạm",
     "pw.scatter": "Nổ ngẫu nhiên", "pw.cross": "Tên lửa chữ thập", "pw.double": "Thêm lượt", "pw.reveal": "Lộ ô thuyền", "pw.mine": "Mìn nước", "pw.sonar": "Dò sóng", "pw.decoy": "Mồi nhử",
+    "pw.sonarDesc": "Dò 1 hàng/cột — CÓ/KHÔNG có tàu. Mất lượt.", "pw.crossDesc": "Bắn chữ thập (5 ô). Mất lượt.", "pw.decoyDesc": "Đặt mục tiêu giả. Địch bắn trúng tưởng là tàu.", "pw.scatterDesc": "Bắn 2-3 ô ngẫu nhiên. Mất lượt.",
+    "shop.maxHint": "tối đa 2",
     "shop.capReached": "Tối đa (2/2)", "decoy.place": "Chạm vào ô trống để đặt mồi nhử", "decoy.onShip": "Không đặt được mồi nhử lên thuyền", "decoy.invalidated": "Vị trí mồi nhử bị vô hiệu — đặt lại",
     "log.sonarYes": "🔊 Dò sóng {target} — CÓ tàu!", "log.sonarNo": "🔊 Dò sóng {target} — KHÔNG có tàu.",
     "log.scatterBoom": "🌠 Nổ ngẫu nhiên!", "log.crossFire": "➕ Tên lửa chữ thập tại {cell}!",
@@ -1089,10 +1093,26 @@ function PlacementShop({ stake, balance, inventory, purchaseCount, onBuy, disabl
   // balance=null means still loading; allow clicks (server validates anyway)
   const canAfford = balance == null || balance >= price;
   const balanceLoaded = balance != null;
+  const [tooltip, setTooltip] = useState(null);
+  const holdTimer = useRef(null);
+
+  const POWER_DESC = {
+    sonar: t("pw.sonarDesc"),
+    cross: t("pw.crossDesc"),
+    decoy: t("pw.decoyDesc"),
+    scatter: t("pw.scatterDesc"),
+  };
+
+  function onHoldStart(type) {
+    holdTimer.current = setTimeout(() => { setTooltip(type); }, 400);
+  }
+  function onHoldEnd() {
+    if (holdTimer.current) { clearTimeout(holdTimer.current); holdTimer.current = null; }
+  }
 
   return (
     <div className="placement-shop">
-      <div className="shop-header">⚡ {t("shop.title")} · {price} 💰</div>
+      <div className="shop-header">⚡ {t("shop.title")} · {price} 💰 <span className="shop-max">({t("shop.maxHint")})</span></div>
       <div className="shop-row">
         {[
           { type: "sonar", icon: "🔊", nameKey: "pw.sonar" },
@@ -1105,6 +1125,9 @@ function PlacementShop({ stake, balance, inventory, purchaseCount, onBuy, disabl
           return (
             <button key={type} className={"shop-item" + (owned ? " selected" : "")}
               onClick={() => onBuy(type)}
+              onPointerDown={() => onHoldStart(type)}
+              onPointerUp={onHoldEnd}
+              onPointerLeave={onHoldEnd}
               disabled={isDisabled}>
               <span className="shop-icon">{icon}</span>
               <span className="shop-name">{t(nameKey)}</span>
@@ -1115,6 +1138,14 @@ function PlacementShop({ stake, balance, inventory, purchaseCount, onBuy, disabl
       </div>
       {maxReached && <div className="shop-cap">{t("shop.capReached")}</div>}
       {!maxReached && balanceLoaded && !canAfford && <div className="shop-cap">{t("wallet.insufficientBalance")}</div>}
+      {tooltip && (
+        <div className="shop-tooltip" onClick={() => setTooltip(null)}>
+          <div className="shop-tooltip-content">
+            <strong>{t("pw." + tooltip)}</strong>
+            <p>{POWER_DESC[tooltip]}</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
