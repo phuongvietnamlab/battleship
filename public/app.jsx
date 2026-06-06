@@ -1786,12 +1786,12 @@ function MatchHistory({ authUser, onBack }) {
   }, [hasMore, loading]);
 
   return (
-    <div className="history-container">
+    <div className="history-view">
       <div className="history-header">
-        <button className="btn ghost compact history-back" onClick={onBack}>←</button>
-        <div className="history-header-center">
+        <button className="btn ghost compact" onClick={onBack}>←</button>
+        <div className="history-header-text">
           <h2 className="history-title">{t("history.title")}</h2>
-          <span className="history-total">{total} {LANG === "vi" ? "trận" : "matches"}</span>
+          <span className="history-total">{total} {LANG === "vi" ? "trận đấu" : "matches"}</span>
         </div>
       </div>
       <div className="history-list">
@@ -1807,7 +1807,7 @@ function MatchHistory({ authUser, onBack }) {
                     {m.pointsDelta > 0 ? "+" : ""}{m.pointsDelta} {t("history.pts")}
                   </span>
                 )}
-                <span className="match-mode-chip">{m.mode}</span>
+                <span className="match-mode-chip">{m.mode === "classic" ? "Classic" : "Advance"}</span>
               </div>
             </div>
             <div className="match-time">{formatMatchTime(m.endedAt)}</div>
@@ -1815,13 +1815,12 @@ function MatchHistory({ authUser, onBack }) {
         ))}
         <div ref={sentinelRef} className="history-sentinel" />
         {loading && <div className="history-loading">⏳</div>}
-        {!loading && matches.length === 0 && (
-          <div className="history-empty">
-            <p>{t("history.empty")}</p>
-            <button className="btn ghost" onClick={onBack}>{t("history.back")}</button>
-          </div>
-        )}
       </div>
+      {!loading && matches.length === 0 && (
+        <div className="history-empty">
+          <p>{t("history.empty")}</p>
+        </div>
+      )}
     </div>
   );
 }
