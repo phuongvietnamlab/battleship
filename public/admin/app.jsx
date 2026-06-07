@@ -244,20 +244,24 @@ function LoginPage({ onLogin }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // Dashboard Page
 // ═══════════════════════════════════════════════════════════════════════════════
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+
 function DashboardPage() {
   const [overview, setOverview] = useState(null);
   const [userChart, setUserChart] = useState([]);
   const [matchChart, setMatchChart] = useState([]);
   const [pointsChart, setPointsChart] = useState([]);
+  const [topSpenders, setTopSpenders] = useState([]);
   const [range, setRange] = useState("30");
   const api = useApi();
   const { t } = useI18n();
 
   useEffect(() => { api.get("/analytics/overview").then(setOverview).catch(() => {}); }, []);
   useEffect(() => {
-    api.get(`/analytics/users?range=${range}`).then(d => setUserChart(d.data || [])).catch(() => {});
-    api.get(`/analytics/matches?range=${range}`).then(d => setMatchChart(d.data || [])).catch(() => {});
-    api.get(`/analytics/points?range=${range}`).then(d => setPointsChart(d.data || [])).catch(() => {});
+    api.get(`/analytics/users?range=${range}`).then(d => setUserChart((d.data || []).map(r => ({ ...r, date: formatDate(r.date), new_users: Number(r.new_users) })))).catch(() => {});
+    api.get(`/analytics/matches?range=${range}`).then(d => setMatchChart((d.data || []).map(r => ({ ...r, date: formatDate(r.date), matches_classic: Number(r.matches_classic), matches_wagered: Number(r.matches_wagered) })))).catch(() => {});
+    api.get(`/analytics/points?range=${range}`).then(d => setPointsChart((d.data || []).map(r => ({ ...r, date: formatDate(r.date), points_earned: Number(r.points_earned), points_spent: Number(r.points_spent) })))).catch(() => {});
+    api.get("/analytics/revenue").then(d => setTopSpenders(d.topSpenders || [])).catch(() => {});
   }, [range]);
 
   const Card = ({ label, value, live }) => React.createElement("div", { className: "metric-card" },
@@ -265,36 +269,7 @@ function DashboardPage() {
     React.createElement("div", { className: "metric-value" }, value != null ? value.toLocaleString() : "—")
   );
 
-  const SimpleChart = ({ title, data, lines, type }) => {
-    if (!data || data.length === 0) return React.createElement("div", { className: "chart-card chart-empty" },
-      React.createElement("div", { className: "chart-title" }, title),
-      React.createElement("div", { className: "chart-no-data" }, "No data for this period")
-    );
-    const maxVal = Math.max(...data.flatMap(d => lines.map(l => Number(d[l.key]) || 0)), 1);
-    const w = 100 / data.length;
-    return React.createElement("div", { className: "chart-card" },
-      React.createElement("div", { className: "chart-title" }, title),
-      React.createElement("div", { className: "chart-area" },
-        type === "bar" ? React.createElement("div", { className: "chart-bars" },
-          data.map((d, i) => React.createElement("div", { key: i, className: "chart-bar-group", style: { width: w + "%" } },
-            lines.map(l => React.createElement("div", { key: l.key, className: "chart-bar", title: `${l.name}: ${d[l.key] || 0}`, style: { height: Math.max(2, ((Number(d[l.key]) || 0) / maxVal) * 100) + "%", background: l.color } })),
-            React.createElement("div", { className: "chart-bar-label" }, data.length <= 15 ? (d.date || "").slice(5) : "")
-          ))
-        ) : React.createElement("svg", { className: "chart-svg", viewBox: `0 0 ${data.length * 10} 100`, preserveAspectRatio: "none" },
-          lines.map(l => {
-            const points = data.map((d, i) => `${i * 10},${100 - ((Number(d[l.key]) || 0) / maxVal) * 95}`).join(" ");
-            return React.createElement("polyline", { key: l.key, points, fill: "none", stroke: l.color, strokeWidth: "2", vectorEffect: "non-scaling-stroke" });
-          })
-        ),
-        React.createElement("div", { className: "chart-legend" },
-          lines.map(l => React.createElement("span", { key: l.key, className: "legend-item" },
-            React.createElement("span", { className: "legend-dot", style: { background: l.color } }),
-            l.name
-          ))
-        )
-      )
-    );
-  };
+  const chartColors = { primary: "#667eea", secondary: "#f6ad55", success: "#68d391", purple: "#9f7aea" };
 
   return React.createElement("div", { className: "page" },
     React.createElement("div", { className: "page-header" },
@@ -313,13 +288,68 @@ function DashboardPage() {
       React.createElement(Card, { label: t("dashboard.pointsSpent"), value: overview?.pointsSpentToday }),
     ),
     React.createElement("div", { className: "charts-grid" },
-      React.createElement(SimpleChart, { title: "User Growth (new users/day)", data: userChart, type: "line", lines: [{ key: "new_users", name: "New Users", color: "#667eea" }] }),
-      React.createElement(SimpleChart, { title: "Match Activity", data: matchChart, type: "bar", lines: [{ key: "matches_classic", name: "Classic", color: "#68d391" }, { key: "matches_wagered", name: "Wagered", color: "#9f7aea" }] }),
+      React.createElement("div", { className: "chart-card" },
+        React.createElement("div", { className: "chart-title" }, "User Growth"),
+        userChart.length > 0 ? React.createElement(ResponsiveContainer, { width: "100%", height: 220 },
+          React.createElement(LineChart, { data: userChart, margin: { top: 5, right: 20, bottom: 5, left: 0 } },
+            React.createElement(CartesianGrid, { strokeDasharray: "3 3", stroke: "rgba(255,255,255,0.06)" }),
+            React.createElement(XAxis, { dataKey: "date", tick: { fill: "#a0aec0", fontSize: 11 }, interval: Math.max(0, Math.floor(userChart.length / 7) - 1) }),
+            React.createElement(YAxis, { tick: { fill: "#a0aec0", fontSize: 11 }, allowDecimals: false }),
+            React.createElement(Tooltip, { contentStyle: { background: "#2d2e4a", border: "none", borderRadius: 6 }, labelStyle: { color: "#e2e8f0" } }),
+            React.createElement(Line, { type: "monotone", dataKey: "new_users", stroke: chartColors.primary, strokeWidth: 2, dot: false, name: "New Users" })
+          )
+        ) : React.createElement("div", { className: "chart-no-data" }, "No data")
+      ),
+      React.createElement("div", { className: "chart-card" },
+        React.createElement("div", { className: "chart-title" }, "Match Activity"),
+        matchChart.length > 0 ? React.createElement(ResponsiveContainer, { width: "100%", height: 220 },
+          React.createElement(BarChart, { data: matchChart, margin: { top: 5, right: 20, bottom: 5, left: 0 } },
+            React.createElement(CartesianGrid, { strokeDasharray: "3 3", stroke: "rgba(255,255,255,0.06)" }),
+            React.createElement(XAxis, { dataKey: "date", tick: { fill: "#a0aec0", fontSize: 11 }, interval: Math.max(0, Math.floor(matchChart.length / 7) - 1) }),
+            React.createElement(YAxis, { tick: { fill: "#a0aec0", fontSize: 11 }, allowDecimals: false }),
+            React.createElement(Tooltip, { contentStyle: { background: "#2d2e4a", border: "none", borderRadius: 6 }, labelStyle: { color: "#e2e8f0" } }),
+            React.createElement(Legend, { wrapperStyle: { fontSize: 12 } }),
+            React.createElement(Bar, { dataKey: "matches_classic", fill: chartColors.success, name: "Classic", radius: [4, 4, 0, 0] }),
+            React.createElement(Bar, { dataKey: "matches_wagered", fill: chartColors.purple, name: "Wagered", radius: [4, 4, 0, 0] })
+          )
+        ) : React.createElement("div", { className: "chart-no-data" }, "No data")
+      ),
     ),
-    React.createElement("div", { className: "charts-grid charts-full" },
-      React.createElement(SimpleChart, { title: "Coin Economy", data: pointsChart, type: "line", lines: [{ key: "points_earned", name: "Earned", color: "#667eea" }, { key: "points_spent", name: "Spent", color: "#f6ad55" }] }),
+    React.createElement("div", { className: "charts-grid" },
+      React.createElement("div", { className: "chart-card" },
+        React.createElement("div", { className: "chart-title" }, "Coin Economy"),
+        pointsChart.length > 0 ? React.createElement(ResponsiveContainer, { width: "100%", height: 220 },
+          React.createElement(LineChart, { data: pointsChart, margin: { top: 5, right: 20, bottom: 5, left: 0 } },
+            React.createElement(CartesianGrid, { strokeDasharray: "3 3", stroke: "rgba(255,255,255,0.06)" }),
+            React.createElement(XAxis, { dataKey: "date", tick: { fill: "#a0aec0", fontSize: 11 }, interval: Math.max(0, Math.floor(pointsChart.length / 7) - 1) }),
+            React.createElement(YAxis, { tick: { fill: "#a0aec0", fontSize: 11 }, allowDecimals: false }),
+            React.createElement(Tooltip, { contentStyle: { background: "#2d2e4a", border: "none", borderRadius: 6 }, labelStyle: { color: "#e2e8f0" } }),
+            React.createElement(Legend, { wrapperStyle: { fontSize: 12 } }),
+            React.createElement(Line, { type: "monotone", dataKey: "points_earned", stroke: chartColors.primary, strokeWidth: 2, dot: false, name: "Earned" }),
+            React.createElement(Line, { type: "monotone", dataKey: "points_spent", stroke: chartColors.secondary, strokeWidth: 2, dot: false, name: "Spent" })
+          )
+        ) : React.createElement("div", { className: "chart-no-data" }, "No data")
+      ),
+      React.createElement("div", { className: "chart-card" },
+        React.createElement("div", { className: "chart-title" }, "Top Coin Holders"),
+        topSpenders.length > 0 ? React.createElement(ResponsiveContainer, { width: "100%", height: 220 },
+          React.createElement(BarChart, { data: topSpenders.slice(0, 8), layout: "vertical", margin: { top: 5, right: 20, bottom: 5, left: 60 } },
+            React.createElement(CartesianGrid, { strokeDasharray: "3 3", stroke: "rgba(255,255,255,0.06)" }),
+            React.createElement(XAxis, { type: "number", tick: { fill: "#a0aec0", fontSize: 11 } }),
+            React.createElement(YAxis, { type: "category", dataKey: "display_name", tick: { fill: "#a0aec0", fontSize: 11 }, width: 80 }),
+            React.createElement(Tooltip, { contentStyle: { background: "#2d2e4a", border: "none", borderRadius: 6 }, labelStyle: { color: "#e2e8f0" } }),
+            React.createElement(Bar, { dataKey: "total_spent", fill: chartColors.primary, name: "Coin Spent", radius: [0, 4, 4, 0] })
+          )
+        ) : React.createElement("div", { className: "chart-no-data" }, "No spending data yet")
+      ),
     )
   );
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return "";
+  const d = new Date(dateStr);
+  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
