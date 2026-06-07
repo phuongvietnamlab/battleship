@@ -323,18 +323,45 @@ function DashboardPage() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// DataTable Component
+// DataTable Component — sortable headers + infinite scroll
 // ═══════════════════════════════════════════════════════════════════════════════
-function DataTable({ columns, data, total, page, limit, onPageChange, loading, emptyMessage, onRowClick }) {
-  const totalPages = Math.ceil((total || 0) / (limit || 25));
-  if (loading) return React.createElement("div", { className: "table-loading" }, "Loading...");
+function DataTable({ columns, data, total, page, limit, onPageChange, loading, emptyMessage, onRowClick, onSort, sortKey, sortOrder }) {
+  const sentinelRef = useRef(null);
+  const hasMore = data && total ? data.length < total : false;
+
+  // Infinite scroll: observe sentinel element
+  useEffect(() => {
+    if (!sentinelRef.current || !hasMore || !onPageChange) return;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting && !loading && hasMore) {
+        onPageChange(page + 1);
+      }
+    }, { threshold: 0.1 });
+    observer.observe(sentinelRef.current);
+    return () => observer.disconnect();
+  }, [hasMore, loading, page]);
+
+  if (loading && (!data || data.length === 0)) return React.createElement("div", { className: "table-loading" }, "Loading...");
   if (!data || data.length === 0) return React.createElement("div", { className: "table-empty" }, emptyMessage || "No data");
+
+  const handleSort = (col) => {
+    if (!col.sortable || !onSort) return;
+    const newOrder = sortKey === col.key && sortOrder === "asc" ? "desc" : "asc";
+    onSort(col.key, newOrder);
+  };
 
   return React.createElement("div", { className: "table-container" },
     React.createElement("table", { className: "data-table" },
       React.createElement("thead", null,
         React.createElement("tr", null, columns.map(col =>
-          React.createElement("th", { key: col.key }, col.label)
+          React.createElement("th", {
+            key: col.key,
+            className: col.sortable ? "sortable" : "",
+            onClick: () => handleSort(col),
+          },
+            col.label,
+            col.sortable && sortKey === col.key && React.createElement("span", { className: "sort-arrow" }, sortOrder === "asc" ? " ▲" : " ▼")
+          )
         ))
       ),
       React.createElement("tbody", null, data.map((row, i) =>
@@ -345,13 +372,9 @@ function DataTable({ columns, data, total, page, limit, onPageChange, loading, e
         )
       ))
     ),
-    total > limit && React.createElement("div", { className: "table-pagination" },
-      React.createElement("span", { className: "pagination-info" }, `Showing ${(page-1)*limit+1}-${Math.min(page*limit, total)} of ${total}`),
-      React.createElement("div", { className: "pagination-btns" },
-        React.createElement("button", { className: "btn btn-ghost", disabled: page <= 1, onClick: () => onPageChange(page-1) }, "←"),
-        React.createElement("span", { className: "pagination-page" }, `${page}/${totalPages}`),
-        React.createElement("button", { className: "btn btn-ghost", disabled: page >= totalPages, onClick: () => onPageChange(page+1) }, "→")
-      )
+    React.createElement("div", { className: "table-footer" },
+      React.createElement("span", { className: "pagination-info" }, `${data.length} of ${total}`),
+      hasMore && React.createElement("div", { ref: sentinelRef, className: "scroll-sentinel" }, loading ? "Loading more..." : ""),
     )
   );
 }
@@ -365,6 +388,8 @@ function UsersPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
+  const [sortKey, setSortKey] = useState("created_at");
+  const [sortOrder, setSortOrder] = useState("desc");
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
   const api = useApi();
@@ -372,41 +397,46 @@ function UsersPage() {
   const { t } = useI18n();
   const searchTimer = useRef(null);
 
-  const fetchUsers = async (p, s, st) => {
+  const fetchUsers = async (p, s, st, sk, so, append) => {
     setLoading(true);
     try {
-      const params = `?page=${p}&limit=25${s ? "&search=" + encodeURIComponent(s) : ""}${st !== "all" ? "&status=" + st : ""}`;
+      const params = `?page=${p}&limit=25${s ? "&search=" + encodeURIComponent(s) : ""}${st !== "all" ? "&status=" + st : ""}&sort=${sk}&order=${so}`;
       const data = await api.get("/users" + params);
-      setUsers(data.users); setTotal(data.total);
+      setUsers(prev => append ? [...prev, ...data.users] : data.users);
+      setTotal(data.total);
     } catch (e) {} finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchUsers(page, search, status); }, [page, status]);
+  useEffect(() => { setPage(1); setUsers([]); fetchUsers(1, search, status, sortKey, sortOrder, false); }, [status, sortKey, sortOrder]);
 
   const handleSearch = (val) => {
     setSearch(val);
     clearTimeout(searchTimer.current);
-    searchTimer.current = setTimeout(() => { setPage(1); fetchUsers(1, val, status); }, 300);
+    searchTimer.current = setTimeout(() => { setPage(1); setUsers([]); fetchUsers(1, val, status, sortKey, sortOrder, false); }, 300);
   };
 
+  const handlePageChange = (newPage) => { setPage(newPage); fetchUsers(newPage, search, status, sortKey, sortOrder, true); };
+
+  const handleSort = (key, order) => { setSortKey(key); setSortOrder(order); };
+
   const handleBan = async (userId, reason) => {
-    try { await api.post(`/users/${userId}/ban`, { reason, duration: "7 days" }); toast.show("User banned"); fetchUsers(page, search, status); }
+    try { await api.post(`/users/${userId}/ban`, { reason, duration: "7 days" }); toast.show("User banned"); setPage(1); setUsers([]); fetchUsers(1, search, status, sortKey, sortOrder, false); }
     catch (e) { toast.show("Ban failed: " + e.message, "error"); }
   };
 
   const handlePoints = async (userId, amount, reason) => {
-    try { await api.post(`/users/${userId}/points`, { amount, reason }); toast.show(`Coin adjusted: ${amount > 0 ? "+" : ""}${amount}`); fetchUsers(page, search, status); }
+    try { await api.post(`/users/${userId}/points`, { amount, reason }); toast.show(`Coin adjusted: ${amount > 0 ? "+" : ""}${amount}`); setPage(1); setUsers([]); fetchUsers(1, search, status, sortKey, sortOrder, false); }
     catch (e) { toast.show("Coin failed: " + e.message, "error"); }
   };
 
   const handleExport = () => { window.open(`/api/admin/users/export?search=${encodeURIComponent(search)}&status=${status}`, "_blank"); };
 
   const columns = [
-    { key: "id", label: "ID" },
-    { key: "display_name", label: "Name", render: (v) => v || "[no name]" },
+    { key: "id", label: "ID", sortable: true },
+    { key: "display_name", label: "Name", sortable: true, render: (v) => v || "[no name]" },
     { key: "email", label: "Email", render: (v) => v || "—" },
     { key: "coin", label: "Coin", render: (v) => v != null ? v.toLocaleString() : "0" },
-    { key: "created_at", label: "Joined", render: (v) => v ? new Date(v).toLocaleDateString() : "—" },
+    { key: "created_at", label: "Joined", sortable: true, render: (v) => v ? new Date(v).toLocaleDateString() : "—" },
     { key: "ban_type", label: "Status", render: (v, row) => {
       if (row.deleted_at) return React.createElement("span", { className: "badge badge-neutral" }, "deleted");
       if (v === "ban") return React.createElement("span", { className: "badge badge-error" }, "banned");
@@ -426,14 +456,14 @@ function UsersPage() {
     ),
     React.createElement("div", { className: "table-toolbar" },
       React.createElement("input", { className: "form-input search-input", placeholder: t("common.search"), value: search, onChange: e => handleSearch(e.target.value) }),
-      React.createElement("select", { className: "form-input filter-select", value: status, onChange: e => { setStatus(e.target.value); setPage(1); } },
+      React.createElement("select", { className: "form-input filter-select", value: status, onChange: e => { setStatus(e.target.value); } },
         React.createElement("option", { value: "all" }, "All"),
         React.createElement("option", { value: "active" }, "Active"),
         React.createElement("option", { value: "banned" }, "Banned"),
         React.createElement("option", { value: "deleted" }, "Deleted"),
       )
     ),
-    React.createElement(DataTable, { columns, data: users, total, page, limit: 25, onPageChange: setPage, loading, onRowClick: (row) => setSelected(row.id) }),
+    React.createElement(DataTable, { columns, data: users, total, page, limit: 25, onPageChange: handlePageChange, loading, onRowClick: (row) => setSelected(row.id), onSort: handleSort, sortKey, sortOrder }),
     selected && React.createElement(UserDetail, { userId: selected, onClose: () => setSelected(null), onAction: () => fetchUsers(page, search, status) })
   );
 }

@@ -269,3 +269,11 @@ code { font-family: 'SF Mono', 'Cascadia Code', Consolas, monospace; font-size: 
 /* ═══ Transaction colors ═══ */
 .text-positive { color: var(--status-success); font-weight: 500; }
 .text-negative { color: var(--status-error); font-weight: 500; }
+
+
+/* ═══ Sort + Infinite scroll ═══ */
+.data-table th.sortable { cursor: pointer; user-select: none; }
+.data-table th.sortable:hover { color: var(--text-primary); }
+.sort-arrow { font-size: 10px; color: var(--accent-text); }
+.table-footer { padding: 12px 16px; display: flex; align-items: center; justify-content: center; border-top: 1px solid var(--table-border); }
+.scroll-sentinel { padding: 8px; text-align: center; font-size: 12px; color: var(--text-tertiary); }
