@@ -67,6 +67,75 @@ moderator: Read-only views + ban/mute/resolve reports — cannot edit data
 - **Accessibility** — WCAG 2.1 AA compliant; keyboard navigable
 - **Responsive** — Full experience on desktop/tablet; dashboard-only on mobile
 
+## UI Design Decisions (Locked)
+
+### Visual Style: Flat Minimal (Vercel/Linear-inspired)
+- Focus on data density and scannability — no glassmorphism, no gradients
+- border-radius: 8px for cards/inputs, 4px for small elements (badges, chips)
+- Subtle box-shadow on cards (0 1px 3px rgba(0,0,0,0.1) for light, 0 1px 3px rgba(0,0,0,0.3) for dark)
+- Spacing scale: 4/8/12/16/24/32/48px
+- Typography: system-ui font stack, use font-weight contrast (400 body, 500 labels, 600 headings) for hierarchy
+- No heavy borders — use background color differences to separate sections
+
+### Dashboard Layout (Operational-First)
+Priority order when admin opens dashboard:
+1. **Alert indicators (top bar):** Pending reports count (red badge), maintenance mode warning banner if active
+2. **First row — 5 metric cards:** Online Now (live/pulsing), Active Matches (live), Matches Today, New Users Today, Points Spent Today
+3. **Second row — Charts:** User Growth (line) + Match Activity (bar) in 2:1 grid on desktop, full-width stacked on mobile
+4. **Third row:** Points Economy chart (full width) + Quick links (pending reports, recent audit entries)
+
+### Navigation Architecture (Grouped Sidebar)
+```
+📊 Dashboard
+─────────────────
+👥 Users
+⚔️ Matches
+─────────────────
+📝 Content
+   ├─ Emojis
+   ├─ Announcements
+   └─ Power-ups
+🛡️ Moderation [N]     ← badge = pending report count
+   ├─ Reports
+   ├─ Chat Logs
+   └─ Suspicious
+─────────────────
+⚙️ Operations
+   ├─ Health
+   ├─ Config
+   ├─ Backup
+   └─ Maintenance
+─────────────────
+📋 Audit Log
+```
+
+**Quick actions policy:**
+- Ban/Mute: available directly from user list row (inline buttons)
+- Destructive actions (delete user, void match, hard-delete): require entering detail view → confirmation dialog
+- Bulk actions (export, bulk ban): toolbar above table when rows selected
+
+### Color System
+**Accent:** #667eea (indigo-blue) — primary buttons, active nav, chart primary line
+**Accent hover:** #5a67d8
+
+**Chart palette (ordered):**
+- Blue #667eea — earned/positive/primary metric
+- Orange #f6ad55 — spent/negative/secondary metric
+- Green #68d391 — classic mode / success
+- Purple #9f7aea — wagered/ranked mode
+- Cyan #63b3ed — tertiary metric (if needed)
+
+**Status badges:**
+- Green #68d391 — active, resolved, online, success
+- Red #fc8181 — banned, error, critical
+- Yellow #f6ad55 — pending, warning, review needed
+- Gray #a0aec0 — deleted, dismissed, inactive, muted
+
+**Theme contrast rules:**
+- Dark: card backgrounds step up from base (--bg-primary → --bg-card is +1 lightness step)
+- Light: card backgrounds step DOWN (white cards on light gray page background)
+- Both themes use same accent/status colors (sufficient contrast on both backgrounds)
+
 ## Database Schema Preview
 
 New tables:
