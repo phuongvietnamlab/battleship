@@ -173,7 +173,6 @@ function Sidebar({ route, adminUser, collapsed, onToggle }) {
       React.createElement("div", { className: "nav-divider" }),
       section("📝", t("nav.content"), "content", [
         { label: t("nav.emojis"), path: "/content/emojis" },
-        { label: t("nav.announcements"), path: "/content/announcements" },
       ]),
       section("🛡️", t("nav.moderation"), "moderation", [
         { label: t("nav.reports"), path: "/moderation/reports" },
@@ -928,7 +927,6 @@ function App() {
     "/users": () => React.createElement(UsersPage),
     "/matches": () => React.createElement(MatchesPage),
     "/content/emojis": () => React.createElement(EmojisPage),
-    "/content/announcements": () => React.createElement(AnnouncementsPage),
     "/moderation/reports": () => React.createElement(ReportsPage),
     "/moderation/suspicious": () => React.createElement(SuspiciousPage),
     "/operations/health": () => React.createElement(HealthPage),
