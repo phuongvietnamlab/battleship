@@ -870,6 +870,180 @@ async function getPremiumEmojiById(emojiId) {
   return rows[0] || null;
 }
 
+// ─── Friends System (Phase 17 — SOCL-01) ──────────────────────────────────────
+
+const MAX_FRIENDS = 100;
+
+async function sendFriendRequest(userId, targetUserId) {
+  if (!userId || !targetUserId) return { ok: false, code: "INVALID_PARAMS" };
+  if (userId === targetUserId) return { ok: false, code: "CANNOT_ADD_SELF" };
+
+  // Check max friends (accepted only)
+  const { rows: countRows } = await pool.query(
+    `SELECT COUNT(*) AS cnt FROM friendships
+     WHERE (user_id = $1 OR friend_id = $1) AND status = 'accepted'`,
+    [userId]
+  );
+  if (parseInt(countRows[0].cnt) >= MAX_FRIENDS) return { ok: false, code: "MAX_FRIENDS_REACHED" };
+
+  // Check if blocked by target
+  const { rows: blocked } = await pool.query(
+    `SELECT id FROM friendships WHERE user_id = $1 AND friend_id = $2 AND status = 'blocked'`,
+    [targetUserId, userId]
+  );
+  if (blocked.length > 0) return { ok: false, code: "BLOCKED" };
+
+  // Check if already exists (either direction)
+  const { rows: existing } = await pool.query(
+    `SELECT id, status FROM friendships
+     WHERE (user_id = $1 AND friend_id = $2) OR (user_id = $2 AND friend_id = $1)`,
+    [userId, targetUserId]
+  );
+  if (existing.length > 0) {
+    if (existing[0].status === "accepted") return { ok: false, code: "ALREADY_FRIENDS" };
+    if (existing[0].status === "pending") return { ok: false, code: "ALREADY_PENDING" };
+    if (existing[0].status === "blocked") return { ok: false, code: "BLOCKED" };
+  }
+
+  const { rows } = await pool.query(
+    `INSERT INTO friendships (user_id, friend_id, status) VALUES ($1, $2, 'pending') RETURNING id`,
+    [userId, targetUserId]
+  );
+  return { ok: true, friendshipId: rows[0].id };
+}
+
+async function acceptFriendRequest(friendshipId, userId) {
+  const { rowCount } = await pool.query(
+    `UPDATE friendships SET status = 'accepted', accepted_at = NOW()
+     WHERE id = $1 AND friend_id = $2 AND status = 'pending'`,
+    [friendshipId, userId]
+  );
+  return { ok: rowCount > 0 };
+}
+
+async function rejectFriendRequest(friendshipId, userId) {
+  const { rowCount } = await pool.query(
+    `DELETE FROM friendships WHERE id = $1 AND friend_id = $2 AND status = 'pending'`,
+    [friendshipId, userId]
+  );
+  return { ok: rowCount > 0 };
+}
+
+async function removeFriend(userId, friendId) {
+  const { rowCount } = await pool.query(
+    `DELETE FROM friendships
+     WHERE ((user_id = $1 AND friend_id = $2) OR (user_id = $2 AND friend_id = $1))
+       AND status = 'accepted'`,
+    [userId, friendId]
+  );
+  return { ok: rowCount > 0 };
+}
+
+async function getFriendsList(userId) {
+  const { rows } = await pool.query(
+    `SELECT f.id AS friendship_id,
+            CASE WHEN f.user_id = $1 THEN f.friend_id ELSE f.user_id END AS id,
+            u.display_name, u.avatar_url, f.accepted_at
+     FROM friendships f
+     JOIN users u ON u.id = CASE WHEN f.user_id = $1 THEN f.friend_id ELSE f.user_id END
+     WHERE (f.user_id = $1 OR f.friend_id = $1) AND f.status = 'accepted'
+     ORDER BY u.display_name`,
+    [userId]
+  );
+  return rows;
+}
+
+async function getPendingRequests(userId) {
+  const { rows } = await pool.query(
+    `SELECT f.id AS friendship_id, f.user_id AS id, u.display_name, u.avatar_url, f.created_at
+     FROM friendships f
+     JOIN users u ON u.id = f.user_id
+     WHERE f.friend_id = $1 AND f.status = 'pending'
+     ORDER BY f.created_at DESC`,
+    [userId]
+  );
+  return rows;
+}
+
+async function searchUsers(query, excludeUserId) {
+  if (!query || query.length < 2) return [];
+  const { rows } = await pool.query(
+    `SELECT id, display_name, avatar_url FROM users
+     WHERE display_name ILIKE $1 AND id != $2 AND display_name IS NOT NULL
+     ORDER BY display_name LIMIT 10`,
+    ["%" + query + "%", excludeUserId]
+  );
+  return rows;
+}
+
+async function getFriendshipStatus(userId, targetId) {
+  const { rows } = await pool.query(
+    `SELECT status FROM friendships
+     WHERE (user_id = $1 AND friend_id = $2) OR (user_id = $2 AND friend_id = $1)
+     LIMIT 1`,
+    [userId, targetId]
+  );
+  return rows.length > 0 ? rows[0].status : "none";
+}
+
+async function getH2HStats(userId, opponentId) {
+  const { rows } = await pool.query(
+    `SELECT
+       COUNT(*) FILTER (WHERE winner_id = $1) AS my_wins,
+       COUNT(*) FILTER (WHERE winner_id = $2) AS their_wins,
+       COUNT(*) AS total_games,
+       MAX(ended_at) AS last_played
+     FROM matches
+     WHERE (winner_id = $1 AND loser_id = $2)
+        OR (winner_id = $2 AND loser_id = $1)`,
+    [userId, opponentId]
+  );
+
+  // Current streak
+  const { rows: recent } = await pool.query(
+    `SELECT winner_id FROM matches
+     WHERE (winner_id = $1 AND loser_id = $2) OR (winner_id = $2 AND loser_id = $1)
+     ORDER BY ended_at DESC LIMIT 10`,
+    [userId, opponentId]
+  );
+
+  let streak = 0;
+  let streakHolder = null;
+  for (const m of recent) {
+    if (streakHolder === null) streakHolder = m.winner_id;
+    if (m.winner_id === streakHolder) streak++;
+    else break;
+  }
+
+  return {
+    myWins: parseInt(rows[0].my_wins) || 0,
+    theirWins: parseInt(rows[0].their_wins) || 0,
+    totalGames: parseInt(rows[0].total_games) || 0,
+    lastPlayed: rows[0].last_played,
+    streak: { holder: streakHolder === userId ? "me" : (streakHolder ? "them" : null), count: streak },
+  };
+}
+
+async function getBatchH2HStats(userId, friendIds) {
+  if (!friendIds || friendIds.length === 0) return {};
+  const { rows } = await pool.query(
+    `SELECT
+       CASE WHEN winner_id = $1 THEN loser_id ELSE winner_id END AS friend_id,
+       COUNT(*) FILTER (WHERE winner_id = $1) AS my_wins,
+       COUNT(*) FILTER (WHERE winner_id != $1) AS their_wins
+     FROM matches
+     WHERE (winner_id = $1 AND loser_id = ANY($2))
+        OR (loser_id = $1 AND winner_id = ANY($2))
+     GROUP BY friend_id`,
+    [userId, friendIds]
+  );
+  const map = {};
+  for (const r of rows) {
+    map[r.friend_id] = { myWins: parseInt(r.my_wins) || 0, theirWins: parseInt(r.their_wins) || 0 };
+  }
+  return map;
+}
+
 module.exports = {
   pool,
   runMigrations,
@@ -898,4 +1072,14 @@ module.exports = {
   updateWebAuthnCounter,
   getPremiumEmojis,
   getPremiumEmojiById,
+  sendFriendRequest,
+  acceptFriendRequest,
+  rejectFriendRequest,
+  removeFriend,
+  getFriendsList,
+  getPendingRequests,
+  searchUsers,
+  getFriendshipStatus,
+  getH2HStats,
+  getBatchH2HStats,
 };

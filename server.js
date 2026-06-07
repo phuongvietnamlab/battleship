@@ -27,7 +27,7 @@ console.error = (...args) => {
   if (global._adminLogBuffer.length > LOG_BUFFER_MAX) global._adminLogBuffer.shift();
 };
 const store = require("./store"); // optional Redis snapshot; no-op without REDIS_URL
-const { pool, runMigrations, upsertGuestCredential, linkOrPromoteAccount, createEmailAccount, verifyEmailLogin, recordMatch, getMatchHistory, getUserStats, resolveUserIdFromClientId, getWalletBalance, debitWallet, creditWallet, createWallet, getUserById, setEmailPassword, linkEmailToUser, getPremiumEmojis, getPremiumEmojiById } = require("./db"); // Postgres: identity persistence + wallet + emoji
+const { pool, runMigrations, upsertGuestCredential, linkOrPromoteAccount, createEmailAccount, verifyEmailLogin, recordMatch, getMatchHistory, getUserStats, resolveUserIdFromClientId, getWalletBalance, debitWallet, creditWallet, createWallet, getUserById, setEmailPassword, linkEmailToUser, getPremiumEmojis, getPremiumEmojiById, sendFriendRequest, acceptFriendRequest, rejectFriendRequest, removeFriend, getFriendsList, getPendingRequests, searchUsers, getFriendshipStatus, getH2HStats, getBatchH2HStats } = require("./db"); // Postgres: identity persistence + wallet + emoji + friends
 
 // Helper: resolve userId for match recording — uses room player userId first, falls back to DB lookup via clientId
 async function resolveMatchUserId(room, clientId) {
@@ -930,6 +930,144 @@ app.post("/api/account/set-password", authRateLimit, async (req, res) => {
   } catch (e) {
     console.error("[account] set-password failed:", e.message);
     res.status(500).json({ ok: false, code: "SERVER_ERROR" });
+  }
+});
+
+// ─── Friends API (Phase 17 — SOCL-01) ────────────────────────────────────────
+
+const friendRateLimit = new RateLimiterMemory({ points: 5, duration: 10 });
+
+app.get("/api/friends", async (req, res) => {
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ error: "NOT_AUTHENTICATED" });
+  try {
+    const friends = await getFriendsList(userId);
+    const friendIds = friends.map(f => f.id);
+    const h2h = await getBatchH2HStats(userId, friendIds);
+    const result = friends.map(f => ({
+      ...f,
+      h2h: h2h[f.id] || { myWins: 0, theirWins: 0 },
+    }));
+    res.json(result);
+  } catch (e) {
+    console.error("[friends] list error:", e.message);
+    res.status(500).json({ error: "SERVER_ERROR" });
+  }
+});
+
+app.get("/api/friends/pending", async (req, res) => {
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ error: "NOT_AUTHENTICATED" });
+  try {
+    const pending = await getPendingRequests(userId);
+    res.json(pending);
+  } catch (e) {
+    console.error("[friends] pending error:", e.message);
+    res.status(500).json({ error: "SERVER_ERROR" });
+  }
+});
+
+app.get("/api/friends/search", async (req, res) => {
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ error: "NOT_AUTHENTICATED" });
+  const q = (req.query.q || "").trim();
+  if (q.length < 2) return res.json([]);
+  try {
+    const results = await searchUsers(q, userId);
+    res.json(results);
+  } catch (e) {
+    console.error("[friends] search error:", e.message);
+    res.status(500).json({ error: "SERVER_ERROR" });
+  }
+});
+
+app.get("/api/friends/h2h/:userId", async (req, res) => {
+  const myId = req.user?.id;
+  if (!myId) return res.status(401).json({ error: "NOT_AUTHENTICATED" });
+  const targetId = parseInt(req.params.userId, 10);
+  if (!Number.isInteger(targetId)) return res.status(400).json({ error: "INVALID_ID" });
+  try {
+    const stats = await getH2HStats(myId, targetId);
+    const friendshipStatus = await getFriendshipStatus(myId, targetId);
+    res.json({ ...stats, friendshipStatus });
+  } catch (e) {
+    console.error("[friends] h2h error:", e.message);
+    res.status(500).json({ error: "SERVER_ERROR" });
+  }
+});
+
+app.post("/api/friends/request", async (req, res) => {
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ error: "NOT_AUTHENTICATED" });
+  try {
+    await friendRateLimit.consume(userId);
+  } catch {
+    return res.status(429).json({ error: "RATE_LIMITED" });
+  }
+  try {
+    const { targetUserId } = req.body || {};
+    if (!targetUserId) return res.status(400).json({ error: "INVALID_PARAMS" });
+    const result = await sendFriendRequest(userId, parseInt(targetUserId, 10));
+    if (!result.ok) return res.status(400).json({ error: result.code });
+    res.json(result);
+  } catch (e) {
+    console.error("[friends] request error:", e.message);
+    res.status(500).json({ error: "SERVER_ERROR" });
+  }
+});
+
+app.post("/api/friends/accept", async (req, res) => {
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ error: "NOT_AUTHENTICATED" });
+  try {
+    await friendRateLimit.consume(userId);
+  } catch {
+    return res.status(429).json({ error: "RATE_LIMITED" });
+  }
+  try {
+    const { friendshipId } = req.body || {};
+    if (!friendshipId) return res.status(400).json({ error: "INVALID_PARAMS" });
+    const result = await acceptFriendRequest(parseInt(friendshipId, 10), userId);
+    if (!result.ok) return res.status(400).json({ error: "NOT_FOUND" });
+    res.json(result);
+  } catch (e) {
+    console.error("[friends] accept error:", e.message);
+    res.status(500).json({ error: "SERVER_ERROR" });
+  }
+});
+
+app.post("/api/friends/reject", async (req, res) => {
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ error: "NOT_AUTHENTICATED" });
+  try {
+    await friendRateLimit.consume(userId);
+  } catch {
+    return res.status(429).json({ error: "RATE_LIMITED" });
+  }
+  try {
+    const { friendshipId } = req.body || {};
+    if (!friendshipId) return res.status(400).json({ error: "INVALID_PARAMS" });
+    const result = await rejectFriendRequest(parseInt(friendshipId, 10), userId);
+    if (!result.ok) return res.status(400).json({ error: "NOT_FOUND" });
+    res.json(result);
+  } catch (e) {
+    console.error("[friends] reject error:", e.message);
+    res.status(500).json({ error: "SERVER_ERROR" });
+  }
+});
+
+app.delete("/api/friends/:friendId", async (req, res) => {
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ error: "NOT_AUTHENTICATED" });
+  const friendId = parseInt(req.params.friendId, 10);
+  if (!Number.isInteger(friendId)) return res.status(400).json({ error: "INVALID_ID" });
+  try {
+    const result = await removeFriend(userId, friendId);
+    if (!result.ok) return res.status(400).json({ error: "NOT_FOUND" });
+    res.json(result);
+  } catch (e) {
+    console.error("[friends] remove error:", e.message);
+    res.status(500).json({ error: "SERVER_ERROR" });
   }
 });
 
