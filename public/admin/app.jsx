@@ -184,8 +184,10 @@ function Sidebar({ route, adminUser, collapsed, onToggle }) {
         { label: t("nav.config"), path: "/operations/config" },
         { label: t("nav.backup"), path: "/operations/backup" },
         { label: t("nav.maintenance"), path: "/operations/maintenance" },
+        { label: "Logs", path: "/operations/logs" },
       ]),
       React.createElement("div", { className: "nav-divider" }),
+      navItem("💰", "Transactions", "/transactions"),
       navItem("📋", t("nav.audit"), "/audit"),
     ),
     React.createElement("div", { className: "sidebar-footer" },
@@ -810,6 +812,78 @@ function AuditPage() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// Transactions Page
+// ═══════════════════════════════════════════════════════════════════════════════
+function TransactionsPage() {
+  const [items, setItems] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [typeFilter, setTypeFilter] = useState("");
+  const api = useApi();
+
+  const fetch = async (p) => {
+    try {
+      let params = `?page=${p}&limit=50`;
+      if (typeFilter) params += `&type=${typeFilter}`;
+      const d = await api.get("/transactions" + params);
+      setItems(d.transactions); setTotal(d.total);
+    } catch (e) {}
+  };
+  useEffect(() => { fetch(page); }, [page, typeFilter]);
+
+  const columns = [
+    { key: "created_at", label: "Time", render: v => v ? new Date(v).toLocaleString() : "—" },
+    { key: "display_name", label: "User", render: (v, row) => v || `#${row.user_id}` },
+    { key: "type", label: "Type", render: v => React.createElement("code", null, v) },
+    { key: "amount", label: "Amount", render: v => React.createElement("span", { className: v > 0 ? "text-positive" : "text-negative" }, (v > 0 ? "+" : "") + v) },
+    { key: "balance_after", label: "Balance" },
+    { key: "reference_id", label: "Reference", render: v => v ? React.createElement("code", null, (v || "").slice(0, 20)) : "—" },
+  ];
+
+  return React.createElement("div", { className: "page" },
+    React.createElement("div", { className: "page-header" },
+      React.createElement("h1", { className: "page-title" }, "Transactions"),
+      React.createElement("select", { className: "form-input filter-select", value: typeFilter, onChange: e => { setTypeFilter(e.target.value); setPage(1); } },
+        React.createElement("option", { value: "" }, "All Types"),
+        React.createElement("option", { value: "signup_bonus" }, "Signup Bonus"),
+        React.createElement("option", { value: "admin_credit" }, "Admin Credit"),
+        React.createElement("option", { value: "admin_debit" }, "Admin Debit"),
+        React.createElement("option", { value: "wager_win" }, "Wager Win"),
+        React.createElement("option", { value: "wager_entry" }, "Wager Entry"),
+        React.createElement("option", { value: "emoji_purchase" }, "Emoji Purchase"),
+      )
+    ),
+    React.createElement(DataTable, { columns, data: items, total, page, limit: 50, onPageChange: setPage, emptyMessage: "No transactions yet" })
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// System Logs Page
+// ═══════════════════════════════════════════════════════════════════════════════
+function LogsPage() {
+  const [logs, setLogs] = useState([]);
+  const api = useApi();
+
+  const fetchLogs = () => api.get("/ops/logs").then(d => setLogs(d.logs || [])).catch(() => {});
+  useEffect(() => { fetchLogs(); const i = setInterval(fetchLogs, 5000); return () => clearInterval(i); }, []);
+
+  return React.createElement("div", { className: "page" },
+    React.createElement("div", { className: "page-header" },
+      React.createElement("h1", { className: "page-title" }, "System Logs"),
+      React.createElement("button", { className: "btn btn-secondary", onClick: fetchLogs }, "Refresh"),
+    ),
+    React.createElement("div", { className: "logs-container" },
+      logs.length === 0 ? React.createElement("p", { className: "text-secondary" }, "No logs yet (logs start collecting when server boots)")
+      : logs.slice().reverse().map((log, i) => React.createElement("div", { key: i, className: `log-entry log-${log.level}` },
+        React.createElement("span", { className: "log-time" }, new Date(log.ts).toLocaleTimeString()),
+        React.createElement("span", { className: `log-level badge badge-${log.level === "error" ? "error" : "neutral"}` }, log.level),
+        React.createElement("span", { className: "log-msg" }, log.msg),
+      ))
+    )
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // Placeholder for pages not yet fully built
 // ═══════════════════════════════════════════════════════════════════════════════
 function PlaceholderPage({ title }) {
@@ -861,6 +935,8 @@ function App() {
     "/operations/config": () => React.createElement(ConfigPage),
     "/operations/backup": () => React.createElement(BackupPage),
     "/operations/maintenance": () => React.createElement(MaintenancePage),
+    "/operations/logs": () => React.createElement(LogsPage),
+    "/transactions": () => React.createElement(TransactionsPage),
     "/audit": () => React.createElement(AuditPage),
   };
 

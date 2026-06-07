@@ -297,13 +297,29 @@ function mountAdminRoutes(router, io, getRooms, eventLoopHistogram) {
   // MATCH MANAGEMENT (Plan 04: ADM-23 to ADM-26)
   // ═══════════════════════════════════════════════════════════════════════════
 
-  // GET /matches/live — currently active rooms (BEFORE /matches/:id)
+  // GET /matches/live — currently active rooms with detail (BEFORE /matches/:id)
   router.get("/matches/live", requireRole("moderator"), (req, res) => {
     const roomsObj = getRooms();
     const live = [];
     for (const [code, room] of Object.entries(roomsObj)) {
       if (room.started) {
-        live.push({ roomCode: code, mode: room.mode, startedAt: room.startedAt || null });
+        // Extract player info and game state
+        const players = (room.players || []).map((p, i) => ({
+          seat: i + 1,
+          clientId: p?.clientId?.slice(0, 8) || "?",
+          userId: p?.userId || null,
+          displayName: p?.displayName || p?.name || `Player ${i+1}`,
+          hits: (room.boards && room.boards[i]) ? Object.values(room.boards[1-i]?.cells || {}).filter(c => c === "hit").length : 0,
+        }));
+        live.push({
+          roomCode: code,
+          mode: room.mode || "classic",
+          startedAt: room.startedAt || null,
+          turn: room.turn,
+          turnCount: room.turnCount || 0,
+          stake: room.stake || 0,
+          players,
+        });
       }
     }
     res.json({ matches: live });
@@ -862,6 +878,43 @@ function mountAdminRoutes(router, io, getRooms, eventLoopHistogram) {
       [...params, limit, offset]
     );
     res.json({ entries: rows, total, page, limit, totalPages: Math.ceil(total / limit) });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // TRANSACTIONS (system-wide view)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  router.get("/transactions", requireRole("admin"), async (req, res) => {
+    let { page = 1, limit = 50, type, userId, dateFrom, dateTo } = req.query;
+    page = Math.max(1, parseInt(page) || 1);
+    limit = Math.min(100, Math.max(1, parseInt(limit) || 50));
+    const offset = (page - 1) * limit;
+
+    let where = "WHERE 1=1";
+    const params = [];
+    let idx = 1;
+    if (type) { params.push(type); where += ` AND t.type=$${idx++}`; }
+    if (userId) { params.push(parseInt(userId)); where += ` AND t.user_id=$${idx++}`; }
+    if (dateFrom) { params.push(dateFrom); where += ` AND t.created_at >= $${idx++}::date`; }
+    if (dateTo) { params.push(dateTo); where += ` AND t.created_at <= ($${idx++}::date + INTERVAL '1 day')`; }
+
+    const countRes = await pool.query(`SELECT COUNT(*) FROM transactions t ${where}`, params);
+    const total = parseInt(countRes.rows[0].count);
+    const { rows } = await pool.query(
+      `SELECT t.*, u.display_name FROM transactions t
+       LEFT JOIN users u ON u.id=t.user_id
+       ${where} ORDER BY t.created_at DESC LIMIT $${idx} OFFSET $${idx + 1}`,
+      [...params, limit, offset]
+    );
+    res.json({ transactions: rows, total, page, limit, totalPages: Math.ceil(total / limit) });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SYSTEM LOGS (in-memory ring buffer)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  router.get("/ops/logs", requireRole("admin"), (req, res) => {
+    res.json({ logs: global._adminLogBuffer || [], maxSize: 200 });
   });
 
   // ─── Public announcement endpoint (no admin auth) ─────────────────────────

@@ -8,6 +8,24 @@ const http = require("http");
 const path = require("path");
 const crypto = require("crypto");
 const { Server } = require("socket.io");
+
+// ─── Admin log buffer (ring buffer for /ops/logs) ────────────────────────────
+global._adminLogBuffer = [];
+const LOG_BUFFER_MAX = 200;
+const _origLog = console.log.bind(console);
+const _origErr = console.error.bind(console);
+console.log = (...args) => {
+  _origLog(...args);
+  const msg = args.map(a => typeof a === "string" ? a : JSON.stringify(a)).join(" ");
+  global._adminLogBuffer.push({ ts: Date.now(), level: "info", msg });
+  if (global._adminLogBuffer.length > LOG_BUFFER_MAX) global._adminLogBuffer.shift();
+};
+console.error = (...args) => {
+  _origErr(...args);
+  const msg = args.map(a => typeof a === "string" ? a : (a?.message || JSON.stringify(a))).join(" ");
+  global._adminLogBuffer.push({ ts: Date.now(), level: "error", msg });
+  if (global._adminLogBuffer.length > LOG_BUFFER_MAX) global._adminLogBuffer.shift();
+};
 const store = require("./store"); // optional Redis snapshot; no-op without REDIS_URL
 const { pool, runMigrations, upsertGuestCredential, linkOrPromoteAccount, createEmailAccount, verifyEmailLogin, recordMatch, getMatchHistory, getUserStats, resolveUserIdFromClientId, getWalletBalance, debitWallet, creditWallet, createWallet, getUserById, setEmailPassword, linkEmailToUser, getPremiumEmojis, getPremiumEmojiById } = require("./db"); // Postgres: identity persistence + wallet + emoji
 
