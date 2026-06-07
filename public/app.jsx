@@ -10,8 +10,6 @@ const ROWS = ["A","B","C","D","E","F","G","H","I","J","K"];
 
 // D-09: delay before bot offer appears on the queue wait screen (mirrors server BOT_OFFER_DELAY_MS)
 const BOT_OFFER_DELAY_MS = 30000;
-// Bot difficulty tier whitelist — used for localStorage validation (T-06-02)
-const VALID_TIERS = ["easy", "medium", "hard", "insane"];
 
 // ---------- i18n (English primary, Vietnamese secondary) ----------
 // Locale auto-detected once at load: Vietnamese device -> vi, everything else -> en.
@@ -194,15 +192,7 @@ const I18N = {
     "game.pot": "Pot: {n} pts",
     "game.won": "+{n} pts won!",
     "game.lost": "-{n} pts wagered",
-    "bot.easy": "Easy",
-    "bot.medium": "Medium",
-    "bot.hard": "Hard",
-    "bot.insane": "Insane",
-    "bot.selectTier": "Select difficulty",
-    "bot.easyDesc": "Bot fires randomly",
-    "bot.mediumDesc": "Bot hunts near hits",
-    "bot.hardDesc": "Smart targeting AI",
-    "bot.insaneDesc": "Near-perfect strategy",
+
     "lobby.quickPlay": "Quick Play",
     "lobby.quickPlaySub": "Find a random opponent",
     "lobby.botCard": "Bot",
@@ -385,15 +375,7 @@ const I18N = {
     "game.pot": "Thưởng: {n} điểm",
     "game.won": "+{n} điểm thắng!",
     "game.lost": "-{n} điểm đã cược",
-    "bot.easy": "Dễ",
-    "bot.medium": "Trung bình",
-    "bot.hard": "Khó",
-    "bot.insane": "Cực khó",
-    "bot.selectTier": "Chọn độ khó",
-    "bot.easyDesc": "Bot bắn ngẫu nhiên",
-    "bot.mediumDesc": "Bot săn gần điểm trúng",
-    "bot.hardDesc": "AI nhắm mục tiêu thông minh",
-    "bot.insaneDesc": "Chiến thuật gần hoàn hảo",
+
     "lobby.quickPlay": "Chơi nhanh",
     "lobby.quickPlaySub": "Tìm đối thủ ngẫu nhiên",
     "lobby.botCard": "Bot",
@@ -511,8 +493,7 @@ let clientId = (function () {
 })();
 function saveRoom(c) { try { c ? localStorage.setItem("bs_room", c) : localStorage.removeItem("bs_room"); } catch (e) {} }
 function loadRoom() { try { return localStorage.getItem("bs_room"); } catch (e) { return null; } }
-function saveBotTier(tier) { try { localStorage.setItem("bs_botTier", tier); } catch (e) {} }
-function loadBotTier() { try { const stored = localStorage.getItem("bs_botTier"); return VALID_TIERS.includes(stored) ? stored : "medium"; } catch (e) { return "medium"; } }
+
 // Invite-by-link: a shared URL like https://site/?room=ABCDE lets a friend join
 // directly. roomFromUrl reads the code; clearRoomUrl strips it after joining so a
 // reload doesn't re-trigger (reconnect is handled by resume/localStorage instead).
@@ -897,9 +878,7 @@ function BottomSheet({ open, onClose, title, children }) {
 // ---------- Lobby ----------
 function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onHelp, onHistory, error, authUser, authError, verifyNotice, clientId, signInDisabled, onSignInDisable, onEmailAuthSuccess, balance }) {
   const [code, setCode] = useState("");
-  const [selectedTier, setSelectedTier] = useState(loadBotTier);
   const [roomStake, setRoomStake] = useState(0);
-  const [botSheetOpen, setBotSheetOpen] = useState(false);
   const [friendSheetOpen, setFriendSheetOpen] = useState(false);
   const [authSheetOpen, setAuthSheetOpen] = useState(false);
   const [stakeSheetOpen, setStakeSheetOpen] = useState(false);
@@ -950,7 +929,7 @@ function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onHelp, onHistory, error
 
       {/* Secondary cards row */}
       <div className="lobby-cards">
-        <button className="lobby-card" onClick={() => { dismissOnboarding(); setBotSheetOpen(true); }} aria-label={t("lobby.botCard") + " - " + t("lobby.botCardSub")}>
+        <button className="lobby-card" onClick={() => { dismissOnboarding(); onBot(); }} aria-label={t("lobby.botCard") + " - " + t("lobby.botCardSub")}>
           <span className="card-icon">🤖</span>
           <strong>{t("lobby.botCard")}</strong>
           <small>{t("lobby.botCardSub")}</small>
@@ -973,17 +952,6 @@ function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onHelp, onHistory, error
         )}
       </div>
 
-      {/* Bottom Sheet: Bot difficulty */}
-      <BottomSheet open={botSheetOpen} onClose={() => setBotSheetOpen(false)} title={t("bot.selectTier")}>
-        <div className="sheet-options">
-          {VALID_TIERS.map((tier) => (
-            <button key={tier} className="sheet-option" onClick={() => { saveBotTier(tier); setSelectedTier(tier); onBot(tier); setBotSheetOpen(false); }}>
-              <strong>{t("bot." + tier)}</strong>
-              <small>{t("bot." + tier + "Desc")}</small>
-            </button>
-          ))}
-        </div>
-      </BottomSheet>
 
       {/* Bottom Sheet: Friends / Room */}
       <BottomSheet open={friendSheetOpen} onClose={() => setFriendSheetOpen(false)} title={t("lobby.friendTitle")}>
@@ -2583,11 +2551,7 @@ function App() {
   const botData = useRef(null);                // {occ:Set, ships:[Set]}
   const myShipsRef = useRef([]);               // [Set] thuyền của ta (để máy dò chìm)
   const botShotsRef = useRef(new Set());       // ô máy đã bắn
-  const botQueueRef = useRef([]);              // hàng đợi ô mục tiêu của máy
   const myShotsRef = useRef(new Set());         // ô ta đã bắn (đồng bộ tức thời cho bot)
-  const botTierRef = useRef("medium");         // tier hiện tại ("easy"|"medium"|"hard"|"insane")
-  const botHitsRef = useRef(new Set());        // ô máy đã trúng (cho density/axis inference)
-  const botRemainingRef = useRef([]);          // kích thước tàu còn lại (chưa chìm)
 
   const addLog = useCallback((s) => setLog((l) => [s, ...l].slice(0, 40)), []);
   const showNotice = useCallback((s) => { setNotice(s); setTimeout(() => setNotice((n) => (n === s ? null : n)), 6000); }, []);
@@ -3092,7 +3056,7 @@ function App() {
     }
     return { occ, ships };
   }
-  function startBot(keepScore, tier = "medium") {
+  function startBot(keepScore) {
     setError(null); setVsBot(true); persistRoom(null); setCode(null); setTurnDeadline(null);
     setOppPresent(true); setOppReady(false); setIReady(false); setMyTurn(false);
     setOcc(new Set()); setIncoming(new Map()); setMyShots(new Map());
@@ -3100,10 +3064,7 @@ function App() {
     setSunkEnemyCells(new Set()); setSunkMyCells(new Set());
     if (!keepScore) { setMyScore(0); setOppScore(0); }
     botData.current = null; myShipsRef.current = []; botShotsRef.current = new Set();
-    botQueueRef.current = []; myShotsRef.current = new Set();
-    botTierRef.current = tier;
-    botHitsRef.current = new Set();
-    botRemainingRef.current = FLEET_DEF.map((f) => f.size);
+    myShotsRef.current = new Set();
     setPlacementInv({ sonar: 0, cross: 0, decoy: 0, scatter: 0 });
     setPlacementPurchases(0); setDecoyPending(false); setDecoyCell(null);
     setInv({ sonar: 0, cross: 0, decoy: 0, scatter: 0 }); setAim(null); setCrossHover(null);
@@ -3113,11 +3074,11 @@ function App() {
     if (vsBot) { startBot(true); return; } // giữ tỉ số
     socket.emit("rematch");
   }
-  // handleBot: Lobby tier-button handler — threads selected tier into startBot (D-07: classic single-player only)
-  function handleBot(tier) { startBot(false, tier); }
-  // ── Bot tier algorithm helpers ─────────────────────────────────────────────
-  // pickEasy: pure random from unshot cells
-  function pickEasy() {
+  // handleBot: Lobby bot button handler — starts single-player with random bot
+  function handleBot() { startBot(false); }
+  // ── Bot targeting: pure random for fairness ────────────────────────────────
+  // botPick: picks a random unshot cell (no strategy, no hunting)
+  function botPick() {
     const pool = [];
     for (let r = 0; r < BOARD; r++)
       for (let c = 0; c < BOARD; c++) {
@@ -3126,161 +3087,21 @@ function App() {
       }
     return pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
   }
-  // pickMedium: verbatim copy of legacy botPick body (SC#3 anchor — must not change)
-  function pickMedium() {
-    while (botQueueRef.current.length) {
-      const k = botQueueRef.current.pop();
-      if (!botShotsRef.current.has(k)) return k;
-    }
-    const parity = [], any = [];
-    for (let r = 0; r < BOARD; r++) for (let c = 0; c < BOARD; c++) {
-      const k = key(r, c);
-      if (botShotsRef.current.has(k)) continue;
-      any.push(k); if ((r + c) % 2 === 0) parity.push(k);
-    }
-    const pool = parity.length ? parity : any;
-    return pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
-  }
-  // buildDensityMap: enumerate valid placements for unsunk ships, reject miss cells (D-03)
-  function buildDensityMap() {
-    const shots = botShotsRef.current;
-    const hits = botHitsRef.current;
-    const remaining = botRemainingRef.current;
-    // Miss set: shots that are not hits
-    const misses = new Set();
-    for (const k of shots) { if (!hits.has(k)) misses.add(k); }
-    const density = {};
-    for (let r = 0; r < BOARD; r++)
-      for (let c = 0; c < BOARD; c++)
-        density[key(r, c)] = 0;
-    for (const size of remaining) {
-      for (const dir of ["h", "v"]) {
-        for (let r = 0; r < BOARD; r++) {
-          for (let c = 0; c < BOARD; c++) {
-            const cells = cellsFor(r, c, size, dir);
-            if (!inBounds(cells)) continue;
-            let valid = true;
-            for (const cell of cells) {
-              if (misses.has(key(cell.r, cell.c))) { valid = false; break; }
-            }
-            if (!valid) continue;
-            for (const cell of cells) { density[key(cell.r, cell.c)]++; }
-          }
-        }
-      }
-    }
-    return density;
-  }
-  // inferAxis: derive ship orientation from confirmed hit geometry (reads only botHitsRef — D-03)
-  function inferAxis() {
-    const hits = botHitsRef.current;
-    if (hits.size < 2) return null;
-    const hitArr = [...hits].map((k) => { const [r, c] = k.split(",").map(Number); return { r, c }; });
-    const rows = new Set(hitArr.map((h) => h.r));
-    const cols = new Set(hitArr.map((h) => h.c));
-    if (rows.size === 1) return "h";
-    if (cols.size === 1) return "v";
-    return null;
-  }
-  // pickHard: drain queue by highest density, else global max-density hunt (D-03)
-  function pickHard() {
-    if (botQueueRef.current.length) {
-      const density = buildDensityMap();
-      const queueCandidates = botQueueRef.current.filter((k) => !botShotsRef.current.has(k));
-      botQueueRef.current = [];
-      if (queueCandidates.length) {
-        queueCandidates.sort((a, b) => density[b] - density[a]);
-        botQueueRef.current = queueCandidates.slice(1);
-        return queueCandidates[0];
-      }
-    }
-    const density = buildDensityMap();
-    let bestKey = null, bestScore = -1;
-    for (let r = 0; r < BOARD; r++)
-      for (let c = 0; c < BOARD; c++) {
-        const k = key(r, c);
-        if (botShotsRef.current.has(k)) continue;
-        if (density[k] > bestScore) { bestScore = density[k]; bestKey = k; }
-      }
-    return bestKey;
-  }
-  // pickInsane: axis-lock from hits + parity-masked density with unmasked fallback (D-03)
-  function pickInsane() {
-    const density = buildDensityMap();
-    if (botQueueRef.current.length) {
-      const validQueue = botQueueRef.current.filter((k) => !botShotsRef.current.has(k));
-      const axis = inferAxis();
-      let candidates = validQueue;
-      if (axis) {
-        const hitArr = [...botHitsRef.current].map((h) => { const [hr, hc] = h.split(",").map(Number); return { r: hr, c: hc }; });
-        const axisFiltered = validQueue.filter((k) => {
-          const [r, c] = k.split(",").map(Number);
-          return axis === "h" ? hitArr.some((h) => h.r === r) : hitArr.some((h) => h.c === c);
-        });
-        if (axisFiltered.length) candidates = axisFiltered;
-      }
-      botQueueRef.current = [];
-      if (candidates.length) {
-        candidates.sort((a, b) => density[b] - density[a]);
-        botQueueRef.current = candidates.slice(1);
-        return candidates[0];
-      }
-    }
-    // Hunt phase: parity-masked density
-    let bestKey = null, bestScore = -1;
-    for (let r = 0; r < BOARD; r++)
-      for (let c = 0; c < BOARD; c++) {
-        if ((r + c) % 2 !== 0) continue;
-        const k = key(r, c);
-        if (botShotsRef.current.has(k)) continue;
-        if (density[k] > bestScore) { bestScore = density[k]; bestKey = k; }
-      }
-    // Fallback: lift parity mask when exhausted (Pitfall 7)
-    if (!bestKey) {
-      for (let r = 0; r < BOARD; r++)
-        for (let c = 0; c < BOARD; c++) {
-          const k = key(r, c);
-          if (botShotsRef.current.has(k)) continue;
-          if (density[k] > bestScore) { bestScore = density[k]; bestKey = k; }
-        }
-    }
-    return bestKey;
-  }
-  // botPick: dispatches on botTierRef.current (guard-clause style per CLAUDE.md)
-  function botPick() {
-    const tier = botTierRef.current;
-    if (tier === "easy")   return pickEasy();
-    if (tier === "hard")   return pickHard();
-    if (tier === "insane") return pickInsane();
-    return pickMedium(); // default: covers "medium" + any unknown stored value
-  }
   function botShoot() {
     const k = botPick();
     if (k == null) return;
     botShotsRef.current.add(k);
     const [r, c] = k.split(",").map(Number);
     const hit = myShipsRef.current.some((ship) => ship.has(k));
-    if (hit) botHitsRef.current.add(k); // track hits for density/axis inference
     setIncoming((m) => new Map(m).set(k, hit));
     setFlashMine(k);
     if (hit) {
-      [[r-1,c],[r+1,c],[r,c-1],[r,c+1]].forEach(([nr, nc]) => {
-        if (nr >= 0 && nr < BOARD && nc >= 0 && nc < BOARD) {
-          const nk = key(nr, nc); if (!botShotsRef.current.has(nk)) botQueueRef.current.push(nk);
-        }
-      });
       let sunk = null;
       for (const ship of myShipsRef.current) {
         if (!ship.has(k)) continue;
         if ([...ship].every((kk) => botShotsRef.current.has(kk))) { sunk = ship; break; }
       }
       if (sunk) {
-        // Remove one entry of sunk.size from botRemainingRef (for density enumeration)
-        const idx = botRemainingRef.current.indexOf(sunk.size);
-        if (idx !== -1) botRemainingRef.current.splice(idx, 1);
-        // Clear active-hit tracking — sunk ship resolved (Pitfall 4)
-        botHitsRef.current = new Set();
-        botQueueRef.current = [];
         setSunkMine((n) => n + 1);
         setSunkMyCells((s) => { const n = new Set(s); sunk.forEach((kk) => n.add(kk)); return n; });
         addLog(t("log.botSunk", { n: sunk.size })); Sound.sunk(); triggerShake();
