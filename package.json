@@ -8,7 +8,8 @@
     "build": "node build-game.mjs",
     "build:game": "node build-game.mjs",
     "postinstall": "node build-game.mjs",
-    "test": "vitest run"
+    "test": "vitest run",
+    "admin:create": "node scripts/admin-create.js"
   },
   "dependencies": {
     "@simplewebauthn/browser": "^13.3.0",
@@ -22,6 +23,7 @@
     "rate-limiter-flexible": "^11.1.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "recharts": "^2.12.0",
     "redis": "^4.7.0",
     "resend": "^4.0.0",
     "socket.io": "^4.7.5",
