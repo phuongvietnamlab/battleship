@@ -487,6 +487,13 @@ function UserDetail({ userId, onClose, onAction }) {
     const reason = prompt("Reason:");
     if (amt && reason) { try { await api.post(`/users/${userId}/points`, { amount: parseInt(amt), reason }); toast.show("Coin adjusted"); onAction(); } catch(e) { toast.show(e.message, "error"); }}
   };
+  const handleDelete = async () => {
+    const name = user.display_name || "User #" + user.id;
+    const confirm = prompt(`Type "${name}" to permanently delete this user:`);
+    if (confirm !== name) { toast.show("Deletion cancelled — name did not match", "warning"); return; }
+    try { await api.del(`/users/${userId}?hard=true`); toast.show("User deleted"); onAction(); onClose(); }
+    catch(e) { toast.show("Delete failed: " + e.message, "error"); }
+  };
 
   return React.createElement("div", { className: "detail-overlay", onClick: onClose },
     React.createElement("div", { className: "detail-panel", onClick: e => e.stopPropagation() },
@@ -511,6 +518,7 @@ function UserDetail({ userId, onClose, onAction }) {
       React.createElement("div", { className: "detail-footer" },
         React.createElement("button", { className: "btn btn-secondary", onClick: handleAdjustCoin }, "Adjust Coin"),
         isBanned && React.createElement("button", { className: "btn btn-secondary", onClick: handleUnban }, "Unban"),
+        React.createElement("button", { className: "btn btn-danger", onClick: handleDelete }, "Delete"),
       )
     )
   );
