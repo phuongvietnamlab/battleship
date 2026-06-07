@@ -177,7 +177,6 @@ function Sidebar({ route, adminUser, collapsed, onToggle }) {
       ]),
       section("🛡️", t("nav.moderation"), "moderation", [
         { label: t("nav.reports"), path: "/moderation/reports" },
-        { label: t("nav.chat"), path: "/moderation/chat" },
         { label: t("nav.suspicious"), path: "/moderation/suspicious" },
       ]),
       section("⚙️", t("nav.operations"), "operations", [
@@ -857,7 +856,6 @@ function App() {
     "/content/emojis": () => React.createElement(EmojisPage),
     "/content/announcements": () => React.createElement(AnnouncementsPage),
     "/moderation/reports": () => React.createElement(ReportsPage),
-    "/moderation/chat": () => React.createElement(ChatLogsPage),
     "/moderation/suspicious": () => React.createElement(SuspiciousPage),
     "/operations/health": () => React.createElement(HealthPage),
     "/operations/config": () => React.createElement(ConfigPage),
