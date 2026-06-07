@@ -1165,6 +1165,42 @@ function setPresenceOnline(userId) {
   broadcastPresenceToFriends(userId, "online");
 }
 
+// ─── Phase 17: Challenge system ──────────────────────────────────────────────
+const pendingChallenges = new Map(); // challengeId → { senderId, receiverId, roomCode, stake, expiresAt, timer, ... }
+
+function expireChallenge(challengeId) {
+  const challenge = pendingChallenges.get(challengeId);
+  if (!challenge) return;
+  pendingChallenges.delete(challengeId);
+  // Refund sender wager
+  if (challenge.stake > 0 && challenge.hostWagerId) {
+    creditWallet(challenge.senderId, challenge.stake, "wager_refund", challenge.hostWagerId + "_expired").catch(() => {});
+    const senderSock = io.of("/").sockets.get(challenge.senderSocketId);
+    if (senderSock) {
+      getWalletBalance(challenge.senderId).then(b => senderSock.emit("balanceUpdate", { balance: b })).catch(() => {});
+    }
+  }
+  // Destroy room
+  const room = rooms[challenge.roomCode];
+  if (room) {
+    const senderSock = io.of("/").sockets.get(challenge.senderSocketId);
+    if (senderSock) {
+      senderSock.leave(challenge.roomCode);
+      senderSock.data.code = null;
+    }
+    delete rooms[challenge.roomCode];
+  }
+  // Notify both
+  const senderSock = io.of("/").sockets.get(challenge.senderSocketId);
+  if (senderSock) senderSock.emit("friend:challenge-expired", { challengeId });
+  const recipientSockets = userSockets.get(challenge.receiverId);
+  if (recipientSockets) {
+    for (const sid of recipientSockets) {
+      io.to(sid).emit("friend:challenge-expired", { challengeId });
+    }
+  }
+}
+
 function makeCode() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let c = "";
@@ -1961,6 +1997,200 @@ io.on("connection", (socket) => {
     sendFriendListWithPresence(userId, socket);
   }
 
+  // ─── Phase 17: Challenge handlers ──────────────────────────────────────────
+
+  socket.on("friend:challenge", async ({ friendId, stake }, cb) => {
+    const uid = socket.data.userId;
+    if (!uid) return cb && cb({ ok: false, code: "AUTH_REQUIRED" });
+    // Validate: target is accepted friend
+    const fStatus = await getFriendshipStatus(uid, friendId);
+    if (fStatus !== "accepted") return cb && cb({ ok: false, code: "NOT_FRIENDS" });
+    // Validate: target is online (not in-game, not offline)
+    const targetPresence = userPresence.get(friendId);
+    if (targetPresence !== "online") return cb && cb({ ok: false, code: "FRIEND_NOT_AVAILABLE" });
+    // Validate: sender not already in a game/room
+    if (socket.data.code) return cb && cb({ ok: false, code: "ALREADY_IN_ROOM" });
+    // Validate stake
+    const validStake = VALID_STAKES.includes(stake) ? stake : 0;
+    // Debit sender if wagered
+    let hostWagerId = null;
+    if (validStake > 0) {
+      const debitRef = "challenge_host_" + Date.now() + "_" + socket.id;
+      const debitResult = await debitWallet(uid, validStake, "wager_debit", debitRef);
+      if (!debitResult.ok) return cb && cb({ ok: false, code: "INSUFFICIENT_BALANCE" });
+      socket.emit("balanceUpdate", { balance: debitResult.balance });
+      hostWagerId = debitRef;
+    }
+    // Create room
+    const code = newCode();
+    const clientId = socket.data.clientId || socket.id;
+    rooms[code] = {
+      code, players: {}, order: [], started: false, turn: null, scores: {},
+      lastStarter: null, mode: "classic", turnTimer: null, turnDeadline: null,
+      resolving: false, lastActivityAt: Date.now(),
+      stake: validStake, hostWagerId, challengeRoom: true, purchases: {},
+    };
+    rooms[code].players[clientId] = {
+      sid: socket.id, ready: false, occ: null, hits: new Set(), online: true,
+      timer: null, bonus: 0, profile: sanitizeProfile(socket.data.profile || {}),
+      userId: uid, wagerId: hostWagerId,
+      inv: newInv(), decoyCell: null,
+    };
+    rooms[code].order.push(clientId);
+    socket.join(code);
+    socket.data.code = code;
+    socket.data.clientId = clientId;
+    // Create pending challenge
+    const challengeId = "ch_" + Date.now() + "_" + uid;
+    const expiresAt = Date.now() + 60000;
+    const timer = setTimeout(() => expireChallenge(challengeId), 60000);
+    pendingChallenges.set(challengeId, {
+      senderId: uid, receiverId: friendId, roomCode: code,
+      stake: validStake, expiresAt, timer, hostWagerId,
+      senderSocketId: socket.id, senderClientId: clientId,
+    });
+    // Get sender display name for the popup
+    let senderName = "";
+    try {
+      const u = await getUserById(uid);
+      senderName = u?.display_name || "Player";
+    } catch { senderName = "Player"; }
+    // Emit to recipient
+    const recipientSockets = userSockets.get(friendId);
+    if (recipientSockets) {
+      for (const sid of recipientSockets) {
+        io.to(sid).emit("friend:challenge-received", {
+          challengeId, from: { id: uid, displayName: senderName },
+          stake: validStake, expiresAt,
+        });
+      }
+    }
+    cb && cb({ ok: true, challengeId, code });
+    console.log(`[challenge] ${uid} challenged ${friendId}, room=${code}, stake=${validStake}`);
+  });
+
+  socket.on("friend:challenge-accept", async ({ challengeId }, cb) => {
+    const uid = socket.data.userId;
+    if (!uid) return cb && cb({ ok: false, code: "AUTH_REQUIRED" });
+    const challenge = pendingChallenges.get(challengeId);
+    if (!challenge) return cb && cb({ ok: false, code: "CHALLENGE_NOT_FOUND" });
+    if (challenge.receiverId !== uid) return cb && cb({ ok: false, code: "NOT_YOUR_CHALLENGE" });
+    if (Date.now() > challenge.expiresAt) return cb && cb({ ok: false, code: "CHALLENGE_EXPIRED" });
+    // Debit recipient if wagered
+    let joinerWagerId = null;
+    if (challenge.stake > 0) {
+      const debitRef = "challenge_join_" + Date.now() + "_" + socket.id;
+      const debitResult = await debitWallet(uid, challenge.stake, "wager_debit", debitRef);
+      if (!debitResult.ok) return cb && cb({ ok: false, code: "INSUFFICIENT_BALANCE" });
+      socket.emit("balanceUpdate", { balance: debitResult.balance });
+      joinerWagerId = debitRef;
+    }
+    // Clear challenge timer
+    clearTimeout(challenge.timer);
+    pendingChallenges.delete(challengeId);
+    // Join recipient to room (same as joinRoom)
+    const room = rooms[challenge.roomCode];
+    if (!room) return cb && cb({ ok: false, code: "ROOM_NOT_FOUND" });
+    const clientId = socket.data.clientId || socket.id;
+    room.players[clientId] = {
+      sid: socket.id, ready: false, occ: null, hits: new Set(), online: true,
+      timer: null, bonus: 0, profile: sanitizeProfile(socket.data.profile || {}),
+      userId: uid, wagerId: joinerWagerId,
+      inv: newInv(), decoyCell: null,
+    };
+    room.order.push(clientId);
+    socket.join(challenge.roomCode);
+    socket.data.code = challenge.roomCode;
+    socket.data.clientId = clientId;
+    // Emit standard room events
+    io.to(challenge.roomCode).emit("roomUpdate", roomPublic(room));
+    io.to(challenge.roomCode).emit("opponentJoined");
+    // Exchange profiles
+    const oppId = opponentOf(room, clientId);
+    if (oppId) {
+      emitToClient(room, oppId, "oppProfile", room.players[clientId].profile || null);
+      emitToClient(room, clientId, "oppProfile", room.players[oppId].profile || null);
+    }
+    cb && cb({ ok: true, code: challenge.roomCode, stake: challenge.stake });
+    // Notify sender
+    const senderSock = io.of("/").sockets.get(challenge.senderSocketId);
+    if (senderSock) senderSock.emit("friend:challenge-accepted", { challengeId });
+    console.log(`[challenge] ${uid} accepted challenge ${challengeId}`);
+  });
+
+  socket.on("friend:challenge-decline", async ({ challengeId }, cb) => {
+    const uid = socket.data.userId;
+    const challenge = pendingChallenges.get(challengeId);
+    if (!challenge || challenge.receiverId !== uid) return cb && cb({ ok: false });
+    // Clear timer
+    clearTimeout(challenge.timer);
+    pendingChallenges.delete(challengeId);
+    // Refund sender
+    if (challenge.stake > 0 && challenge.hostWagerId) {
+      creditWallet(challenge.senderId, challenge.stake, "wager_refund", challenge.hostWagerId + "_declined").catch(() => {});
+      const senderSock = io.of("/").sockets.get(challenge.senderSocketId);
+      if (senderSock) {
+        getWalletBalance(challenge.senderId).then(b => senderSock.emit("balanceUpdate", { balance: b })).catch(() => {});
+      }
+    }
+    // Destroy room
+    const room = rooms[challenge.roomCode];
+    if (room) {
+      const senderSock = io.of("/").sockets.get(challenge.senderSocketId);
+      if (senderSock) { senderSock.leave(challenge.roomCode); senderSock.data.code = null; }
+      delete rooms[challenge.roomCode];
+    }
+    // Notify sender
+    const senderSock = io.of("/").sockets.get(challenge.senderSocketId);
+    if (senderSock) senderSock.emit("friend:challenge-declined", { challengeId });
+    cb && cb({ ok: true });
+    console.log(`[challenge] ${uid} declined challenge ${challengeId}`);
+  });
+
+  // ─── Friend request via socket (Phase 17) ─────────────────────────────────
+
+  socket.on("friend:request", async ({ targetUserId }, cb) => {
+    const uid = socket.data.userId;
+    if (!uid) return cb && cb({ ok: false, code: "AUTH_REQUIRED" });
+    const result = await sendFriendRequest(uid, targetUserId);
+    if (!result.ok) return cb && cb(result);
+    // Notify target in real-time
+    let senderName = "";
+    try { const u = await getUserById(uid); senderName = u?.display_name || "Player"; } catch {}
+    const targetSockets = userSockets.get(targetUserId);
+    if (targetSockets) {
+      for (const sid of targetSockets) {
+        io.to(sid).emit("friend:request-received", { friendshipId: result.friendshipId, from: { id: uid, displayName: senderName } });
+      }
+    }
+    cb && cb(result);
+  });
+
+  socket.on("friend:accept", async ({ friendshipId }, cb) => {
+    const uid = socket.data.userId;
+    if (!uid) return cb && cb({ ok: false, code: "AUTH_REQUIRED" });
+    const result = await acceptFriendRequest(friendshipId, uid);
+    if (result.ok) {
+      // Send updated friend list to both parties
+      sendFriendListWithPresence(uid, socket);
+    }
+    cb && cb(result);
+  });
+
+  socket.on("friend:reject", async ({ friendshipId }, cb) => {
+    const uid = socket.data.userId;
+    if (!uid) return cb && cb({ ok: false, code: "AUTH_REQUIRED" });
+    const result = await rejectFriendRequest(friendshipId, uid);
+    cb && cb(result);
+  });
+
+  socket.on("friend:remove", async ({ friendId }, cb) => {
+    const uid = socket.data.userId;
+    if (!uid) return cb && cb({ ok: false, code: "AUTH_REQUIRED" });
+    const result = await removeFriend(uid, friendId);
+    cb && cb(result);
+  });
+
   socket.on("createRoom", async (arg, cb) => {
     if (typeof arg === "function") { cb = arg; arg = {}; }
     const clientId = (arg && arg.clientId) || socket.id;
@@ -2729,6 +2959,12 @@ io.on("connection", (socket) => {
     // Phase 17: presence cleanup (30s grace before going offline)
     if (socket.data.userId) {
       unregisterPresence(socket.data.userId, socket.id);
+    }
+    // Phase 17: expire any pending challenges from this sender
+    for (const [challengeId, ch] of pendingChallenges) {
+      if (ch.senderSocketId === socket.id) {
+        expireChallenge(challengeId);
+      }
     }
 
     // QUEUE-03: queue cleanup with wager refund runs FIRST — must happen before
