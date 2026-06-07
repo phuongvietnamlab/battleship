@@ -547,7 +547,7 @@ function MatchesPage() {
     { key: "winner_name", label: "Winner", render: v => v || "—" },
     { key: "loser_name", label: "Loser", render: v => v || "—" },
     { key: "mode", label: "Mode", render: v => React.createElement("span", { className: "badge badge-neutral" }, v || "classic") },
-    { key: "stake", label: "Stake", render: v => v > 0 ? `${v} pts` : "Free" },
+    { key: "stake", label: "Stake", render: v => v > 0 ? `${v} coin` : "Free" },
     { key: "reason", label: "Result" },
     { key: "ended_at", label: "Date", render: v => v ? new Date(v).toLocaleDateString() : "—" },
     { key: "voided_at", label: "Status", render: v => v ? React.createElement("span", { className: "badge badge-error" }, "Voided") : React.createElement("span", { className: "badge badge-success" }, "OK") },
@@ -582,7 +582,7 @@ function EmojisPage() {
           React.createElement("span", { className: "content-card-name" }, em.name),
           React.createElement("span", { className: `badge ${em.active ? "badge-success" : "badge-neutral"}` }, em.active ? "Active" : "Inactive")
         ),
-        React.createElement("div", { className: "content-card-body" }, `Cost: ${em.cost} pts`),
+        React.createElement("div", { className: "content-card-body" }, `Cost: ${em.cost} coin`),
         React.createElement("button", { className: "btn btn-ghost btn-sm", onClick: () => toggleActive(em.id, em.active) }, em.active ? "Disable" : "Enable")
       ))
     )
