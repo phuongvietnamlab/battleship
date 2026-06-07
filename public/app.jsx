@@ -62,19 +62,19 @@ const I18N = {
     "leave.bodyRoom": "You'll leave the room and return to the lobby. Your opponent will be notified.", "leave.stay": "Stay",
     "roombar.vsBot": "🤖 vs Bot", "roombar.room": "Room",
     "chat.title": "Chat", "chat.placeholder": "Type a message…", "chat.send": "Send",
-    "premiumEmoji.title": "Premium ✨", "premiumEmoji.free": "Free", "premiumEmoji.pts": "pts", "premiumEmoji.signIn": "Sign in to use", "premiumEmoji.needBattle": "Only in battle",
+    "premiumEmoji.title": "Premium ✨", "premiumEmoji.free": "Free", "premiumEmoji.pts": "coin", "premiumEmoji.signIn": "Sign in to use", "premiumEmoji.needBattle": "Only in battle",
     "help.open": "❓ How to play", "help.title": "How to play", "help.close": "Got it",
     "help.objTitle": "🎯 Goal", "help.objBody": "Be the first to sink all 5 of your opponent's ships: Carrier (5), Battleship (4), Cruiser (3), Submarine (3), Destroyer (2).",
     "help.setupTitle": "⚓ Place your fleet", "help.setupBody": "Your fleet starts placed at random on an 11×11 grid. Drag a ship to move it, double-tap to rotate, or tap 🎲 Random for a new layout — then hit Ready.",
     "help.turnTitle": "💥 Taking turns", "help.turnBody": "Tap enemy waters to fire. A hit lets you fire again; a miss passes the turn. Each turn has a 20s timer — miss 3 turns in a row and you forfeit the match.",
     "help.powerTitle": "⚡ Power-ups", "help.powerBody": "In wagered matches, you can buy power-ups during placement (max 2 per match, costs 10% of the stake each): Sonar Ping (scan a row or column — reveals if ships are there, costs your turn), Cross Missile (fire in a + pattern hitting 5 cells, costs your turn), Scatter Blast (fire 2-3 random enemy cells, costs your turn), Decoy (place a fake ship cell on your grid — enemy hits it thinking it's real).",
-    "help.modesTitle": "🏁 Wagered matches", "help.modesBody": "You can play free matches or bet points — winner takes the pot. Wagered matches unlock the power-up shop during placement phase.",
+    "help.modesTitle": "🏁 Wagered matches", "help.modesBody": "You can play free matches or bet coin — winner takes the pot. Wagered matches unlock the power-up shop during placement phase.",
     "help.chatTitle": "💬 Chat", "help.chatBody": "Tap 💬 to send a quick emoji or message — it pops as a bubble over your avatar for a few seconds (no chat log).",
     "help.reconnectTitle": "📡 Reconnect", "help.reconnectBody": "If you disconnect or background the app, your seat is held for 3 minutes. Re-open to resume the match.",
     "footer": "Battleship Online · share the room code to invite friends",
     "history.open": "📋 History", "history.title": "Match History", "history.empty": "No battles yet. ⚓", "history.back": "← Back",
     "history.all": "All", "history.win": "Won", "history.loss": "Lost", "history.wager": "Wagered", "history.free": "Free",
-    "history.classic": "Classic", "history.advance": "Advance", "history.pts": "pts", "history.total": "{n} matches",
+    "history.classic": "Classic", "history.advance": "Advance", "history.pts": "coin", "history.total": "{n} matches",
     "stats.winRate": "{n}% wins", "stats.totalGames": "{n} games",
     "log.oppJoined": "Opponent joined the room.", "log.oppReady": "Opponent is ready.", "log.oppOffline": "Opponent disconnected, waiting to reconnect...", "log.oppReconnect": "Opponent reconnected.",
     "log.youFirst": "You go first. Open fire!", "log.oppFirst": "Opponent goes first.", "log.botFirst": "Bot goes first.",
@@ -165,35 +165,35 @@ const I18N = {
     "err.ALREADY_IN_QUEUE": "You're already in a queue",
     "err.ALREADY_IN_ROOM": "You're already in a match",
     "err.RATE_LIMITED": "Too many attempts — wait a moment",
-    "err.INSUFFICIENT_BALANCE": "Not enough points",
+    "err.INSUFFICIENT_BALANCE": "Not enough coin",
     "err.GUEST_NO_WALLET": "Sign in to purchase power-ups",
     "err.WAGERED_REQUIRES_ACCOUNT": "Sign in to play wagered matches",
-    "wallet.balance": "Points",
+    "wallet.balance": "Coin",
     "wallet.free": "Free play",
     "wallet.wager": "Wager",
     "wallet.stakeLabel": "Stake",
-    "wallet.yourStake": "Your wager: {n} pts",
-    "wallet.insufficientBalance": "Not enough points",
-    "wallet.zeroBalance": "Play free games or win wagers to earn points!",
+    "wallet.yourStake": "Your wager: {n} coin",
+    "wallet.insufficientBalance": "Not enough coin",
+    "wallet.zeroBalance": "Play free games or win wagers to earn coin!",
     "queue.freeMatch": "⚡ Quick Match",
     "queue.wageredMatch": "💰 Wagered Match",
     "queue.stakeSelect": "Select stake",
-    "queue.stake0": "Free (0 pts)",
-    "queue.stake10": "10 pts",
-    "queue.stake25": "25 pts",
-    "queue.stake50": "50 pts",
-    "queue.stake100": "100 pts",
+    "queue.stake0": "Free (0 coin)",
+    "queue.stake10": "10 coin",
+    "queue.stake25": "25 coin",
+    "queue.stake50": "50 coin",
+    "queue.stake100": "100 coin",
     "queue.titleFree": "Free Match",
     "queue.titleWagered": "Wagered Match",
     "shop.buy": "Buy",
     "shop.title": "Power-up Shop",
-    "shop.price": "{n} pts",
+    "shop.price": "{n} coin",
     "shop.remaining": "{n} left",
-    "shop.confirm": "Buy {type} for {price} pts?",
+    "shop.confirm": "Buy {type} for {price} coin?",
     "shop.oppBought": "Opponent purchased a power-up!",
-    "game.pot": "Pot: {n} pts",
-    "game.won": "+{n} pts won!",
-    "game.lost": "-{n} pts wagered",
+    "game.pot": "Pot: {n} coin",
+    "game.won": "+{n} coin won!",
+    "game.lost": "-{n} coin wagered",
 
     "lobby.quickPlay": "Quick Play",
     "lobby.quickPlaySub": "Find a random opponent",
@@ -247,19 +247,19 @@ const I18N = {
     "leave.bodyRoom": "Bạn sẽ rời phòng và quay lại sảnh. Đối thủ sẽ được thông báo.", "leave.stay": "Ở lại",
     "roombar.vsBot": "🤖 Với máy", "roombar.room": "Phòng",
     "chat.title": "Trò chuyện", "chat.placeholder": "Nhập tin nhắn…", "chat.send": "Gửi",
-    "premiumEmoji.title": "Đặc biệt ✨", "premiumEmoji.free": "Miễn phí", "premiumEmoji.pts": "đ", "premiumEmoji.signIn": "Đăng nhập để dùng", "premiumEmoji.needBattle": "Chỉ dùng trong trận",
+    "premiumEmoji.title": "Đặc biệt ✨", "premiumEmoji.free": "Miễn phí", "premiumEmoji.pts": "coin", "premiumEmoji.signIn": "Đăng nhập để dùng", "premiumEmoji.needBattle": "Chỉ dùng trong trận",
     "help.open": "❓ Cách chơi", "help.title": "Cách chơi", "help.close": "Đã hiểu",
     "help.objTitle": "🎯 Mục tiêu", "help.objBody": "Đánh chìm cả 5 thuyền của đối thủ trước là thắng: Tàu sân bay (5 ô), Thiết giáp hạm (4 ô), Tàu tuần dương (3 ô), Tàu ngầm (3 ô), Khu trục hạm (2 ô).",
     "help.setupTitle": "⚓ Bố trí hạm đội", "help.setupBody": "Hạm đội được xếp ngẫu nhiên trên lưới 11×11. Kéo thuyền để di chuyển, chạm 2 lần để xoay, hoặc bấm 🎲 Ngẫu nhiên để xếp lại — rồi bấm Sẵn sàng.",
     "help.turnTitle": "💥 Lượt bắn", "help.turnBody": "Chạm vào biển địch để bắn. Trúng thì bắn tiếp; trượt thì chuyển lượt. Mỗi lượt có 20 giây — bỏ 3 lượt liên tiếp sẽ bị xử thua.",
     "help.powerTitle": "⚡ Power-up", "help.powerBody": "Trong trận có cược, bạn mua được power-up lúc bố trí (tối đa 2/trận, giá 10% tiền cược mỗi cái): Dò sóng (quét 1 hàng/cột — CÓ/KHÔNG có tàu, mất lượt), Tên lửa chữ thập (bắn 5 ô hình +, mất lượt), Nổ ngẫu nhiên (bắn 2-3 ô ngẫu nhiên bên địch, mất lượt), Mồi nhử (đặt ô giả trên lưới — địch bắn trúng tưởng là tàu).",
-    "help.modesTitle": "🏁 Trận cược", "help.modesBody": "Bạn có thể chơi miễn phí hoặc đặt cược điểm — người thắng lấy cả. Trận cược mở khóa cửa hàng power-up khi bố trí tàu.",
+    "help.modesTitle": "🏁 Trận cược", "help.modesBody": "Bạn có thể chơi miễn phí hoặc đặt cược coin — người thắng lấy cả. Trận cược mở khóa cửa hàng power-up khi bố trí tàu.",
     "help.chatTitle": "💬 Trò chuyện", "help.chatBody": "Bấm 💬 để gửi emoji hoặc tin nhắn nhanh — nó hiện thành bong bóng trên avatar bạn vài giây (không có khung chat).",
     "help.reconnectTitle": "📡 Kết nối lại", "help.reconnectBody": "Nếu mất kết nối hoặc thoát nền app, ghế của bạn được giữ 3 phút. Mở lại để chơi tiếp.",
     "footer": "Battleship Online · chia sẻ mã phòng để mời bạn bè",
     "history.open": "📋 Lịch sử", "history.title": "Lịch sử trận đấu", "history.empty": "Chưa có trận đấu nào. ⚓", "history.back": "← Quay lại",
     "history.all": "Tất cả", "history.win": "Thắng", "history.loss": "Thua", "history.wager": "Có cược", "history.free": "Không cược",
-    "history.classic": "Classic", "history.advance": "Advance", "history.pts": "đ", "history.total": "{n} trận",
+    "history.classic": "Classic", "history.advance": "Advance", "history.pts": "coin", "history.total": "{n} trận",
     "stats.winRate": "{n}% thắng", "stats.totalGames": "{n} trận",
     "log.oppJoined": "Đối thủ đã vào phòng.", "log.oppReady": "Đối thủ đã sẵn sàng.", "log.oppOffline": "Đối thủ tạm mất kết nối, đang chờ kết nối lại...", "log.oppReconnect": "Đối thủ đã kết nối lại.",
     "log.youFirst": "Bạn đi trước. Khai hỏa!", "log.oppFirst": "Đối thủ đi trước.", "log.botFirst": "Máy đi trước.",
@@ -350,35 +350,35 @@ const I18N = {
     "err.ALREADY_IN_QUEUE": "Bạn đang trong hàng chờ rồi",
     "err.ALREADY_IN_ROOM": "Bạn đang trong trận rồi",
     "err.RATE_LIMITED": "Quá nhiều lần thử — chờ một lát",
-    "err.INSUFFICIENT_BALANCE": "Không đủ điểm",
+    "err.INSUFFICIENT_BALANCE": "Không đủ coin",
     "err.GUEST_NO_WALLET": "Đăng nhập để mua power-up",
     "err.WAGERED_REQUIRES_ACCOUNT": "Đăng nhập để chơi trận cá cược",
-    "wallet.balance": "Điểm",
+    "wallet.balance": "Coin",
     "wallet.free": "Chơi miễn phí",
     "wallet.wager": "Cá cược",
     "wallet.stakeLabel": "Mức cược",
-    "wallet.yourStake": "Cược của bạn: {n} điểm",
-    "wallet.insufficientBalance": "Không đủ điểm",
-    "wallet.zeroBalance": "Chơi miễn phí hoặc thắng cược để kiếm điểm!",
+    "wallet.yourStake": "Cược của bạn: {n} coin",
+    "wallet.insufficientBalance": "Không đủ coin",
+    "wallet.zeroBalance": "Chơi miễn phí hoặc thắng cược để kiếm coin!",
     "queue.freeMatch": "⚡ Ghép trận nhanh",
     "queue.wageredMatch": "💰 Trận cá cược",
     "queue.stakeSelect": "Chọn mức cược",
     "queue.stake0": "Miễn phí (0 đ)",
-    "queue.stake10": "10 điểm",
-    "queue.stake25": "25 điểm",
-    "queue.stake50": "50 điểm",
-    "queue.stake100": "100 điểm",
+    "queue.stake10": "10 coin",
+    "queue.stake25": "25 coin",
+    "queue.stake50": "50 coin",
+    "queue.stake100": "100 coin",
     "queue.titleFree": "Ghép trận nhanh",
     "queue.titleWagered": "Trận cá cược",
     "shop.buy": "Mua",
     "shop.title": "Cửa hàng Power-up",
-    "shop.price": "{n} điểm",
+    "shop.price": "{n} coin",
     "shop.remaining": "Còn {n} lượt",
-    "shop.confirm": "Mua {type} với {price} điểm?",
+    "shop.confirm": "Mua {type} với {price} coin?",
     "shop.oppBought": "Đối thủ đã mua power-up!",
-    "game.pot": "Thưởng: {n} điểm",
-    "game.won": "+{n} điểm thắng!",
-    "game.lost": "-{n} điểm đã cược",
+    "game.pot": "Thưởng: {n} coin",
+    "game.won": "+{n} coin thắng!",
+    "game.lost": "-{n} coin đã cược",
 
     "lobby.quickPlay": "Chơi nhanh",
     "lobby.quickPlaySub": "Tìm đối thủ ngẫu nhiên",
@@ -1770,7 +1770,7 @@ function ChatComposer({ open, onSend, onToggle, premiumEmojis, balance, isGuest,
             <div className="premium-emoji-locked">{t("premiumEmoji.needBattle") || "Chỉ dùng trong trận"}</div>
           ) : (
             <>
-              <div className="premium-balance">{balance ?? 0} {t("premiumEmoji.pts") || "pts"}</div>
+              <div className="premium-balance">{balance ?? 0} {t("premiumEmoji.pts") || "coin"}</div>
               <div className="premium-emoji-grid">
                 {premiumEmojis.map(em => (
                   <button
@@ -1781,7 +1781,7 @@ function ChatComposer({ open, onSend, onToggle, premiumEmojis, balance, isGuest,
                     title={LANG === "vi" ? em.description_vi : em.description_en}
                   >
                     <img src={"/emojis/" + em.animation_file} alt={em.name} className="pe-img" />
-                    <span className="pe-cost">{em.cost}{t("premiumEmoji.pts") || "pts"}</span>
+                    <span className="pe-cost">{em.cost}{t("premiumEmoji.pts") || "coin"}</span>
                     {emojiCooldown && <span className="pe-cooldown">⏳</span>}
                   </button>
                 ))}
@@ -3294,7 +3294,7 @@ function App() {
                 onToggle={() => { setAvatarMenuOpen((v) => !v); }}
                 active={avatarMenuOpen}
               />
-              {balance !== null && <span className="topbar-balance" title="Points">💰 {balance}</span>}
+              {balance !== null && <span className="topbar-balance" title="Coin">💰 {balance}</span>}
               <AvatarMenu
                 open={avatarMenuOpen}
                 user={authUser}
@@ -3338,7 +3338,7 @@ function App() {
           <h2>{queueType === "wagered" ? t("queue.titleWagered") : t("queue.titleFree")}</h2>
           <p className="sub">{t("queue.sub")}</p>
           {queueType === "wagered" && queueStake > 0 && (
-            <div style={{ textAlign: "center", margin: "6px 0", fontWeight: "bold" }}>💰 {queueStake} pts</div>
+            <div style={{ textAlign: "center", margin: "6px 0", fontWeight: "bold" }}>💰 {queueStake} coin</div>
           )}
           <div className="queue-timer">
             <span className="queue-elapsed" aria-live="polite" aria-atomic="true">{String(Math.floor(elapsedSec / 60)).padStart(2, "0")}:{String(elapsedSec % 60).padStart(2, "0")}</span>
