@@ -64,9 +64,11 @@ const I18N = {
     "chat.title": "Chat", "chat.placeholder": "Type a message…", "chat.send": "Send",
     "premiumEmoji.title": "Premium ✨", "premiumEmoji.free": "Free", "premiumEmoji.pts": "pts", "premiumEmoji.signIn": "Sign in to use", "premiumEmoji.needBattle": "Only in battle",
     "help.open": "❓ How to play", "help.title": "How to play", "help.close": "Got it",
-    "help.objTitle": "🎯 Goal", "help.objBody": "Be the first to sink all 5 of your opponent's ships.",
-    "help.setupTitle": "⚓ Place your fleet", "help.setupBody": "Your fleet starts placed at random. Drag a ship to move it, double-tap to rotate, or tap 🎲 Random for a new layout — then hit Ready.",
-    "help.turnTitle": "💥 Taking turns", "help.turnBody": "Tap enemy waters to fire. A hit lets you fire again; a miss passes the turn. Each turn has a 20s timer — stall too long and you forfeit.",
+    "help.objTitle": "🎯 Goal", "help.objBody": "Be the first to sink all 5 of your opponent's ships: Carrier (5), Battleship (4), Cruiser (3), Submarine (3), Destroyer (2).",
+    "help.setupTitle": "⚓ Place your fleet", "help.setupBody": "Your fleet starts placed at random on an 11×11 grid. Drag a ship to move it, double-tap to rotate, or tap 🎲 Random for a new layout — then hit Ready.",
+    "help.turnTitle": "💥 Taking turns", "help.turnBody": "Tap enemy waters to fire. A hit lets you fire again; a miss passes the turn. Each turn has a 20s timer — miss 3 turns in a row and you forfeit the match.",
+    "help.powerTitle": "⚡ Power-ups", "help.powerBody": "In non-classic mode, you can buy power-ups (max 2 per match): Sonar (scan a row/column), Cross Missile (hit 5 cells in a +), Scatter Blast (hit 2-3 random cells), Sea Mine (trap on your grid), Decoy (fake ship cell), Extra Turn (miss doesn't end turn), Reveal (show an enemy ship cell).",
+    "help.modesTitle": "🏁 Game modes", "help.modesBody": "Classic: pure strategy, no power-ups. You can also play wagered matches by betting points — winner takes the pot.",
     "help.chatTitle": "💬 Chat", "help.chatBody": "Tap 💬 to send a quick emoji or message — it pops as a bubble over your avatar for a few seconds (no chat log).",
     "help.reconnectTitle": "📡 Reconnect", "help.reconnectBody": "If you disconnect or background the app, your seat is held for 3 minutes. Re-open to resume the match.",
     "footer": "Battleship Online · share the room code to invite friends",
@@ -247,9 +249,11 @@ const I18N = {
     "chat.title": "Trò chuyện", "chat.placeholder": "Nhập tin nhắn…", "chat.send": "Gửi",
     "premiumEmoji.title": "Đặc biệt ✨", "premiumEmoji.free": "Miễn phí", "premiumEmoji.pts": "đ", "premiumEmoji.signIn": "Đăng nhập để dùng", "premiumEmoji.needBattle": "Chỉ dùng trong trận",
     "help.open": "❓ Cách chơi", "help.title": "Cách chơi", "help.close": "Đã hiểu",
-    "help.objTitle": "🎯 Mục tiêu", "help.objBody": "Đánh chìm cả 5 thuyền của đối thủ trước là thắng.",
-    "help.setupTitle": "⚓ Bố trí hạm đội", "help.setupBody": "Hạm đội được xếp ngẫu nhiên sẵn. Kéo thuyền để di chuyển, chạm 2 lần để xoay, hoặc bấm 🎲 Ngẫu nhiên để xếp lại — rồi bấm Sẵn sàng.",
-    "help.turnTitle": "💥 Lượt bắn", "help.turnBody": "Chạm vào biển địch để bắn. Trúng thì bắn tiếp; trượt thì chuyển lượt. Mỗi lượt có 20 giây — chần chừ quá lâu sẽ bị xử thua.",
+    "help.objTitle": "🎯 Mục tiêu", "help.objBody": "Đánh chìm cả 5 thuyền của đối thủ trước là thắng: Tàu sân bay (5 ô), Thiết giáp hạm (4 ô), Tàu tuần dương (3 ô), Tàu ngầm (3 ô), Khu trục hạm (2 ô).",
+    "help.setupTitle": "⚓ Bố trí hạm đội", "help.setupBody": "Hạm đội được xếp ngẫu nhiên trên lưới 11×11. Kéo thuyền để di chuyển, chạm 2 lần để xoay, hoặc bấm 🎲 Ngẫu nhiên để xếp lại — rồi bấm Sẵn sàng.",
+    "help.turnTitle": "💥 Lượt bắn", "help.turnBody": "Chạm vào biển địch để bắn. Trúng thì bắn tiếp; trượt thì chuyển lượt. Mỗi lượt có 20 giây — bỏ 3 lượt liên tiếp sẽ bị xử thua.",
+    "help.powerTitle": "⚡ Power-up", "help.powerBody": "Ở chế độ không phải Cổ điển, bạn mua được power-up (tối đa 2/trận): Dò sóng (quét hàng/cột), Tên lửa chữ thập (bắn 5 ô hình +), Nổ ngẫu nhiên (bắn 2-3 ô), Mìn nước (bẫy trên lưới), Mồi nhử (ô giả), Thêm lượt (trượt vẫn giữ lượt), Lộ ô thuyền (lộ 1 ô tàu địch).",
+    "help.modesTitle": "🏁 Chế độ chơi", "help.modesBody": "Cổ điển: chiến thuật thuần túy, không power-up. Ngoài ra bạn có thể chơi cược điểm — người thắng lấy cả.",
     "help.chatTitle": "💬 Trò chuyện", "help.chatBody": "Bấm 💬 để gửi emoji hoặc tin nhắn nhanh — nó hiện thành bong bóng trên avatar bạn vài giây (không có khung chat).",
     "help.reconnectTitle": "📡 Kết nối lại", "help.reconnectBody": "Nếu mất kết nối hoặc thoát nền app, ghế của bạn được giữ 3 phút. Mở lại để chơi tiếp.",
     "footer": "Battleship Online · chia sẻ mã phòng để mời bạn bè",
@@ -1589,6 +1593,8 @@ function HelpModal({ open, onClose }) {
           {section(t("help.objTitle"), t("help.objBody"))}
           {section(t("help.setupTitle"), t("help.setupBody"))}
           {section(t("help.turnTitle"), t("help.turnBody"))}
+          {section(t("help.powerTitle"), t("help.powerBody"))}
+          {section(t("help.modesTitle"), t("help.modesBody"))}
           {section(t("help.chatTitle"), t("help.chatBody"))}
           {section(t("help.reconnectTitle"), t("help.reconnectBody"))}
         </div>
