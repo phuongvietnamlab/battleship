@@ -141,3 +141,7 @@ CREATE TABLE IF NOT EXISTS daily_stats (
 ALTER TABLE matches ADD COLUMN IF NOT EXISTS voided_at TIMESTAMPTZ;
 ALTER TABLE matches ADD COLUMN IF NOT EXISTS voided_by INTEGER REFERENCES users(id);
 ALTER TABLE matches ADD COLUMN IF NOT EXISTS void_reason TEXT;
+
+
+-- Add deleted_at to users table for soft-delete support
+ALTER TABLE users ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
