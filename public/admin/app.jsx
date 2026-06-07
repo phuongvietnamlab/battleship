@@ -342,8 +342,8 @@ function UsersPage() {
   };
 
   const handlePoints = async (userId, amount, reason) => {
-    try { await api.post(`/users/${userId}/points`, { amount, reason }); toast.show(`Points adjusted: ${amount > 0 ? "+" : ""}${amount}`); fetchUsers(page, search, status); }
-    catch (e) { toast.show("Points failed: " + e.message, "error"); }
+    try { await api.post(`/users/${userId}/points`, { amount, reason }); toast.show(`Coin adjusted: ${amount > 0 ? "+" : ""}${amount}`); fetchUsers(page, search, status); }
+    catch (e) { toast.show("Coin failed: " + e.message, "error"); }
   };
 
   const handleExport = () => { window.open(`/api/admin/users/export?search=${encodeURIComponent(search)}&status=${status}`, "_blank"); };
@@ -352,6 +352,7 @@ function UsersPage() {
     { key: "id", label: "ID" },
     { key: "display_name", label: "Name", render: (v) => v || "[no name]" },
     { key: "email", label: "Email", render: (v) => v || "—" },
+    { key: "coin", label: "Coin", render: (v) => v != null ? v.toLocaleString() : "0" },
     { key: "created_at", label: "Joined", render: (v) => v ? new Date(v).toLocaleDateString() : "—" },
     { key: "ban_type", label: "Status", render: (v, row) => {
       if (row.deleted_at) return React.createElement("span", { className: "badge badge-neutral" }, "deleted");
@@ -360,7 +361,7 @@ function UsersPage() {
       return React.createElement("span", { className: "badge badge-success" }, "active");
     }},
     { key: "actions", label: "", render: (_, row) => React.createElement("div", { className: "row-actions" },
-      React.createElement("button", { className: "btn btn-ghost btn-sm", onClick: (e) => { e.stopPropagation(); const amt = prompt("Points (+/-):"); const reason = prompt("Reason:"); if (amt && reason) handlePoints(row.id, parseInt(amt), reason); } }, "+Pts"),
+      React.createElement("button", { className: "btn btn-ghost btn-sm", onClick: (e) => { e.stopPropagation(); const amt = prompt("Coin (+/-):"); const reason = prompt("Reason:"); if (amt && reason) handlePoints(row.id, parseInt(amt), reason); } }, "+Coin"),
       !row.ban_type && React.createElement("button", { className: "btn btn-ghost btn-sm btn-error-text", onClick: (e) => { e.stopPropagation(); const r = prompt("Reason for ban:"); if (r) handleBan(row.id, r); } }, "Ban")
     )},
   ];

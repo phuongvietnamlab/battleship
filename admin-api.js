@@ -87,7 +87,8 @@ function mountAdminRoutes(router, io, getRooms, eventLoopHistogram) {
       const { rows } = await pool.query(
         `SELECT u.id, u.display_name, u.email, u.avatar_url, u.created_at, u.deleted_at,
           (SELECT ub.type FROM user_bans ub WHERE ub.user_id=u.id AND ub.active=true LIMIT 1) AS ban_type,
-          (SELECT ar.role FROM admin_roles ar WHERE ar.user_id=u.id AND ar.revoked_at IS NULL LIMIT 1) AS admin_role
+          (SELECT ar.role FROM admin_roles ar WHERE ar.user_id=u.id AND ar.revoked_at IS NULL LIMIT 1) AS admin_role,
+          (SELECT w.balance FROM wallets w WHERE w.user_id=u.id LIMIT 1) AS coin
          FROM users u ${where}
          ORDER BY u.${sort} ${order}
          LIMIT $${idx} OFFSET $${idx + 1}`,
