@@ -247,6 +247,9 @@ function mountAdminRoutes(router, io, getRooms, eventLoopHistogram) {
     if (!amount || amount === 0) return res.status(400).json({ error: "INVALID_AMOUNT" });
     if (!reason) return res.status(400).json({ error: "REASON_REQUIRED" });
 
+    // Ensure wallet exists before adjusting (auto-create if missing)
+    await pool.query("INSERT INTO wallets (user_id, balance) VALUES ($1, 0) ON CONFLICT (user_id) DO NOTHING", [id]);
+
     const ref = `admin_adjust_${req.adminUser.id}_${Date.now()}`;
     let result;
     if (amount > 0) {
