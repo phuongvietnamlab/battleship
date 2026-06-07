@@ -574,12 +574,14 @@ function EmojisPage() {
     catch(e) { toast.show(e.message, "error"); }
   };
 
+  const emojiIcons = { Bomb: "💣", Boxing: "🥊", Splash: "💦", Slap: "👋", Tease: "😜", Kiss: "💋" };
+
   return React.createElement("div", { className: "page" },
     React.createElement("h1", { className: "page-title" }, "Emojis"),
     React.createElement("div", { className: "card-grid" },
       emojis.map(em => React.createElement("div", { key: em.id, className: "content-card" },
         React.createElement("div", { className: "content-card-header" },
-          React.createElement("span", { className: "content-card-name" }, em.name),
+          React.createElement("span", { className: "content-card-name" }, (emojiIcons[em.name] || "🎭") + " " + em.name),
           React.createElement("span", { className: `badge ${em.active ? "badge-success" : "badge-neutral"}` }, em.active ? "Active" : "Inactive")
         ),
         React.createElement("div", { className: "content-card-body" }, `Cost: ${em.cost} coin`),
