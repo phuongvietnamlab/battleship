@@ -179,6 +179,94 @@ function authRateLimit(req, res, next) {
 app.use("/auth", express.json());
 app.use("/api", express.json());
 
+// ─── Admin panel routes (Phase 16) ──────────────────────────────────────────
+// Admin panel: separate session, RBAC, rate limiting. Mounted before game
+// routes so /admin/* paths don't fall through to the game SPA.
+const {
+  adminSessionMiddleware,
+  loadAdminUser,
+  requireAdmin,
+  ipAllowlist,
+  csrfJsonCheck,
+  logAdminAction,
+  adminLoginLimiter,
+  adminRateLimitMiddleware,
+} = require("./admin-auth");
+const mountAdminRoutes = require("./admin-api");
+
+// Serve admin static files
+app.use("/admin", express.static(path.join(__dirname, "dist/admin")));
+
+// Admin API router
+const adminRouter = express.Router();
+app.use("/api/admin", ipAllowlist, adminSessionMiddleware, express.json(), csrfJsonCheck, adminRouter);
+
+// Login endpoint (before loadAdminUser — no session yet)
+adminRouter.post("/login", async (req, res) => {
+  try {
+    await adminLoginLimiter.consume(req.ip);
+  } catch (e) {
+    return res.status(429).json({ error: "RATE_LIMITED" });
+  }
+  const { email, password } = req.body || {};
+  if (!email || !password) return res.status(400).json({ error: "MISSING_FIELDS" });
+
+  const result = await verifyEmailLogin(email, password);
+  if (result.error) {
+    logAdminAction(null, "auth.login_failed", req, "user", null, { email });
+    return res.status(401).json({ error: "AUTH_FAILED" });
+  }
+
+  // Check admin role
+  const { rows } = await pool.query(
+    "SELECT role FROM admin_roles WHERE user_id=$1 AND revoked_at IS NULL",
+    [result.id]
+  );
+  if (rows.length === 0) {
+    logAdminAction(result.id, "auth.login_failed", req, "user", String(result.id), { reason: "not_admin" });
+    return res.status(403).json({ error: "NOT_ADMIN" });
+  }
+
+  req.session.adminUserId = result.id;
+  logAdminAction(result.id, "auth.login", req, "user", String(result.id), null);
+  res.json({ ok: true, user: { id: result.id, display_name: result.display_name, role: rows[0].role } });
+});
+
+// All routes below require admin session
+adminRouter.use(loadAdminUser);
+
+adminRouter.post("/logout", (req, res) => {
+  if (req.adminUser) {
+    logAdminAction(req.adminUser.id, "auth.logout", req, null, null, null);
+  }
+  req.session.destroy(() => {});
+  res.json({ ok: true });
+});
+
+adminRouter.get("/me", requireAdmin, async (req, res) => {
+  const { rows } = await pool.query(
+    "SELECT display_name FROM users WHERE id=$1",
+    [req.adminUser.id]
+  );
+  res.json({
+    id: req.adminUser.id,
+    display_name: rows[0]?.display_name || "Admin",
+    role: req.adminUser.role,
+  });
+});
+
+// Apply requireAdmin + rate limiting to all subsequent routes
+adminRouter.use(requireAdmin, adminRateLimitMiddleware);
+
+// Mount domain-specific admin routes (Plans 03-06)
+// rooms is defined later in server.js, so we pass a getter
+mountAdminRoutes(adminRouter, io, () => rooms, null);
+
+// Admin SPA fallback (client-side hash routing)
+app.get("/admin/*", (req, res) => {
+  res.sendFile(path.join(__dirname, "dist/admin/index.html"));
+});
+
 // ─── Auth routes ─────────────────────────────────────────────────────────────
 
 // POST /auth/signout — destroy current session (this device only).
