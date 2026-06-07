@@ -274,9 +274,8 @@ async function createEmailAccount(email, password, pendingClientId) {
   // Hash password (async bcrypt, cost 10 — never hashSync; T-02-27)
   const hash = await bcrypt.hash(password, 10);
 
-  // Derive display name from email local-part (D-09)
-  const localPart = normalizedEmail.split("@")[0] || normalizedEmail;
-  const displayName = sanitizeDisplayName(localPart);
+  // Generate random display name (same pattern as passkey registration)
+  const displayName = "Player-" + Math.random().toString(36).slice(2, 6).toUpperCase();
 
   // Promote guest row (or create new user) via the shared link transaction (D-06/D-07)
   const client = await pool.connect();
