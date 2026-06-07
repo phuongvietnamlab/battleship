@@ -174,7 +174,6 @@ function Sidebar({ route, adminUser, collapsed, onToggle }) {
       section("📝", t("nav.content"), "content", [
         { label: t("nav.emojis"), path: "/content/emojis" },
         { label: t("nav.announcements"), path: "/content/announcements" },
-        { label: t("nav.powerups"), path: "/content/powerups" },
       ]),
       section("🛡️", t("nav.moderation"), "moderation", [
         { label: t("nav.reports"), path: "/moderation/reports" },
@@ -243,28 +242,82 @@ function LoginPage({ onLogin }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Dashboard Page (simplified for scaffold)
+// Dashboard Page
 // ═══════════════════════════════════════════════════════════════════════════════
 function DashboardPage() {
   const [overview, setOverview] = useState(null);
+  const [userChart, setUserChart] = useState([]);
+  const [matchChart, setMatchChart] = useState([]);
+  const [pointsChart, setPointsChart] = useState([]);
+  const [range, setRange] = useState("30");
   const api = useApi();
   const { t } = useI18n();
 
   useEffect(() => { api.get("/analytics/overview").then(setOverview).catch(() => {}); }, []);
+  useEffect(() => {
+    api.get(`/analytics/users?range=${range}`).then(d => setUserChart(d.data || [])).catch(() => {});
+    api.get(`/analytics/matches?range=${range}`).then(d => setMatchChart(d.data || [])).catch(() => {});
+    api.get(`/analytics/points?range=${range}`).then(d => setPointsChart(d.data || [])).catch(() => {});
+  }, [range]);
 
   const Card = ({ label, value, live }) => React.createElement("div", { className: "metric-card" },
     React.createElement("div", { className: "metric-label" }, label, live && React.createElement("span", { className: "live-dot" })),
     React.createElement("div", { className: "metric-value" }, value != null ? value.toLocaleString() : "—")
   );
 
+  const SimpleChart = ({ title, data, lines, type }) => {
+    if (!data || data.length === 0) return React.createElement("div", { className: "chart-card chart-empty" },
+      React.createElement("div", { className: "chart-title" }, title),
+      React.createElement("div", { className: "chart-no-data" }, "No data for this period")
+    );
+    const maxVal = Math.max(...data.flatMap(d => lines.map(l => Number(d[l.key]) || 0)), 1);
+    const w = 100 / data.length;
+    return React.createElement("div", { className: "chart-card" },
+      React.createElement("div", { className: "chart-title" }, title),
+      React.createElement("div", { className: "chart-area" },
+        type === "bar" ? React.createElement("div", { className: "chart-bars" },
+          data.map((d, i) => React.createElement("div", { key: i, className: "chart-bar-group", style: { width: w + "%" } },
+            lines.map(l => React.createElement("div", { key: l.key, className: "chart-bar", title: `${l.name}: ${d[l.key] || 0}`, style: { height: Math.max(2, ((Number(d[l.key]) || 0) / maxVal) * 100) + "%", background: l.color } })),
+            React.createElement("div", { className: "chart-bar-label" }, data.length <= 15 ? (d.date || "").slice(5) : "")
+          ))
+        ) : React.createElement("svg", { className: "chart-svg", viewBox: `0 0 ${data.length * 10} 100`, preserveAspectRatio: "none" },
+          lines.map(l => {
+            const points = data.map((d, i) => `${i * 10},${100 - ((Number(d[l.key]) || 0) / maxVal) * 95}`).join(" ");
+            return React.createElement("polyline", { key: l.key, points, fill: "none", stroke: l.color, strokeWidth: "2", vectorEffect: "non-scaling-stroke" });
+          })
+        ),
+        React.createElement("div", { className: "chart-legend" },
+          lines.map(l => React.createElement("span", { key: l.key, className: "legend-item" },
+            React.createElement("span", { className: "legend-dot", style: { background: l.color } }),
+            l.name
+          ))
+        )
+      )
+    );
+  };
+
   return React.createElement("div", { className: "page" },
-    React.createElement("h1", { className: "page-title" }, t("nav.dashboard")),
+    React.createElement("div", { className: "page-header" },
+      React.createElement("h1", { className: "page-title" }, t("nav.dashboard")),
+      React.createElement("select", { className: "form-input filter-select", value: range, onChange: e => setRange(e.target.value) },
+        React.createElement("option", { value: "30" }, "30 days"),
+        React.createElement("option", { value: "90" }, "90 days"),
+        React.createElement("option", { value: "365" }, "1 year"),
+      )
+    ),
     React.createElement("div", { className: "metric-grid" },
       React.createElement(Card, { label: t("dashboard.onlineNow"), value: overview?.onlineNow, live: true }),
       React.createElement(Card, { label: t("dashboard.activeMatches"), value: overview?.activeMatches, live: true }),
       React.createElement(Card, { label: t("dashboard.matchesToday"), value: overview?.matchesToday }),
       React.createElement(Card, { label: t("dashboard.newUsers"), value: overview?.newUsersToday }),
       React.createElement(Card, { label: t("dashboard.pointsSpent"), value: overview?.pointsSpentToday }),
+    ),
+    React.createElement("div", { className: "charts-grid" },
+      React.createElement(SimpleChart, { title: "User Growth (new users/day)", data: userChart, type: "line", lines: [{ key: "new_users", name: "New Users", color: "#667eea" }] }),
+      React.createElement(SimpleChart, { title: "Match Activity", data: matchChart, type: "bar", lines: [{ key: "matches_classic", name: "Classic", color: "#68d391" }, { key: "matches_wagered", name: "Wagered", color: "#9f7aea" }] }),
+    ),
+    React.createElement("div", { className: "charts-grid charts-full" },
+      React.createElement(SimpleChart, { title: "Points Economy", data: pointsChart, type: "line", lines: [{ key: "points_earned", name: "Earned", color: "#667eea" }, { key: "points_spent", name: "Spent", color: "#f6ad55" }] }),
     )
   );
 }
@@ -567,6 +620,51 @@ function ReportsPage() {
   );
 }
 
+function ChatLogsPage() {
+  const [messages, setMessages] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [roomCode, setRoomCode] = useState("");
+  const [userId, setUserId] = useState("");
+  const api = useApi();
+  const toast = useToast();
+
+  const fetchLogs = async (p) => {
+    try {
+      let params = `?page=${p}&limit=50`;
+      if (roomCode) params += `&roomCode=${encodeURIComponent(roomCode)}`;
+      if (userId) params += `&userId=${encodeURIComponent(userId)}`;
+      const d = await api.get("/moderation/chat" + params);
+      setMessages(d.messages); setTotal(d.total);
+    } catch (e) {}
+  };
+  useEffect(() => { fetchLogs(page); }, [page]);
+
+  const handleSearch = () => { setPage(1); fetchLogs(1); };
+  const handleFlag = async (id) => {
+    try { await api.post(`/moderation/chat/${id}/flag`, {}); toast.show("Message flagged"); fetchLogs(page); }
+    catch (e) { toast.show(e.message, "error"); }
+  };
+
+  const columns = [
+    { key: "created_at", label: "Time", render: v => v ? new Date(v).toLocaleString() : "—" },
+    { key: "room_code", label: "Room" },
+    { key: "sender_name", label: "Sender", render: (v, row) => v || row.client_id?.slice(0, 8) || "—" },
+    { key: "message", label: "Message" },
+    { key: "flagged", label: "Flag", render: (v, row) => v ? React.createElement("span", { className: "badge badge-error" }, "⚑") : React.createElement("button", { className: "btn btn-ghost btn-sm", onClick: () => handleFlag(row.id) }, "Flag") },
+  ];
+
+  return React.createElement("div", { className: "page" },
+    React.createElement("h1", { className: "page-title" }, "Chat Logs"),
+    React.createElement("div", { className: "table-toolbar" },
+      React.createElement("input", { className: "form-input", placeholder: "Room code", value: roomCode, onChange: e => setRoomCode(e.target.value), style: { maxWidth: "160px" } }),
+      React.createElement("input", { className: "form-input", placeholder: "User ID", value: userId, onChange: e => setUserId(e.target.value), style: { maxWidth: "120px" } }),
+      React.createElement("button", { className: "btn btn-secondary", onClick: handleSearch }, "Search"),
+    ),
+    React.createElement(DataTable, { columns, data: messages, total, page, limit: 50, onPageChange: setPage, emptyMessage: "No chat logs found. Messages appear here when flagged for review." })
+  );
+}
+
 function SuspiciousPage() {
   const [items, setItems] = useState([]);
   const api = useApi();
@@ -758,9 +856,8 @@ function App() {
     "/matches": () => React.createElement(MatchesPage),
     "/content/emojis": () => React.createElement(EmojisPage),
     "/content/announcements": () => React.createElement(AnnouncementsPage),
-    "/content/powerups": () => React.createElement(PlaceholderPage, { title: "Power-ups" }),
     "/moderation/reports": () => React.createElement(ReportsPage),
-    "/moderation/chat": () => React.createElement(PlaceholderPage, { title: "Chat Logs" }),
+    "/moderation/chat": () => React.createElement(ChatLogsPage),
     "/moderation/suspicious": () => React.createElement(SuspiciousPage),
     "/operations/health": () => React.createElement(HealthPage),
     "/operations/config": () => React.createElement(ConfigPage),
