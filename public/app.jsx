@@ -898,7 +898,7 @@ function BottomSheet({ open, onClose, title, children }) {
 }
 
 // ---------- Lobby ----------
-function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onHelp, onHistory, error, authUser, authError, verifyNotice, clientId, signInDisabled, onSignInDisable, onEmailAuthSuccess, balance }) {
+function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onHelp, onHistory, onFriends, error, authUser, authError, verifyNotice, clientId, signInDisabled, onSignInDisable, onEmailAuthSuccess, balance }) {
   const [code, setCode] = useState("");
   const [roomStake, setRoomStake] = useState(0);
   const [friendSheetOpen, setFriendSheetOpen] = useState(false);
@@ -968,6 +968,11 @@ function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onHelp, onHistory, error
         <button className="btn ghost compact" onClick={onHelp}>{t("help.open")}</button>
         {authUser && (
           <button className="btn ghost compact" onClick={onHistory}>{t("history.open")}</button>
+        )}
+        {authUser && (
+          <button className="btn ghost compact" onClick={onFriends}>
+            👥 {t("friends.list")}
+          </button>
         )}
         {!authUser && (
           <button className="btn ghost compact" onClick={() => setAuthSheetOpen(true)}>{t("auth.signIn")}</button>
@@ -2107,6 +2112,223 @@ function AvatarMenu({ open, user, onViewProfile, onSignOut, onCancel, setViewPro
   );
 }
 
+// ---------- FriendsList (Phase 17) ----------
+function FriendsList({ authUser, onBack, socket, balance, onChallenge }) {
+  const [friends, setFriends] = useState([]);
+  const [pending, setPending] = useState([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [challengeTarget, setChallengeTarget] = useState(null);
+  const [challengeStake, setChallengeStake] = useState(0);
+  const [challengeWaiting, setChallengeWaiting] = useState(false);
+  const [notice, setNotice] = useState(null);
+  const searchTimer = useRef(null);
+
+  useEffect(() => {
+    fetch("/api/friends").then(r => r.ok ? r.json() : []).then(setFriends).catch(() => {});
+    fetch("/api/friends/pending").then(r => r.ok ? r.json() : []).then(setPending).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!socket) return;
+    const onStatusChange = ({ userId, status }) => {
+      setFriends(prev => prev.map(f => f.id === userId ? { ...f, status } : f));
+    };
+    const onList = (data) => setFriends(data);
+    const onPending = (data) => setPending(data);
+    const onReqReceived = (req) => setPending(prev => [...prev, req]);
+    const onChallengeAccepted = () => { setChallengeWaiting(false); setChallengeTarget(null); };
+    const onChallengeDeclined = () => { setChallengeWaiting(false); setChallengeTarget(null); showNotice(t("challenge.declined")); };
+    const onChallengeExpired = () => { setChallengeWaiting(false); setChallengeTarget(null); showNotice(t("challenge.expired")); };
+    socket.on("friend:status-change", onStatusChange);
+    socket.on("friend:list", onList);
+    socket.on("friend:pending", onPending);
+    socket.on("friend:request-received", onReqReceived);
+    socket.on("friend:challenge-accepted", onChallengeAccepted);
+    socket.on("friend:challenge-declined", onChallengeDeclined);
+    socket.on("friend:challenge-expired", onChallengeExpired);
+    return () => {
+      socket.off("friend:status-change", onStatusChange);
+      socket.off("friend:list", onList);
+      socket.off("friend:pending", onPending);
+      socket.off("friend:request-received", onReqReceived);
+      socket.off("friend:challenge-accepted", onChallengeAccepted);
+      socket.off("friend:challenge-declined", onChallengeDeclined);
+      socket.off("friend:challenge-expired", onChallengeExpired);
+    };
+  }, [socket]);
+
+  function showNotice(msg) { setNotice(msg); setTimeout(() => setNotice(null), 3000); }
+
+  function handleSearch(q) {
+    setSearchQuery(q);
+    if (q.length < 2) { setSearchResults([]); return; }
+    clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => {
+      fetch("/api/friends/search?q=" + encodeURIComponent(q)).then(r => r.ok ? r.json() : []).then(setSearchResults).catch(() => {});
+    }, 300);
+  }
+
+  function handleAddFriend(targetId) {
+    fetch("/api/friends/request", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ targetUserId: targetId }) })
+      .then(r => { if (r.ok) showNotice(t("friends.added")); })
+      .catch(() => {});
+  }
+
+  function handleAccept(friendshipId) {
+    socket.emit("friend:accept", { friendshipId }, (res) => {
+      if (res.ok) setPending(prev => prev.filter(p => p.friendship_id !== friendshipId));
+    });
+  }
+
+  function handleReject(friendshipId) {
+    socket.emit("friend:reject", { friendshipId }, (res) => {
+      if (res.ok) setPending(prev => prev.filter(p => p.friendship_id !== friendshipId));
+    });
+  }
+
+  function handleChallenge(friend) {
+    setChallengeTarget(friend);
+    setChallengeStake(0);
+  }
+
+  function sendChallenge() {
+    if (!challengeTarget) return;
+    setChallengeWaiting(true);
+    socket.emit("friend:challenge", { friendId: challengeTarget.id, stake: challengeStake }, (res) => {
+      if (!res.ok) { setChallengeWaiting(false); showNotice(t("challenge.notAvailable")); }
+    });
+  }
+
+  const online = friends.filter(f => f.status === "online");
+  const inGame = friends.filter(f => f.status === "in-game");
+  const offline = friends.filter(f => !f.status || f.status === "offline");
+
+  return (
+    <div className="friends-screen">
+      <div className="friends-header">
+        <button className="btn ghost compact" onClick={onBack}>← {t("history.back")}</button>
+        <h2>👥 {t("friends.title")} ({friends.length})</h2>
+      </div>
+      {notice && <div className="notice-toast">{notice}</div>}
+      <div className="friends-search">
+        <input type="text" placeholder={t("friends.search")} value={searchQuery} onChange={e => handleSearch(e.target.value)} className="code-input" />
+      </div>
+      {searchQuery.length >= 2 && searchResults.length > 0 && (
+        <div className="friends-search-results">
+          {searchResults.map(u => (
+            <div key={u.id} className="friend-row">
+              <span className="friend-name">{u.display_name}</span>
+              <button className="btn compact primary" onClick={() => handleAddFriend(u.id)}>➕</button>
+            </div>
+          ))}
+        </div>
+      )}
+      {pending.length > 0 && (
+        <div className="friends-section">
+          <div className="friends-section-title">📬 {t("friends.pending")} ({pending.length})</div>
+          {pending.map(p => (
+            <div key={p.friendship_id} className="friend-row pending-row">
+              <span className="friend-name">{p.display_name}</span>
+              <div className="friend-actions">
+                <button className="btn compact primary" onClick={() => handleAccept(p.friendship_id)}>✓</button>
+                <button className="btn compact ghost" onClick={() => handleReject(p.friendship_id)}>✗</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {online.length > 0 && (
+        <div className="friends-section">
+          <div className="friends-section-title">🟢 {t("friends.online")} ({online.length})</div>
+          {online.map(f => (
+            <div key={f.id} className="friend-row">
+              <span className="status-dot online"></span>
+              <span className="friend-name">{f.display_name}</span>
+              <span className="friend-h2h">{f.h2h ? `${f.h2h.myWins}-${f.h2h.theirWins}` : ""}</span>
+              <button className="btn compact primary" onClick={() => handleChallenge(f)}>⚔️</button>
+            </div>
+          ))}
+        </div>
+      )}
+      {inGame.length > 0 && (
+        <div className="friends-section">
+          <div className="friends-section-title">🎮 {t("friends.inGame")} ({inGame.length})</div>
+          {inGame.map(f => (
+            <div key={f.id} className="friend-row">
+              <span className="status-dot ingame"></span>
+              <span className="friend-name">{f.display_name}</span>
+              <span className="friend-h2h">{f.h2h ? `${f.h2h.myWins}-${f.h2h.theirWins}` : ""}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {offline.length > 0 && (
+        <div className="friends-section">
+          <div className="friends-section-title">⚫ {t("friends.offline")} ({offline.length})</div>
+          {offline.map(f => (
+            <div key={f.id} className="friend-row">
+              <span className="status-dot offline"></span>
+              <span className="friend-name">{f.display_name}</span>
+              <span className="friend-h2h">{f.h2h ? `${f.h2h.myWins}-${f.h2h.theirWins}` : ""}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {friends.length === 0 && pending.length === 0 && !searchQuery && (
+        <div className="friends-empty">{t("friends.none")}</div>
+      )}
+      {/* Challenge BottomSheet */}
+      <BottomSheet open={!!challengeTarget && !challengeWaiting} onClose={() => setChallengeTarget(null)} title={t("challenge.title", { name: challengeTarget?.display_name || "" })}>
+        <div className="wager-chips" style={{ justifyContent: "center", margin: "10px 0" }}>
+          {[0, 10, 25, 50, 100].map(s => (
+            <button key={s} className={"chip" + (challengeStake === s ? " active" : "")} onClick={() => setChallengeStake(s)} disabled={s > 0 && (balance == null || balance < s)}>
+              {s === 0 ? t("queue.stake0") : s}
+            </button>
+          ))}
+        </div>
+        <div style={{ textAlign: "center", marginBottom: 10, fontSize: "1.1em" }}>💰 {balance ?? 0}</div>
+        <button className="btn primary" onClick={sendChallenge}>⚔️ {t("challenge.send")}</button>
+      </BottomSheet>
+      {/* Waiting state */}
+      {challengeWaiting && (
+        <div className="challenge-waiting">
+          <div className="challenge-waiting-text">⏳ {t("challenge.waiting")}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------- ChallengePopup (Phase 17) ----------
+function ChallengePopup({ challenge, onAccept, onDecline }) {
+  const [timeLeft, setTimeLeft] = useState(60);
+  useEffect(() => {
+    if (!challenge) return;
+    const iv = setInterval(() => {
+      const rem = Math.max(0, Math.ceil((challenge.expiresAt - Date.now()) / 1000));
+      setTimeLeft(rem);
+      if (rem <= 0) { onDecline(); clearInterval(iv); }
+    }, 1000);
+    return () => clearInterval(iv);
+  }, [challenge]);
+  if (!challenge) return null;
+  return (
+    <div className="challenge-overlay">
+      <div className="challenge-popup">
+        <div className="challenge-popup-icon">⚔️</div>
+        <div className="challenge-popup-text">{t("challenge.received", { name: challenge.from.displayName })}</div>
+        {challenge.stake > 0 && <div className="challenge-popup-stake">💰 {challenge.stake} coin</div>}
+        <div className="challenge-popup-timer">⏱️ {timeLeft}s</div>
+        <div className="challenge-popup-actions">
+          <button className="btn primary" onClick={onAccept}>✓ {t("challenge.accept")}</button>
+          <button className="btn ghost" onClick={onDecline}>✗ {t("challenge.decline")}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ---------- MatchHistory (Phase 13) ----------
 // Paginated, filterable match history screen for authenticated users.
 function MatchHistory({ authUser, onBack }) {
@@ -2611,6 +2833,9 @@ function App() {
   const [placementInv, setPlacementInv]         = useState({ sonar: 0, cross: 0, decoy: 0, scatter: 0 });
   const [placementPurchases, setPlacementPurchases] = useState(0);
   const [decoyPending, setDecoyPending]         = useState(false);
+  // Friends & Challenge state (Phase 17)
+  const [incomingChallenge, setIncomingChallenge] = useState(null); // { challengeId, from, stake, expiresAt }
+  const [pendingFriendCount, setPendingFriendCount] = useState(0);
   const [decoyCell, setDecoyCell]               = useState(null);   // {r,c} or null
   // Battle-phase power-up state (Phase 15-05)
   const [inv, setInv]                           = useState({ sonar: 0, cross: 0, decoy: 0, scatter: 0 });
@@ -2928,6 +3153,14 @@ function App() {
     });
     socket.on("scoreUpdate", ({ you, opp }) => { setMyScore(you); setOppScore(opp); });
     socket.on("balanceUpdate", (data) => setBalance(data.balance));
+    // Phase 17: friend/challenge listeners
+    socket.on("friend:challenge-received", (data) => {
+      // Only show if not in a game
+      setIncomingChallenge(data);
+    });
+    socket.on("friend:challenge-expired", () => setIncomingChallenge(null));
+    socket.on("friend:pending", (data) => setPendingFriendCount(data.length));
+    socket.on("friend:request-received", () => setPendingFriendCount(prev => prev + 1));
     socket.on("premiumEmoji", (data) => {
       setEmojiAnimQueue(prev => [...prev, { ...data, key: data.ts + "_" + data.slug }]);
     });
@@ -3414,7 +3647,7 @@ function App() {
 
       {notice && <div className="notice-toast">{notice}</div>}
 
-      {screen === "lobby" && <Lobby onCreate={createRoom} onJoin={joinRoom} onBot={handleBot} onQuickMatch={handleQuickMatch} onHelp={() => setHelpOpen(true)} onHistory={() => setScreen("history")} error={error} authUser={authUser} authError={authError} verifyNotice={verifyNotice} clientId={clientId} signInDisabled={signInDisabled} onSignInDisable={() => setSignInDisabled(true)} onEmailAuthSuccess={setAuthUser} balance={balance} />}
+      {screen === "lobby" && <Lobby onCreate={createRoom} onJoin={joinRoom} onBot={handleBot} onQuickMatch={handleQuickMatch} onHelp={() => setHelpOpen(true)} onHistory={() => setScreen("history")} onFriends={() => setScreen("friends")} error={error} authUser={authUser} authError={authError} verifyNotice={verifyNotice} clientId={clientId} signInDisabled={signInDisabled} onSignInDisable={() => setSignInDisabled(true)} onEmailAuthSuccess={setAuthUser} balance={balance} />}
 
       {screen === "queue" && (
         <div className="lobby">
@@ -3461,6 +3694,10 @@ function App() {
 
       {screen === "history" && (
         <MatchHistory authUser={authUser} onBack={() => setScreen("lobby")} />
+      )}
+
+      {screen === "friends" && (
+        <FriendsList authUser={authUser} onBack={() => setScreen("lobby")} socket={socket} balance={balance} />
       )}
 
       <HelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />
@@ -3562,6 +3799,23 @@ function App() {
         <div className="offline-banner">
           {t("offline.banner")}{graceLeft > 0 ? ` (${graceLeft}s)` : ""}…
         </div>
+      )}
+
+      {/* Phase 17: Incoming challenge popup */}
+      {incomingChallenge && screen !== "battle" && screen !== "placement" && (
+        <ChallengePopup
+          challenge={incomingChallenge}
+          onAccept={() => {
+            socket.emit("friend:challenge-accept", { challengeId: incomingChallenge.challengeId }, (res) => {
+              if (res.ok) { setIncomingChallenge(null); setCode(res.code); setStake(res.stake || 0); setScreen("room"); }
+              else setIncomingChallenge(null);
+            });
+          }}
+          onDecline={() => {
+            socket.emit("friend:challenge-decline", { challengeId: incomingChallenge.challengeId });
+            setIncomingChallenge(null);
+          }}
+        />
       )}
 
       {/* xác nhận rời phòng (window.confirm bị chặn trong iframe IG) */}

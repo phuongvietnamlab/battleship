@@ -1157,6 +1157,38 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 .opp-stats-popup .opp-add-friend { margin-top:8px; width:100%; font-size:12px; padding:6px 10px; }
 .opp-stats-popup .friendship-badge { margin-top:8px; font-size:12px; color:#7ab3e0; }
 
+/* ─── Friends Screen (Phase 17) ─────────────────────────────────────────────── */
+.friends-screen { max-width:440px; margin:2vh auto 0; padding:20px; }
+.friends-header { display:flex; align-items:center; gap:12px; margin-bottom:16px; }
+.friends-header h2 { margin:0; font-size:1.2em; }
+.friends-search { margin-bottom:12px; }
+.friends-search input { width:100%; padding:8px 12px; border-radius:8px; border:1px solid rgba(120,190,255,.3); background:rgba(7,22,44,.6); color:#fff; font-size:14px; }
+.friends-search-results { background:rgba(7,22,44,.9); border:1px solid rgba(120,190,255,.2); border-radius:8px; padding:8px; margin-bottom:12px; }
+.friends-section { margin-bottom:16px; }
+.friends-section-title { font-size:12px; font-weight:700; color:#7ab3e0; margin-bottom:6px; text-transform:uppercase; letter-spacing:.5px; }
+.friend-row { display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:8px; background:rgba(120,190,255,.06); margin-bottom:4px; }
+.friend-row.pending-row { background:rgba(255,200,100,.08); }
+.friend-name { flex:1; font-size:14px; color:#fff; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.friend-h2h { font-size:12px; color:#7ab3e0; font-weight:600; min-width:36px; text-align:center; }
+.friend-actions { display:flex; gap:4px; }
+.friends-empty { text-align:center; color:#7ab3e0; padding:40px 20px; font-size:14px; }
+.status-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+.status-dot.online { background:#4cff8b; }
+.status-dot.ingame { background:#ffd700; }
+.status-dot.offline { background:#555; }
+.challenge-waiting { text-align:center; padding:20px; color:#7ab3e0; }
+.challenge-waiting-text { font-size:16px; animation:pulse 1.5s ease infinite; }
+
+/* Challenge Popup */
+.challenge-overlay { position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,.7); display:flex; align-items:center; justify-content:center; }
+.challenge-popup { background:linear-gradient(135deg,#0a1628,#132a4a); border:1px solid rgba(120,190,255,.3); border-radius:16px; padding:28px 24px; text-align:center; min-width:280px; max-width:90vw; box-shadow:0 8px 32px rgba(0,0,0,.6); }
+.challenge-popup-icon { font-size:40px; margin-bottom:12px; }
+.challenge-popup-text { font-size:16px; color:#fff; font-weight:600; margin-bottom:8px; }
+.challenge-popup-stake { font-size:18px; color:#ffd700; font-weight:700; margin-bottom:8px; }
+.challenge-popup-timer { font-size:24px; color:#ff6b6b; font-weight:700; margin-bottom:16px; }
+.challenge-popup-actions { display:flex; gap:12px; justify-content:center; }
+.challenge-popup-actions .btn { min-width:100px; }
+
 @media (max-width:360px) {
   .history-view { padding:18px 14px; margin:3vh auto 0; }
   .match-card { padding:10px 12px; gap:10px; }
