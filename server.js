@@ -1078,6 +1078,93 @@ app.delete("/api/friends/:friendId", async (req, res) => {
 // }
 const rooms = {};
 
+// ─── Phase 17: Presence tracking ─────────────────────────────────────────────
+const userSockets = new Map();        // userId → Set<socketId>
+const userPresence = new Map();       // userId → 'online' | 'in-game' | 'offline'
+const disconnectTimers = new Map();   // userId → setTimeout handle
+
+async function broadcastPresenceToFriends(userId, status) {
+  try {
+    const friends = await getFriendsList(userId);
+    for (const friend of friends) {
+      const friendSocks = userSockets.get(friend.id);
+      if (friendSocks) {
+        for (const sid of friendSocks) {
+          io.to(sid).emit("friend:status-change", { userId, status });
+        }
+      }
+    }
+  } catch (e) {
+    console.error("[presence] broadcast error:", e.message);
+  }
+}
+
+async function sendFriendListWithPresence(userId, socket) {
+  try {
+    const friends = await getFriendsList(userId);
+    const friendIds = friends.map(f => f.id);
+    const h2h = await getBatchH2HStats(userId, friendIds);
+    const friendsWithPresence = friends.map(f => ({
+      ...f,
+      status: userPresence.get(f.id) || "offline",
+      h2h: h2h[f.id] || { myWins: 0, theirWins: 0 },
+    }));
+    socket.emit("friend:list", friendsWithPresence);
+    const pending = await getPendingRequests(userId);
+    socket.emit("friend:pending", pending);
+  } catch (e) {
+    console.error("[presence] sendFriendList error:", e.message);
+  }
+}
+
+function registerPresence(userId, socketId) {
+  if (!userId) return;
+  // Cancel any pending offline timer
+  if (disconnectTimers.has(userId)) {
+    clearTimeout(disconnectTimers.get(userId));
+    disconnectTimers.delete(userId);
+  }
+  // Register socket
+  if (!userSockets.has(userId)) userSockets.set(userId, new Set());
+  userSockets.get(userId).add(socketId);
+  // Set presence online (only if not already in-game from another tab)
+  if (userPresence.get(userId) !== "in-game") {
+    userPresence.set(userId, "online");
+  }
+  // Broadcast to friends (async, fire-and-forget)
+  broadcastPresenceToFriends(userId, userPresence.get(userId));
+}
+
+function unregisterPresence(userId, socketId) {
+  if (!userId) return;
+  const sockets = userSockets.get(userId);
+  if (!sockets) return;
+  sockets.delete(socketId);
+  if (sockets.size === 0) {
+    userSockets.delete(userId);
+    // 30s grace period before going offline (PRES-02)
+    const timer = setTimeout(() => {
+      userPresence.set(userId, "offline");
+      disconnectTimers.delete(userId);
+      broadcastPresenceToFriends(userId, "offline");
+    }, 30000);
+    disconnectTimers.set(userId, timer);
+  }
+}
+
+function setPresenceInGame(userId) {
+  if (!userId) return;
+  userPresence.set(userId, "in-game");
+  broadcastPresenceToFriends(userId, "in-game");
+}
+
+function setPresenceOnline(userId) {
+  if (!userId) return;
+  if (!userSockets.has(userId)) return; // already disconnected
+  userPresence.set(userId, "online");
+  broadcastPresenceToFriends(userId, "online");
+}
+
 function makeCode() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let c = "";
@@ -1560,6 +1647,11 @@ function endGameForfeit(room, loserId, reason) {
   emitToClient(room, loserId, "gameOver", { win: false, reason });
   room.started = false;
   room.turn = null;
+  // Phase 17: restore presence to online for both players
+  for (const id of room.order) {
+    const p = room.players[id];
+    if (p && p.userId) setPresenceOnline(p.userId);
+  }
   // Record match after both gameOver emits (D-07); room.started was true entering forfeit.
   // Guard: !room.recorded dedup (D-06); order.length===2 belt-and-suspenders.
   if (winnerId && !room.recorded && room.order.length === 2) {
@@ -1630,6 +1722,11 @@ function doShot(room, clientId, cells, opts = {}) {
     emitToClient(room, opp, "gameOver", { win: false });
     room.started = false;
     clearTurnTimer(room);
+    // Phase 17: restore presence to online for both players
+    for (const id of room.order) {
+      const p = room.players[id];
+      if (p && p.userId) setPresenceOnline(p.userId);
+    }
     if (!room.recorded && room.order.length === 2) {
       room.recorded = true;
       const wId = room.players[clientId]?.userId ?? null;
@@ -1859,6 +1956,9 @@ io.on("connection", (socket) => {
     getWalletBalance(userId)
       .then((balance) => socket.emit("balanceUpdate", { balance }))
       .catch(() => {}); // non-fatal: balance can be fetched via /api/wallet
+    // Phase 17: register presence and notify friends
+    registerPresence(userId, socket.id);
+    sendFriendListWithPresence(userId, socket);
   }
 
   socket.on("createRoom", async (arg, cb) => {
@@ -2259,6 +2359,11 @@ io.on("connection", (socket) => {
     if (allReady) {
       room.started = true;
       room.startedAt = new Date(); // capture battle start time for match recording (MATCH-01)
+      // Phase 17: set both players to in-game presence
+      for (const id of ids) {
+        const p = room.players[id];
+        if (p && p.userId) setPresenceInGame(p.userId);
+      }
       // Phase 13: resolve userId for guest players so recordMatch can persist the match
       for (const id of ids) {
         if (!room.players[id].userId) {
@@ -2621,6 +2726,11 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", () => {
+    // Phase 17: presence cleanup (30s grace before going offline)
+    if (socket.data.userId) {
+      unregisterPresence(socket.data.userId, socket.id);
+    }
+
     // QUEUE-03: queue cleanup with wager refund runs FIRST — must happen before
     // any room handling so a phantom slot never lingers (T-5-10, RESEARCH Pitfall 2).
     // Phase 7: refund wagered entries on disconnect.
