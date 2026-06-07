@@ -95,3 +95,23 @@ Since Kiro does not have `AskUserQuestion` tool or slash-command registration:
 3. **Verify before shipping**: Always verify work satisfies requirements before declaring done.
 4. **Do not apply GSD workflows unless the user explicitly asks** (via `/gsd-*` command or
    mentioning GSD by name).
+
+## Playwright Auto-Verification
+
+After execute-phase completes, the system automatically runs Playwright browser testing
+on features just built (controlled by `workflow.auto_verify_work` and `workflow.playwright_verify`
+in config.json).
+
+**Flow:** Execute → Verify-phase (includes Playwright) → Verify-work (Playwright + manual UAT)
+
+**How it works:**
+1. Reads SUMMARY.md to identify what UI features were built
+2. Derives test flows (navigation, interactions, form submissions)
+3. Uses Playwright MCP tools to simulate real user actions
+4. Auto-passes verified flows, flags failures for manual review
+5. Only presents items needing human judgment in manual UAT
+
+**Config keys:**
+- `workflow.auto_verify_work: true` — Auto-run verify-work after execute-phase (default: true)
+- `workflow.playwright_verify: true` — Enable Playwright in verification (default: true)
+- `workflow.app_url: "http://localhost:4000"` — App URL for Playwright to navigate to

@@ -42,7 +42,10 @@
     "security_enforcement": true,
     "security_asvs_level": 1,
     "security_block_on": "high",
-    "_auto_chain_active": false
+    "_auto_chain_active": false,
+    "auto_verify_work": true,
+    "playwright_verify": true,
+    "app_url": "http://localhost:4000"
   },
   "ship": {
     "pr_body_sections": [
