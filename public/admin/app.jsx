@@ -270,7 +270,443 @@ function DashboardPage() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Placeholder pages (to be expanded in Plan 08)
+// DataTable Component
+// ═══════════════════════════════════════════════════════════════════════════════
+function DataTable({ columns, data, total, page, limit, onPageChange, loading, emptyMessage, onRowClick }) {
+  const totalPages = Math.ceil((total || 0) / (limit || 25));
+  if (loading) return React.createElement("div", { className: "table-loading" }, "Loading...");
+  if (!data || data.length === 0) return React.createElement("div", { className: "table-empty" }, emptyMessage || "No data");
+
+  return React.createElement("div", { className: "table-container" },
+    React.createElement("table", { className: "data-table" },
+      React.createElement("thead", null,
+        React.createElement("tr", null, columns.map(col =>
+          React.createElement("th", { key: col.key }, col.label)
+        ))
+      ),
+      React.createElement("tbody", null, data.map((row, i) =>
+        React.createElement("tr", { key: row.id || i, onClick: onRowClick ? () => onRowClick(row) : undefined, className: onRowClick ? "clickable" : "" },
+          columns.map(col => React.createElement("td", { key: col.key },
+            col.render ? col.render(row[col.key], row) : (row[col.key] != null ? String(row[col.key]) : "—")
+          ))
+        )
+      ))
+    ),
+    total > limit && React.createElement("div", { className: "table-pagination" },
+      React.createElement("span", { className: "pagination-info" }, `Showing ${(page-1)*limit+1}-${Math.min(page*limit, total)} of ${total}`),
+      React.createElement("div", { className: "pagination-btns" },
+        React.createElement("button", { className: "btn btn-ghost", disabled: page <= 1, onClick: () => onPageChange(page-1) }, "←"),
+        React.createElement("span", { className: "pagination-page" }, `${page}/${totalPages}`),
+        React.createElement("button", { className: "btn btn-ghost", disabled: page >= totalPages, onClick: () => onPageChange(page+1) }, "→")
+      )
+    )
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Users Page
+// ═══════════════════════════════════════════════════════════════════════════════
+function UsersPage() {
+  const [users, setUsers] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("all");
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState(null);
+  const api = useApi();
+  const toast = useToast();
+  const { t } = useI18n();
+  const searchTimer = useRef(null);
+
+  const fetchUsers = async (p, s, st) => {
+    setLoading(true);
+    try {
+      const params = `?page=${p}&limit=25${s ? "&search=" + encodeURIComponent(s) : ""}${st !== "all" ? "&status=" + st : ""}`;
+      const data = await api.get("/users" + params);
+      setUsers(data.users); setTotal(data.total);
+    } catch (e) {} finally { setLoading(false); }
+  };
+
+  useEffect(() => { fetchUsers(page, search, status); }, [page, status]);
+
+  const handleSearch = (val) => {
+    setSearch(val);
+    clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => { setPage(1); fetchUsers(1, val, status); }, 300);
+  };
+
+  const handleBan = async (userId, reason) => {
+    try { await api.post(`/users/${userId}/ban`, { reason, duration: "7 days" }); toast.show("User banned"); fetchUsers(page, search, status); }
+    catch (e) { toast.show("Ban failed: " + e.message, "error"); }
+  };
+
+  const handleExport = () => { window.open(`/api/admin/users/export?search=${encodeURIComponent(search)}&status=${status}`, "_blank"); };
+
+  const columns = [
+    { key: "id", label: "ID" },
+    { key: "display_name", label: "Name", render: (v) => v || "[no name]" },
+    { key: "email", label: "Email", render: (v) => v || "—" },
+    { key: "created_at", label: "Joined", render: (v) => v ? new Date(v).toLocaleDateString() : "—" },
+    { key: "ban_type", label: "Status", render: (v, row) => {
+      if (row.deleted_at) return React.createElement("span", { className: "badge badge-neutral" }, "deleted");
+      if (v === "ban") return React.createElement("span", { className: "badge badge-error" }, "banned");
+      if (v === "mute") return React.createElement("span", { className: "badge badge-warning" }, "muted");
+      return React.createElement("span", { className: "badge badge-success" }, "active");
+    }},
+    { key: "actions", label: "", render: (_, row) => React.createElement("div", { className: "row-actions" },
+      !row.ban_type && React.createElement("button", { className: "btn btn-ghost btn-sm btn-error-text", onClick: (e) => { e.stopPropagation(); const r = prompt("Reason for ban:"); if (r) handleBan(row.id, r); } }, "Ban")
+    )},
+  ];
+
+  return React.createElement("div", { className: "page" },
+    React.createElement("div", { className: "page-header" },
+      React.createElement("h1", { className: "page-title" }, t("nav.users")),
+      React.createElement("button", { className: "btn btn-secondary", onClick: handleExport }, t("common.export"))
+    ),
+    React.createElement("div", { className: "table-toolbar" },
+      React.createElement("input", { className: "form-input search-input", placeholder: t("common.search"), value: search, onChange: e => handleSearch(e.target.value) }),
+      React.createElement("select", { className: "form-input filter-select", value: status, onChange: e => { setStatus(e.target.value); setPage(1); } },
+        React.createElement("option", { value: "all" }, "All"),
+        React.createElement("option", { value: "active" }, "Active"),
+        React.createElement("option", { value: "banned" }, "Banned"),
+        React.createElement("option", { value: "deleted" }, "Deleted"),
+      )
+    ),
+    React.createElement(DataTable, { columns, data: users, total, page, limit: 25, onPageChange: setPage, loading, onRowClick: (row) => setSelected(row.id) }),
+    selected && React.createElement(UserDetail, { userId: selected, onClose: () => setSelected(null), onAction: () => fetchUsers(page, search, status) })
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// User Detail Panel
+// ═══════════════════════════════════════════════════════════════════════════════
+function UserDetail({ userId, onClose, onAction }) {
+  const [user, setUser] = useState(null);
+  const api = useApi();
+  const toast = useToast();
+
+  useEffect(() => { api.get(`/users/${userId}`).then(setUser).catch(() => {}); }, [userId]);
+
+  if (!user) return React.createElement("div", { className: "detail-panel" }, "Loading...");
+
+  const handleUnban = async () => { await api.post(`/users/${userId}/unban`, {}); toast.show("User unbanned"); onAction(); onClose(); };
+  const handlePoints = async () => {
+    const amt = prompt("Amount (+/-):");
+    const reason = prompt("Reason:");
+    if (amt && reason) { try { await api.post(`/users/${userId}/points`, { amount: parseInt(amt), reason }); toast.show("Points adjusted"); onAction(); } catch(e) { toast.show(e.message, "error"); }}
+  };
+
+  return React.createElement("div", { className: "detail-overlay", onClick: onClose },
+    React.createElement("div", { className: "detail-panel", onClick: e => e.stopPropagation() },
+      React.createElement("div", { className: "detail-header" },
+        React.createElement("h2", null, user.display_name || "User #" + user.id),
+        React.createElement("button", { className: "btn btn-ghost", onClick: onClose }, "×")
+      ),
+      React.createElement("div", { className: "detail-body" },
+        React.createElement("div", { className: "detail-row" }, React.createElement("span", null, "Email:"), React.createElement("span", null, user.email || "—")),
+        React.createElement("div", { className: "detail-row" }, React.createElement("span", null, "Balance:"), React.createElement("span", null, user.wallet?.balance ?? "N/A")),
+        React.createElement("div", { className: "detail-row" }, React.createElement("span", null, "Matches:"), React.createElement("span", null, `${user.matchStats?.wins || 0}W / ${user.matchStats?.losses || 0}L`)),
+        React.createElement("div", { className: "detail-row" }, React.createElement("span", null, "Joined:"), React.createElement("span", null, new Date(user.created_at).toLocaleDateString())),
+        React.createElement("div", { className: "detail-row" }, React.createElement("span", null, "Auth:"), React.createElement("span", null, user.authMethods?.map(m => m.type).join(", "))),
+        user.banHistory?.length > 0 && React.createElement("div", { className: "detail-section" },
+          React.createElement("h3", null, "Ban History"),
+          user.banHistory.map(b => React.createElement("div", { key: b.id, className: "detail-row" },
+            React.createElement("span", { className: `badge badge-${b.active ? "error" : "neutral"}` }, b.type),
+            React.createElement("span", null, b.reason)
+          ))
+        )
+      ),
+      React.createElement("div", { className: "detail-footer" },
+        React.createElement("button", { className: "btn btn-secondary", onClick: handlePoints }, "Adjust Points"),
+        React.createElement("button", { className: "btn btn-secondary", onClick: handleUnban }, "Unban"),
+      )
+    )
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Matches Page
+// ═══════════════════════════════════════════════════════════════════════════════
+function MatchesPage() {
+  const [matches, setMatches] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const api = useApi();
+  const { t } = useI18n();
+
+  const fetchMatches = async (p) => {
+    setLoading(true);
+    try { const data = await api.get(`/matches?page=${p}&limit=25`); setMatches(data.matches); setTotal(data.total); }
+    catch (e) {} finally { setLoading(false); }
+  };
+  useEffect(() => { fetchMatches(page); }, [page]);
+
+  const columns = [
+    { key: "id", label: "ID" },
+    { key: "winner_name", label: "Winner", render: v => v || "—" },
+    { key: "loser_name", label: "Loser", render: v => v || "—" },
+    { key: "mode", label: "Mode", render: v => React.createElement("span", { className: "badge badge-neutral" }, v || "classic") },
+    { key: "stake", label: "Stake", render: v => v > 0 ? `${v} pts` : "Free" },
+    { key: "reason", label: "Result" },
+    { key: "ended_at", label: "Date", render: v => v ? new Date(v).toLocaleDateString() : "—" },
+    { key: "voided_at", label: "Status", render: v => v ? React.createElement("span", { className: "badge badge-error" }, "Voided") : React.createElement("span", { className: "badge badge-success" }, "OK") },
+  ];
+
+  return React.createElement("div", { className: "page" },
+    React.createElement("h1", { className: "page-title" }, t("nav.matches")),
+    React.createElement(DataTable, { columns, data: matches, total, page, limit: 25, onPageChange: setPage, loading })
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Content Pages
+// ═══════════════════════════════════════════════════════════════════════════════
+function EmojisPage() {
+  const [emojis, setEmojis] = useState([]);
+  const api = useApi();
+  const toast = useToast();
+
+  useEffect(() => { api.get("/content/emojis").then(d => setEmojis(d.emojis)).catch(() => {}); }, []);
+
+  const toggleActive = async (id, active) => {
+    try { await api.put(`/content/emojis/${id}`, { active: !active }); toast.show("Updated"); setEmojis(e => e.map(x => x.id === id ? {...x, active: !active} : x)); }
+    catch(e) { toast.show(e.message, "error"); }
+  };
+
+  return React.createElement("div", { className: "page" },
+    React.createElement("h1", { className: "page-title" }, "Emojis"),
+    React.createElement("div", { className: "card-grid" },
+      emojis.map(em => React.createElement("div", { key: em.id, className: "content-card" },
+        React.createElement("div", { className: "content-card-header" },
+          React.createElement("span", { className: "content-card-name" }, em.name),
+          React.createElement("span", { className: `badge ${em.active ? "badge-success" : "badge-neutral"}` }, em.active ? "Active" : "Inactive")
+        ),
+        React.createElement("div", { className: "content-card-body" }, `Cost: ${em.cost} pts`),
+        React.createElement("button", { className: "btn btn-ghost btn-sm", onClick: () => toggleActive(em.id, em.active) }, em.active ? "Disable" : "Enable")
+      ))
+    )
+  );
+}
+
+function AnnouncementsPage() {
+  const [items, setItems] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const api = useApi();
+  const toast = useToast();
+
+  const fetch = async (p) => { try { const d = await api.get(`/content/announcements?page=${p}`); setItems(d.announcements); setTotal(d.total); } catch(e){} };
+  useEffect(() => { fetch(page); }, [page]);
+
+  const columns = [
+    { key: "title_en", label: "Title" },
+    { key: "type", label: "Type", render: v => React.createElement("span", { className: `badge badge-${v === "warning" ? "warning" : v === "maintenance" ? "error" : "accent"}` }, v) },
+    { key: "active", label: "Active", render: v => v ? "✓" : "—" },
+    { key: "start_at", label: "Start", render: v => v ? new Date(v).toLocaleDateString() : "—" },
+    { key: "end_at", label: "End", render: v => v ? new Date(v).toLocaleDateString() : "∞" },
+  ];
+
+  return React.createElement("div", { className: "page" },
+    React.createElement("h1", { className: "page-title" }, "Announcements"),
+    React.createElement(DataTable, { columns, data: items, total, page, limit: 25, onPageChange: setPage })
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Moderation Page
+// ═══════════════════════════════════════════════════════════════════════════════
+function ReportsPage() {
+  const [reports, setReports] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [statusFilter, setStatusFilter] = useState("pending");
+  const api = useApi();
+  const toast = useToast();
+
+  const fetch = async (p, s) => { try { const d = await api.get(`/moderation/reports?page=${p}&status=${s}`); setReports(d.reports); setTotal(d.total); } catch(e){} };
+  useEffect(() => { fetch(page, statusFilter); }, [page, statusFilter]);
+
+  const resolve = async (id, status) => {
+    const resolution = status === "resolved" ? prompt("Resolution notes:") : null;
+    try { await api.put(`/moderation/reports/${id}`, { status, resolution }); toast.show("Report updated"); fetch(page, statusFilter); }
+    catch(e) { toast.show(e.message, "error"); }
+  };
+
+  const columns = [
+    { key: "reporter_name", label: "Reporter" },
+    { key: "reported_name", label: "Reported" },
+    { key: "reason", label: "Reason", render: v => React.createElement("span", { className: "badge badge-warning" }, v) },
+    { key: "status", label: "Status", render: v => React.createElement("span", { className: `badge badge-${v === "pending" ? "warning" : v === "resolved" ? "success" : "neutral"}` }, v) },
+    { key: "created_at", label: "Date", render: v => v ? new Date(v).toLocaleDateString() : "—" },
+    { key: "actions", label: "", render: (_, row) => row.status === "pending" ? React.createElement("div", { className: "row-actions" },
+      React.createElement("button", { className: "btn btn-ghost btn-sm", onClick: () => resolve(row.id, "resolved") }, "Resolve"),
+      React.createElement("button", { className: "btn btn-ghost btn-sm", onClick: () => resolve(row.id, "dismissed") }, "Dismiss"),
+    ) : null },
+  ];
+
+  return React.createElement("div", { className: "page" },
+    React.createElement("div", { className: "page-header" },
+      React.createElement("h1", { className: "page-title" }, "Reports"),
+      React.createElement("select", { className: "form-input filter-select", value: statusFilter, onChange: e => { setStatusFilter(e.target.value); setPage(1); } },
+        React.createElement("option", { value: "pending" }, "Pending"),
+        React.createElement("option", { value: "resolved" }, "Resolved"),
+        React.createElement("option", { value: "dismissed" }, "Dismissed"),
+        React.createElement("option", { value: "all" }, "All"),
+      )
+    ),
+    React.createElement(DataTable, { columns, data: reports, total, page, limit: 25, onPageChange: setPage })
+  );
+}
+
+function SuspiciousPage() {
+  const [items, setItems] = useState([]);
+  const api = useApi();
+
+  useEffect(() => { api.get("/moderation/suspicious").then(d => setItems(d.suspicious)).catch(() => {}); }, []);
+
+  const columns = [
+    { key: "user_id", label: "ID" },
+    { key: "display_name", label: "Player" },
+    { key: "wins", label: "Wins" },
+    { key: "total", label: "Games" },
+    { key: "win_rate", label: "Win Rate", render: v => React.createElement("span", { className: "badge badge-error" }, v + "%") },
+  ];
+
+  return React.createElement("div", { className: "page" },
+    React.createElement("h1", { className: "page-title" }, "Suspicious Activity"),
+    React.createElement(DataTable, { columns, data: items, total: items.length, page: 1, limit: 100, emptyMessage: "No suspicious activity detected" })
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Operations Page
+// ═══════════════════════════════════════════════════════════════════════════════
+function HealthPage() {
+  const [health, setHealth] = useState(null);
+  const api = useApi();
+
+  const fetchHealth = () => api.get("/ops/health").then(setHealth).catch(() => {});
+  useEffect(() => { fetchHealth(); const i = setInterval(fetchHealth, 10000); return () => clearInterval(i); }, []);
+
+  if (!health) return React.createElement("div", { className: "page" }, "Loading...");
+
+  const MetricBox = ({ label, value, unit }) => React.createElement("div", { className: "metric-card" },
+    React.createElement("div", { className: "metric-label" }, label),
+    React.createElement("div", { className: "metric-value" }, value, unit && React.createElement("span", { className: "metric-unit" }, " " + unit))
+  );
+
+  return React.createElement("div", { className: "page" },
+    React.createElement("h1", { className: "page-title" }, "Server Health"),
+    React.createElement("div", { className: "metric-grid metric-grid-4" },
+      React.createElement(MetricBox, { label: "Uptime", value: Math.floor(health.uptime / 3600) + "h " + Math.floor((health.uptime % 3600) / 60) + "m" }),
+      React.createElement(MetricBox, { label: "Memory (RSS)", value: health.memory.rss, unit: "MB" }),
+      React.createElement(MetricBox, { label: "Heap Used", value: health.memory.heapUsed, unit: "MB" }),
+      React.createElement(MetricBox, { label: "Online Players", value: health.onlinePlayers }),
+      React.createElement(MetricBox, { label: "Active Rooms", value: health.rooms }),
+      React.createElement(MetricBox, { label: "PG Pool (idle)", value: health.pgPool.idle + "/" + health.pgPool.total }),
+      React.createElement(MetricBox, { label: "Node", value: health.nodeVersion }),
+      React.createElement(MetricBox, { label: "PID", value: health.pid }),
+    )
+  );
+}
+
+function MaintenancePage() {
+  const [enabled, setEnabled] = useState(false);
+  const api = useApi();
+  const toast = useToast();
+
+  useEffect(() => { api.get("/ops/maintenance").then(d => setEnabled(d.enabled)).catch(() => {}); }, []);
+
+  const toggle = async () => {
+    const next = !enabled;
+    if (next && !confirm("Enable maintenance mode? New players will be blocked.")) return;
+    try { await api.post("/ops/maintenance", { enabled: next }); setEnabled(next); toast.show(next ? "Maintenance ON" : "Maintenance OFF"); }
+    catch(e) { toast.show(e.message, "error"); }
+  };
+
+  return React.createElement("div", { className: "page" },
+    React.createElement("h1", { className: "page-title" }, "Maintenance Mode"),
+    React.createElement("div", { className: "maintenance-status" },
+      React.createElement("span", { className: `badge badge-${enabled ? "error" : "success"}`, style: { fontSize: "16px", padding: "8px 16px" } }, enabled ? "ACTIVE" : "INACTIVE"),
+      React.createElement("p", { className: "text-secondary", style: { marginTop: "16px" } }, enabled ? "New player connections are blocked. Existing games can continue." : "Server is operating normally."),
+      React.createElement("button", { className: `btn ${enabled ? "btn-secondary" : "btn-danger"}`, style: { marginTop: "16px" }, onClick: toggle }, enabled ? "Disable Maintenance" : "Enable Maintenance")
+    )
+  );
+}
+
+function ConfigPage() {
+  const [configs, setConfigs] = useState([]);
+  const api = useApi();
+  const toast = useToast();
+
+  useEffect(() => { api.get("/ops/config").then(d => setConfigs(d.configs)).catch(() => {}); }, []);
+
+  const columns = [
+    { key: "key", label: "Key" },
+    { key: "value", label: "Value", render: v => React.createElement("code", null, JSON.stringify(v)) },
+    { key: "updated_at", label: "Updated", render: v => v ? new Date(v).toLocaleDateString() : "—" },
+  ];
+
+  return React.createElement("div", { className: "page" },
+    React.createElement("h1", { className: "page-title" }, "Runtime Config"),
+    React.createElement(DataTable, { columns, data: configs, total: configs.length, page: 1, limit: 100 })
+  );
+}
+
+function BackupPage() {
+  const [info, setInfo] = useState(null);
+  const [running, setRunning] = useState(false);
+  const api = useApi();
+  const toast = useToast();
+
+  useEffect(() => { api.get("/ops/backup").then(setInfo).catch(() => {}); }, []);
+
+  const trigger = async () => {
+    setRunning(true);
+    try { const d = await api.post("/ops/backup", {}); toast.show("Backup complete: " + d.path); setInfo({ lastBackupAt: d.timestamp }); }
+    catch(e) { toast.show(e.message, "error"); }
+    finally { setRunning(false); }
+  };
+
+  return React.createElement("div", { className: "page" },
+    React.createElement("h1", { className: "page-title" }, "Database Backup"),
+    React.createElement("div", { className: "backup-info" },
+      React.createElement("p", null, "Last backup: ", info?.lastBackupAt ? new Date(info.lastBackupAt).toLocaleString() : "Never"),
+      React.createElement("button", { className: "btn btn-primary", onClick: trigger, disabled: running }, running ? "Running..." : "Start Backup")
+    )
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Audit Log Page
+// ═══════════════════════════════════════════════════════════════════════════════
+function AuditPage() {
+  const [entries, setEntries] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const api = useApi();
+
+  useEffect(() => { api.get(`/audit?page=${page}&limit=50`).then(d => { setEntries(d.entries); setTotal(d.total); }).catch(() => {}); }, [page]);
+
+  const columns = [
+    { key: "created_at", label: "Time", render: v => v ? new Date(v).toLocaleString() : "—" },
+    { key: "admin_name", label: "Admin" },
+    { key: "action", label: "Action", render: v => React.createElement("code", null, v) },
+    { key: "target_type", label: "Target" },
+    { key: "target_id", label: "ID" },
+    { key: "ip", label: "IP" },
+  ];
+
+  return React.createElement("div", { className: "page" },
+    React.createElement("h1", { className: "page-title" }, "Audit Log"),
+    React.createElement(DataTable, { columns, data: entries, total, page, limit: 50, onPageChange: setPage })
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Placeholder for pages not yet fully built
 // ═══════════════════════════════════════════════════════════════════════════════
 function PlaceholderPage({ title }) {
   return React.createElement("div", { className: "page" },
@@ -311,19 +747,19 @@ function App() {
 
   const pageMap = {
     "/dashboard": () => React.createElement(DashboardPage),
-    "/users": () => React.createElement(PlaceholderPage, { title: t("nav.users") }),
-    "/matches": () => React.createElement(PlaceholderPage, { title: t("nav.matches") }),
-    "/content/emojis": () => React.createElement(PlaceholderPage, { title: t("nav.emojis") }),
-    "/content/announcements": () => React.createElement(PlaceholderPage, { title: t("nav.announcements") }),
-    "/content/powerups": () => React.createElement(PlaceholderPage, { title: t("nav.powerups") }),
-    "/moderation/reports": () => React.createElement(PlaceholderPage, { title: t("nav.reports") }),
-    "/moderation/chat": () => React.createElement(PlaceholderPage, { title: t("nav.chat") }),
-    "/moderation/suspicious": () => React.createElement(PlaceholderPage, { title: t("nav.suspicious") }),
-    "/operations/health": () => React.createElement(PlaceholderPage, { title: t("nav.health") }),
-    "/operations/config": () => React.createElement(PlaceholderPage, { title: t("nav.config") }),
-    "/operations/backup": () => React.createElement(PlaceholderPage, { title: t("nav.backup") }),
-    "/operations/maintenance": () => React.createElement(PlaceholderPage, { title: t("nav.maintenance") }),
-    "/audit": () => React.createElement(PlaceholderPage, { title: t("nav.audit") }),
+    "/users": () => React.createElement(UsersPage),
+    "/matches": () => React.createElement(MatchesPage),
+    "/content/emojis": () => React.createElement(EmojisPage),
+    "/content/announcements": () => React.createElement(AnnouncementsPage),
+    "/content/powerups": () => React.createElement(PlaceholderPage, { title: "Power-ups" }),
+    "/moderation/reports": () => React.createElement(ReportsPage),
+    "/moderation/chat": () => React.createElement(PlaceholderPage, { title: "Chat Logs" }),
+    "/moderation/suspicious": () => React.createElement(SuspiciousPage),
+    "/operations/health": () => React.createElement(HealthPage),
+    "/operations/config": () => React.createElement(ConfigPage),
+    "/operations/backup": () => React.createElement(BackupPage),
+    "/operations/maintenance": () => React.createElement(MaintenancePage),
+    "/audit": () => React.createElement(AuditPage),
   };
 
   const renderPage = pageMap[route] || pageMap["/dashboard"];
