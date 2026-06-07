@@ -76,6 +76,15 @@ const I18N = {
     "history.all": "All", "history.win": "Won", "history.loss": "Lost", "history.wager": "Wagered", "history.free": "Free",
     "history.classic": "Classic", "history.advance": "Advance", "history.pts": "coin", "history.total": "{n} matches",
     "stats.winRate": "{n}% wins", "stats.totalGames": "{n} games",
+    "h2h.title": "Head to Head", "h2h.winRate": "wins", "h2h.totalGames": "games", "h2h.games": "games", "h2h.streakMe": "You", "h2h.streakThem": "Them",
+    "friends.add": "Add Friend", "friends.already": "Friends", "friends.pendingSent": "Request sent",
+    "friends.list": "Friends", "friends.title": "Friends", "friends.search": "Search player...", "friends.online": "Online", "friends.inGame": "In Game", "friends.offline": "Offline",
+    "friends.pending": "Pending Requests", "friends.accept": "Accept", "friends.decline": "Decline", "friends.remove": "Unfriend",
+    "friends.none": "No friends yet. Play and add opponents!", "friends.searchHint": "Min 2 chars", "friends.added": "Sent ✓",
+    "challenge.title": "Challenge {name}", "challenge.send": "Send Challenge", "challenge.received": "{name} challenges you!",
+    "challenge.accept": "Accept", "challenge.decline": "Decline", "challenge.waiting": "Waiting...",
+    "challenge.expired": "Challenge expired", "challenge.declined": "Declined", "challenge.notAvailable": "Not available",
+    "postmatch.addFriend": "Add {name} as friend",
     "log.oppJoined": "Opponent joined the room.", "log.oppReady": "Opponent is ready.", "log.oppOffline": "Opponent disconnected, waiting to reconnect...", "log.oppReconnect": "Opponent reconnected.",
     "log.youFirst": "You go first. Open fire!", "log.oppFirst": "Opponent goes first.", "log.botFirst": "Bot goes first.",
     "log.youTimeout": "You ran out of time — turn passes to the opponent.", "log.oppTimeout": "Opponent ran out of time — your turn.",
@@ -261,6 +270,15 @@ const I18N = {
     "history.all": "Tất cả", "history.win": "Thắng", "history.loss": "Thua", "history.wager": "Có cược", "history.free": "Không cược",
     "history.classic": "Classic", "history.advance": "Advance", "history.pts": "coin", "history.total": "{n} trận",
     "stats.winRate": "{n}% thắng", "stats.totalGames": "{n} trận",
+    "h2h.title": "Đối đầu", "h2h.winRate": "thắng", "h2h.totalGames": "trận", "h2h.games": "trận", "h2h.streakMe": "Bạn", "h2h.streakThem": "Họ",
+    "friends.add": "Kết bạn", "friends.already": "Bạn bè", "friends.pendingSent": "Đã gửi lời mời",
+    "friends.list": "Bạn bè", "friends.title": "Bạn bè", "friends.search": "Tìm người chơi...", "friends.online": "Đang online", "friends.inGame": "Đang chơi", "friends.offline": "Offline",
+    "friends.pending": "Lời mời kết bạn", "friends.accept": "Chấp nhận", "friends.decline": "Từ chối", "friends.remove": "Hủy kết bạn",
+    "friends.none": "Chưa có bạn bè. Chơi và thêm đối thủ!", "friends.searchHint": "Tối thiểu 2 ký tự", "friends.added": "Đã gửi ✓",
+    "challenge.title": "Thách đấu {name}", "challenge.send": "Gửi thách đấu", "challenge.received": "{name} thách đấu bạn!",
+    "challenge.accept": "Chấp nhận", "challenge.decline": "Từ chối", "challenge.waiting": "Đang chờ...",
+    "challenge.expired": "Hết hạn", "challenge.declined": "Đã từ chối", "challenge.notAvailable": "Không khả dụng",
+    "postmatch.addFriend": "Kết bạn với {name}",
     "log.oppJoined": "Đối thủ đã vào phòng.", "log.oppReady": "Đối thủ đã sẵn sàng.", "log.oppOffline": "Đối thủ tạm mất kết nối, đang chờ kết nối lại...", "log.oppReconnect": "Đối thủ đã kết nối lại.",
     "log.youFirst": "Bạn đi trước. Khai hỏa!", "log.oppFirst": "Đối thủ đi trước.", "log.botFirst": "Máy đi trước.",
     "log.youTimeout": "Bạn bỏ lượt (hết giờ) — chuyển lượt cho đối thủ.", "log.oppTimeout": "Đối thủ hết giờ — tới lượt bạn.",
@@ -1487,26 +1505,62 @@ function SonarDrag({ onDrop, onCancel }) {
   );
 }
 
-function Battle({ myTurn, vsBot, occ, incoming, myShots, onFire, log, sunkOpp, sunkMine, sunkEnemyCells, sunkMyCells, myScore, oppScore, oppLabel, myProfile, oppProfile, myBubble, oppBubble, flashEnemy, flashMine, turnDeadline, turnDur, shake, inv, aim, onPower, onCrossHover, hoverCells, sonarScan }) {
+function Battle({ myTurn, vsBot, occ, incoming, myShots, onFire, log, sunkOpp, sunkMine, sunkEnemyCells, sunkMyCells, myScore, oppScore, oppLabel, myProfile, oppProfile, myBubble, oppBubble, flashEnemy, flashMine, turnDeadline, turnDur, shake, inv, aim, onPower, onCrossHover, hoverCells, sonarScan, authUser, onAddFriend }) {
   const [tab, setTab] = useState("enemy"); // enemy | own (mobile)
-  const [oppStats, setOppStats] = useState(null); // { wins, losses, gamesPlayed, winRate } | null
+  const [oppStats, setOppStats] = useState(null); // { winRate, gamesPlayed, myWins, theirWins, ... }
   const [oppStatsOpen, setOppStatsOpen] = useState(false);
+  const [friendStatus, setFriendStatus] = useState(null); // 'none' | 'pending' | 'accepted'
+  const [friendReqSent, setFriendReqSent] = useState(false);
   const oppStatsCache = useRef(null);
 
-  // Fetch opponent stats on avatar click
+  // Fetch opponent stats + H2H on avatar click
   function handleOppClick() {
     if (vsBot || !oppProfile || !oppProfile.id) return;
     if (oppStatsCache.current) {
       setOppStats(oppStatsCache.current);
       setOppStatsOpen(true);
     } else {
-      fetch("/api/profile/" + oppProfile.id)
-        .then(r => r.ok ? r.json() : null)
-        .then(d => { if (d && d.stats) { oppStatsCache.current = d.stats; setOppStats(d.stats); setOppStatsOpen(true); } })
-        .catch(() => {});
+      // Fetch both profile stats and H2H in parallel
+      const profileP = fetch("/api/profile/" + oppProfile.id).then(r => r.ok ? r.json() : null);
+      const h2hP = authUser ? fetch("/api/friends/h2h/" + oppProfile.id).then(r => r.ok ? r.json() : null) : Promise.resolve(null);
+      Promise.all([profileP, h2hP]).then(([profile, h2h]) => {
+        const combined = {
+          winRate: profile?.stats?.winRate ?? 0,
+          gamesPlayed: profile?.stats?.gamesPlayed ?? 0,
+          myWins: h2h?.myWins ?? 0,
+          theirWins: h2h?.theirWins ?? 0,
+          totalGames: h2h?.totalGames ?? 0,
+          streak: h2h?.streak ?? null,
+        };
+        oppStatsCache.current = combined;
+        setOppStats(combined);
+        setFriendStatus(h2h?.friendshipStatus ?? "none");
+        setOppStatsOpen(true);
+      }).catch(() => {});
     }
-    setTimeout(() => setOppStatsOpen(false), 4000);
   }
+
+  function handleAddFriend() {
+    if (!oppProfile?.id) return;
+    fetch("/api/friends/request", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ targetUserId: oppProfile.id }),
+    }).then(r => {
+      if (r.ok) { setFriendReqSent(true); setFriendStatus("pending"); }
+    }).catch(() => {});
+    if (onAddFriend) onAddFriend(oppProfile.id);
+  }
+
+  // Close popup on outside click
+  useEffect(() => {
+    if (!oppStatsOpen) return;
+    function handleClick(e) {
+      if (!e.target.closest(".opp-stats-popup")) setOppStatsOpen(false);
+    }
+    document.addEventListener("click", handleClick);
+    return () => document.removeEventListener("click", handleClick);
+  }, [oppStatsOpen]);
 
   // đếm ngược lượt từ deadline server gửi (null = không giới hạn, vd đấu máy)
   const [secs, setSecs] = useState(null);
@@ -1544,9 +1598,38 @@ function Battle({ myTurn, vsBot, occ, incoming, myShots, onFire, log, sunkOpp, s
         <div className="pcard-wrap" style={{position:"relative"}}>
           <PlayerCard side="opp" profile={oppProfile} fallbackName={oppLabel} score={oppScore} active={!myTurn} isBot={vsBot} bubble={oppBubble} onClick={handleOppClick} />
           {oppStatsOpen && oppStats && (
-            <div className="opp-stats-popup" onClick={() => setOppStatsOpen(false)}>
-              <div className="stat-row"><span className="stat-value">{oppStats.winRate}%</span> {LANG === "vi" ? "thắng" : "wins"}</div>
-              <div className="stat-row"><span className="stat-value">{oppStats.gamesPlayed}</span> {LANG === "vi" ? "trận" : "games"}</div>
+            <div className="opp-stats-popup expanded" onClick={(e) => e.stopPropagation()}>
+              <div className="opp-stats-header">
+                <span className="opp-stats-name">{oppProfile?.name || oppLabel}</span>
+                <button className="opp-stats-close" onClick={() => setOppStatsOpen(false)}>✕</button>
+              </div>
+              <div className="stat-row"><span className="stat-value">{oppStats.winRate}%</span> {t("h2h.winRate")}</div>
+              <div className="stat-row"><span className="stat-value">{oppStats.gamesPlayed}</span> {t("h2h.totalGames")}</div>
+              {oppStats.totalGames > 0 && (
+                <>
+                  <div className="h2h-divider">⚔️ {t("h2h.title")}</div>
+                  <div className="h2h-record">
+                    <span className="h2h-me">{oppStats.myWins}</span>
+                    <span className="h2h-sep">-</span>
+                    <span className="h2h-them">{oppStats.theirWins}</span>
+                  </div>
+                  <div className="h2h-meta">
+                    {oppStats.totalGames} {t("h2h.games")}
+                    {oppStats.streak && oppStats.streak.count > 1 && (
+                      <span> · {oppStats.streak.holder === "me" ? t("h2h.streakMe") : t("h2h.streakThem")} +{oppStats.streak.count}</span>
+                    )}
+                  </div>
+                </>
+              )}
+              {authUser && friendStatus === "none" && !friendReqSent && (
+                <button className="btn compact primary opp-add-friend" onClick={handleAddFriend}>➕ {t("friends.add")}</button>
+              )}
+              {friendStatus === "accepted" && (
+                <div className="friendship-badge">👥 {t("friends.already")}</div>
+              )}
+              {(friendStatus === "pending" || friendReqSent) && (
+                <div className="friendship-badge">⏳ {t("friends.pendingSent")}</div>
+              )}
             </div>
           )}
         </div>
@@ -3438,7 +3521,7 @@ function App() {
               💰 {t("game.pot", { n: stake * 2 })}
             </div>
           )}
-          <Battle myTurn={myTurn} vsBot={vsBot} occ={occ} incoming={incoming} myShots={myShots} onFire={fire} log={log} sunkOpp={sunkOpp} sunkMine={sunkMine} sunkEnemyCells={sunkEnemyCells} sunkMyCells={sunkMyCells} myScore={myScore} oppScore={oppScore} oppLabel={vsBot ? t("common.bot") : t("common.opponent")} myProfile={profile} oppProfile={vsBot ? null : oppProfile} myBubble={myBubble} oppBubble={vsBot ? null : oppBubble} flashEnemy={flashEnemy} flashMine={flashMine} turnDeadline={vsBot ? null : turnDeadline} turnDur={turnDur} shake={shake} inv={inv} aim={aim} onPower={activatePower} onCrossHover={handleCrossHover} hoverCells={crossHover} sonarScan={sonarScan} />
+          <Battle myTurn={myTurn} vsBot={vsBot} occ={occ} incoming={incoming} myShots={myShots} onFire={fire} log={log} sunkOpp={sunkOpp} sunkMine={sunkMine} sunkEnemyCells={sunkEnemyCells} sunkMyCells={sunkMyCells} myScore={myScore} oppScore={oppScore} oppLabel={vsBot ? t("common.bot") : t("common.opponent")} myProfile={profile} oppProfile={vsBot ? null : oppProfile} myBubble={myBubble} oppBubble={vsBot ? null : oppBubble} flashEnemy={flashEnemy} flashMine={flashMine} turnDeadline={vsBot ? null : turnDeadline} turnDur={turnDur} shake={shake} inv={inv} aim={aim} onPower={activatePower} onCrossHover={handleCrossHover} hoverCells={crossHover} sonarScan={sonarScan} authUser={authUser} />
         </div>
       )}
 

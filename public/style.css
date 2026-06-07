@@ -1142,8 +1142,20 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
   font-size:13px; color:#cfe8ff; text-align:center;
   animation:fadeSlideIn .2s ease both;
 }
+.opp-stats-popup.expanded { min-width:200px; padding:14px 18px; right:0; top:100%; margin-top:6px; }
+.opp-stats-popup .opp-stats-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+.opp-stats-popup .opp-stats-name { font-weight:700; font-size:14px; color:#fff; }
+.opp-stats-popup .opp-stats-close { background:none; border:none; color:#8bb8e0; font-size:16px; cursor:pointer; padding:2px 6px; }
 .opp-stats-popup .stat-row { margin:4px 0; }
 .opp-stats-popup .stat-value { font-weight:700; color:var(--gold); }
+.opp-stats-popup .h2h-divider { margin:10px 0 6px; font-size:12px; color:#7ab3e0; border-top:1px solid rgba(120,190,255,.2); padding-top:8px; }
+.opp-stats-popup .h2h-record { display:flex; align-items:center; justify-content:center; gap:8px; font-size:22px; font-weight:700; margin:4px 0; }
+.opp-stats-popup .h2h-me { color:#4cff8b; }
+.opp-stats-popup .h2h-sep { color:#5a8ab0; }
+.opp-stats-popup .h2h-them { color:#ff6b6b; }
+.opp-stats-popup .h2h-meta { font-size:11px; color:#7ab3e0; margin-bottom:8px; }
+.opp-stats-popup .opp-add-friend { margin-top:8px; width:100%; font-size:12px; padding:6px 10px; }
+.opp-stats-popup .friendship-badge { margin-top:8px; font-size:12px; color:#7ab3e0; }
 
 @media (max-width:360px) {
   .history-view { padding:18px 14px; margin:3vh auto 0; }
