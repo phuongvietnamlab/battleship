@@ -232,6 +232,7 @@ Plans:
 **Requirements**:
 
 **Authentication & Authorization:**
+
 - ADM-01: Admin role system — `admin_roles` table (user_id, role ENUM['super_admin', 'admin', 'moderator'], granted_by, granted_at); first admin bootstrapped via CLI
 - ADM-02: Admin login page — separate auth flow at `/admin/login`; requires admin role + password re-verification (not just session)
 - ADM-03: Role-based permissions — super_admin (all), admin (CRUD + analytics, no role management), moderator (read-only + ban/mute actions)
@@ -241,6 +242,7 @@ Plans:
 - ADM-07: Rate limiting — strict rate limit on admin login (5 attempts/15min per IP); admin API endpoints (60 req/min)
 
 **Dashboard & Analytics:**
+
 - ADM-08: Overview dashboard — cards showing: total users, active today (DAU), matches today, revenue (points spent), online now (WebSocket count)
 - ADM-09: User growth chart — line chart showing daily new registrations over last 30/90/365 days (selectable range)
 - ADM-10: Match activity chart — bar chart showing daily matches played, split by mode (classic/ranked/bot)
@@ -250,6 +252,7 @@ Plans:
 - ADM-14: Retention metrics — D1/D7/D30 retention cohort table; returning users percentage
 
 **User Management (CRUD):**
+
 - ADM-15: User list — paginated table with search (by name/email/ID), sortable columns, bulk actions
 - ADM-16: User detail view — profile info, auth methods linked, match history, point balance, transaction log, ban history
 - ADM-17: Edit user — change display_name, avatar_url, email (with reason logged); reset password
@@ -260,23 +263,27 @@ Plans:
 - ADM-22: User export — CSV export of user list with filters applied
 
 **Match Management:**
+
 - ADM-23: Match list — paginated table with filters (date range, mode, status, player), sortable
 - ADM-24: Match detail — full match info: players, boards (visual grid), moves sequence, result, duration, points wagered/awarded
 - ADM-25: Void match — admin can void a match (reverse point transactions, mark as voided with reason); does not affect ratings retroactively
 - ADM-26: Live matches — list of currently active matches with ability to spectate (read-only board view via admin WebSocket)
 
 **Content Management:**
+
 - ADM-27: Emoji management — CRUD for premium_emojis table; upload/replace animation assets; toggle active/inactive; edit cost
 - ADM-28: Power-up management — edit power-up costs, enable/disable individual power-ups
 - ADM-29: Announcement system — create/schedule server-wide announcements shown as banner in game lobby (title, body, type, start_at, end_at)
 - ADM-30: i18n management — view/edit translation strings for EN/VI from admin (stored in DB, overrides file-based defaults)
 
 **Moderation:**
+
 - ADM-31: Report queue — view player reports (chat abuse, cheating); mark as resolved/dismissed; link to ban action
 - ADM-32: Chat log viewer — searchable chat history by room/user/date; flag offensive messages
 - ADM-33: Suspicious activity alerts — auto-flag accounts with unusual patterns (win rate >90% over 20+ games, rapid point accumulation, multiple accounts from same IP)
 
 **Operational Controls:**
+
 - ADM-34: Server health — real-time view of: Node.js memory, event loop lag, PostgreSQL connection pool, Redis connection status, uptime
 - ADM-35: Season management — trigger season reset from admin UI (same logic as CLI but with confirmation + preview of affected users count)
 - ADM-36: Maintenance mode — toggle maintenance mode; when active, players see "Server maintenance" message; only admins can still play
@@ -284,6 +291,7 @@ Plans:
 - ADM-38: Backup trigger — one-click pg_dump trigger; show last backup time and size
 
 **UI/UX Design:**
+
 - ADM-39: Sidebar navigation — collapsible sidebar with icon + text links to each section; active state indicator
 - ADM-40: Dark/light theme — toggle between dark and light themes; persisted in localStorage; defaults to dark
 - ADM-41: Responsive design — fully usable on tablet (1024px); read-only dashboard on mobile (768px); management features desktop-preferred
@@ -295,6 +303,7 @@ Plans:
 - ADM-47: Vietnamese + English — full i18n for all admin UI strings
 
 **Technical:**
+
 - ADM-48: Separate bundle — admin React app built separately from game client (`public/admin/` → `dist/admin/`); not loaded by regular players
 - ADM-49: Admin API routes — all under `/api/admin/*` prefix; middleware checks admin session + role before any handler
 - ADM-50: Database migrations — new tables: admin_roles, admin_audit_log, admin_sessions, announcements, reports, chat_logs, runtime_config
@@ -314,3 +323,54 @@ Plans:
 - [ ] Plan 06: Admin API — Operational controls (server health, season management, maintenance mode, config editor, backup)
 - [ ] Plan 07: Admin Frontend — React app scaffold, routing, sidebar layout, auth flow, theme system, data table component, chart components, i18n
 - [ ] Plan 08: Admin Frontend — All management views (users, matches, content, moderation, analytics dashboard, operational controls, responsive polish)
+
+### Phase 17: Social & Friends: friend requests, real-time online presence, head-to-head stats, direct challenge
+
+**Goal:** Build a social layer that creates lasting bonds between players — explicit friend requests, real-time presence (friends-only, Socket.IO), head-to-head rivalry stats (accessible via battle avatar click), and direct challenge invites (reuses room creation flow). Players return because of *people*, not just rank.
+
+**Requirements**:
+
+**Friends System:**
+- SOCL-01a: Send friend request from battle avatar popup or friends list search
+- SOCL-01b: Recipient sees pending requests, can accept/reject
+- SOCL-01c: Either side can unfriend (removes both ways)
+- SOCL-01d: Friends list screen with real-time online/offline/in-game indicators
+- SOCL-01e: Max 100 friends per user
+- SOCL-01f: Guard: no self-add, no duplicate, no blocked
+- SOCL-01g: Auth-only (guests cannot use friend system)
+
+**Online Presence:**
+- PRES-01: Real-time Socket.IO broadcast to online friends on connect
+- PRES-02: 30s grace period before offline (avoids flicker)
+- PRES-03: States: online (lobby), in-game (active match), offline
+- PRES-04: Visible to accepted friends only
+- PRES-05: Server userId→socket map for targeted broadcasts
+
+**Head-to-Head Stats (via battle avatar popup):**
+- H2H-01: Click opponent avatar in battle → expanded popup: H2H record + "Add Friend" button
+- H2H-02: Popup shows: wins each side, total games, current streak, last played
+- H2H-03: Friends list also shows mini H2H (X-Y) per friend row
+- H2H-04: Derived from existing matches table
+- H2H-05: "Rival" badge on most-played friend (cosmetic)
+
+**Direct Challenge (reuses room creation flow):**
+- CHAL-01: Tap online friend in friends list → BottomSheet with coin selector (same as room wager)
+- CHAL-02: Server creates room (reuse createRoom), sends invite via Socket.IO
+- CHAL-03: Recipient sees modal popup with accept/decline + 60s countdown
+- CHAL-04: Accept = joinRoom with challenge roomCode → placement phase
+- CHAL-05: Decline or timeout (60s) → destroy room, notify sender
+- CHAL-06: Cannot challenge in-game or offline friends
+
+**i18n:**
+- SOCL-i18n: Full Vietnamese + English for all social UI strings
+
+**Depends on:** Phase 2 (accounts/identity), Phase 3 (match recording for H2H)
+**Plans:** 5 plans
+
+Plans:
+
+- [ ] Plan 01: Database migration (010_friendships.sql) + Friend CRUD API + search
+- [ ] Plan 02: Real-time presence system (Socket.IO) — online/in-game/offline with 30s grace
+- [ ] Plan 03: Head-to-head stats + enhanced battle avatar popup with "Add Friend"
+- [ ] Plan 04: Direct challenge flow — server creates room, Socket.IO invite, accept/decline/expire
+- [ ] Plan 05: Frontend — Friends list screen, challenge send/receive UI, post-match add friend, i18n
