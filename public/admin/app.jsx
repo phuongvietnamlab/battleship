@@ -23,7 +23,7 @@ const I18N = {
     "common.of": "of", "common.logout": "Logout", "common.online": "Online",
     "toast.success": "Success", "toast.error": "Error",
     "dashboard.totalUsers": "Total Users", "dashboard.dau": "Active Today",
-    "dashboard.matchesToday": "Matches Today", "dashboard.pointsSpent": "Points Spent",
+    "dashboard.matchesToday": "Matches Today", "dashboard.pointsSpent": "Coin Spent",
     "dashboard.onlineNow": "Online Now", "dashboard.newUsers": "New Users",
     "dashboard.activeMatches": "Active Matches",
   },
@@ -43,7 +43,7 @@ const I18N = {
     "common.of": "của", "common.logout": "Đăng xuất", "common.online": "Trực tuyến",
     "toast.success": "Thành công", "toast.error": "Lỗi",
     "dashboard.totalUsers": "Tổng người dùng", "dashboard.dau": "Hoạt động hôm nay",
-    "dashboard.matchesToday": "Trận hôm nay", "dashboard.pointsSpent": "Điểm đã tiêu",
+    "dashboard.matchesToday": "Trận hôm nay", "dashboard.pointsSpent": "Coin đã tiêu",
     "dashboard.onlineNow": "Đang online", "dashboard.newUsers": "Người dùng mới",
     "dashboard.activeMatches": "Trận đang diễn ra",
   },
@@ -317,7 +317,7 @@ function DashboardPage() {
       React.createElement(SimpleChart, { title: "Match Activity", data: matchChart, type: "bar", lines: [{ key: "matches_classic", name: "Classic", color: "#68d391" }, { key: "matches_wagered", name: "Wagered", color: "#9f7aea" }] }),
     ),
     React.createElement("div", { className: "charts-grid charts-full" },
-      React.createElement(SimpleChart, { title: "Points Economy", data: pointsChart, type: "line", lines: [{ key: "points_earned", name: "Earned", color: "#667eea" }, { key: "points_spent", name: "Spent", color: "#f6ad55" }] }),
+      React.createElement(SimpleChart, { title: "Coin Economy", data: pointsChart, type: "line", lines: [{ key: "points_earned", name: "Earned", color: "#667eea" }, { key: "points_spent", name: "Spent", color: "#f6ad55" }] }),
     )
   );
 }
@@ -480,11 +480,12 @@ function UserDetail({ userId, onClose, onAction }) {
 
   if (!user) return React.createElement("div", { className: "detail-panel" }, "Loading...");
 
+  const isBanned = user.banHistory?.some(b => b.active && b.type === "ban");
   const handleUnban = async () => { await api.post(`/users/${userId}/unban`, {}); toast.show("User unbanned"); onAction(); onClose(); };
-  const handlePoints = async () => {
-    const amt = prompt("Amount (+/-):");
+  const handleAdjustCoin = async () => {
+    const amt = prompt("Coin (+/-):"); 
     const reason = prompt("Reason:");
-    if (amt && reason) { try { await api.post(`/users/${userId}/points`, { amount: parseInt(amt), reason }); toast.show("Points adjusted"); onAction(); } catch(e) { toast.show(e.message, "error"); }}
+    if (amt && reason) { try { await api.post(`/users/${userId}/points`, { amount: parseInt(amt), reason }); toast.show("Coin adjusted"); onAction(); } catch(e) { toast.show(e.message, "error"); }}
   };
 
   return React.createElement("div", { className: "detail-overlay", onClick: onClose },
@@ -495,7 +496,7 @@ function UserDetail({ userId, onClose, onAction }) {
       ),
       React.createElement("div", { className: "detail-body" },
         React.createElement("div", { className: "detail-row" }, React.createElement("span", null, "Email:"), React.createElement("span", null, user.email || "—")),
-        React.createElement("div", { className: "detail-row" }, React.createElement("span", null, "Balance:"), React.createElement("span", null, user.wallet?.balance ?? "N/A")),
+        React.createElement("div", { className: "detail-row" }, React.createElement("span", null, "Coin:"), React.createElement("span", null, user.wallet?.balance ?? 0)),
         React.createElement("div", { className: "detail-row" }, React.createElement("span", null, "Matches:"), React.createElement("span", null, `${user.matchStats?.wins || 0}W / ${user.matchStats?.losses || 0}L`)),
         React.createElement("div", { className: "detail-row" }, React.createElement("span", null, "Joined:"), React.createElement("span", null, new Date(user.created_at).toLocaleDateString())),
         React.createElement("div", { className: "detail-row" }, React.createElement("span", null, "Auth:"), React.createElement("span", null, user.authMethods?.map(m => m.type).join(", "))),
@@ -508,8 +509,8 @@ function UserDetail({ userId, onClose, onAction }) {
         )
       ),
       React.createElement("div", { className: "detail-footer" },
-        React.createElement("button", { className: "btn btn-secondary", onClick: handlePoints }, "Adjust Points"),
-        React.createElement("button", { className: "btn btn-secondary", onClick: handleUnban }, "Unban"),
+        React.createElement("button", { className: "btn btn-secondary", onClick: handleAdjustCoin }, "Adjust Coin"),
+        isBanned && React.createElement("button", { className: "btn btn-secondary", onClick: handleUnban }, "Unban"),
       )
     )
   );
