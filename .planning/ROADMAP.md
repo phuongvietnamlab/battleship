@@ -369,8 +369,8 @@ Plans:
 
 Plans:
 
-- [ ] Plan 01: Database migration (010_friendships.sql) + Friend CRUD API + search
-- [ ] Plan 02: Real-time presence system (Socket.IO) — online/in-game/offline with 30s grace
-- [ ] Plan 03: Head-to-head stats + enhanced battle avatar popup with "Add Friend"
-- [ ] Plan 04: Direct challenge flow — server creates room, Socket.IO invite, accept/decline/expire
-- [ ] Plan 05: Frontend — Friends list screen, challenge send/receive UI, post-match add friend, i18n
+- [x] Plan 01: Database migration (010_friendships.sql) + Friend CRUD API + search
+- [x] Plan 02: Real-time presence system (Socket.IO) — online/in-game/offline with 30s grace
+- [x] Plan 03: Head-to-head stats + enhanced battle avatar popup with "Add Friend"
+- [x] Plan 04: Direct challenge flow — server creates room, Socket.IO invite, accept/decline/expire
+- [x] Plan 05: Frontend — Friends list screen, challenge send/receive UI, post-match add friend, i18n
