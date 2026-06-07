@@ -224,3 +224,93 @@ Plans:
 - [ ] Plan 04: Client UI — placement shop + decoy placement
 - [ ] Plan 05: Client UI — battle phase power-ups (sonar DnD, cross aim, scatter)
 - [ ] Plan 06: Integration testing + edge cases
+
+### Phase 16: Admin dashboard: full-featured admin panel with CRUD management, analytics, security, and operational controls
+
+**Goal:** Build a comprehensive, secure admin panel at `/admin` with role-based access control, full CRUD management of all game entities (users, matches, points, emojis, power-ups, reports), real-time analytics dashboard with charts, operational controls (ban/unban, point adjustments, season resets, server health), and audit logging. The admin UI should be professionally designed with a modern sidebar layout, dark/light theme, responsive design, and Vietnamese/English i18n. Separate React app bundled independently from the game client.
+
+**Requirements**:
+
+**Authentication & Authorization:**
+- ADM-01: Admin role system — `admin_roles` table (user_id, role ENUM['super_admin', 'admin', 'moderator'], granted_by, granted_at); first admin bootstrapped via CLI
+- ADM-02: Admin login page — separate auth flow at `/admin/login`; requires admin role + password re-verification (not just session)
+- ADM-03: Role-based permissions — super_admin (all), admin (CRUD + analytics, no role management), moderator (read-only + ban/mute actions)
+- ADM-04: Admin session — separate cookie/token from player sessions; 2-hour expiry with sliding window; logout invalidates immediately
+- ADM-05: IP allowlist (optional) — configurable ADMIN_ALLOWED_IPS env var; rejects non-allowlisted IPs with 403
+- ADM-06: Audit log — every admin action logged to `admin_audit_log` table (admin_id, action, target_type, target_id, details_json, ip, timestamp)
+- ADM-07: Rate limiting — strict rate limit on admin login (5 attempts/15min per IP); admin API endpoints (60 req/min)
+
+**Dashboard & Analytics:**
+- ADM-08: Overview dashboard — cards showing: total users, active today (DAU), matches today, revenue (points spent), online now (WebSocket count)
+- ADM-09: User growth chart — line chart showing daily new registrations over last 30/90/365 days (selectable range)
+- ADM-10: Match activity chart — bar chart showing daily matches played, split by mode (classic/ranked/bot)
+- ADM-11: Points economy chart — line chart showing daily points earned vs spent (balance health indicator)
+- ADM-12: Revenue metrics — total points purchased via emoji/power-ups, top spenders, conversion rate (guest→registered)
+- ADM-13: Real-time stats panel — live WebSocket-fed counter of: players online, active matches, queue sizes, server memory/CPU
+- ADM-14: Retention metrics — D1/D7/D30 retention cohort table; returning users percentage
+
+**User Management (CRUD):**
+- ADM-15: User list — paginated table with search (by name/email/ID), sortable columns, bulk actions
+- ADM-16: User detail view — profile info, auth methods linked, match history, point balance, transaction log, ban history
+- ADM-17: Edit user — change display_name, avatar_url, email (with reason logged); reset password
+- ADM-18: Ban/unban user — temporary (duration) or permanent ban; ban reason required; bans enforced on WebSocket connect + API calls
+- ADM-19: Mute user — disable chat for a user (duration-based); server-enforced on chat events
+- ADM-20: Point adjustment — manually add/deduct points with mandatory reason (logged to audit); no negative balance
+- ADM-21: Delete user — soft-delete (set deleted_at, anonymize PII); hard-delete option for GDPR with confirmation
+- ADM-22: User export — CSV export of user list with filters applied
+
+**Match Management:**
+- ADM-23: Match list — paginated table with filters (date range, mode, status, player), sortable
+- ADM-24: Match detail — full match info: players, boards (visual grid), moves sequence, result, duration, points wagered/awarded
+- ADM-25: Void match — admin can void a match (reverse point transactions, mark as voided with reason); does not affect ratings retroactively
+- ADM-26: Live matches — list of currently active matches with ability to spectate (read-only board view via admin WebSocket)
+
+**Content Management:**
+- ADM-27: Emoji management — CRUD for premium_emojis table; upload/replace animation assets; toggle active/inactive; edit cost
+- ADM-28: Power-up management — edit power-up costs, enable/disable individual power-ups
+- ADM-29: Announcement system — create/schedule server-wide announcements shown as banner in game lobby (title, body, type, start_at, end_at)
+- ADM-30: i18n management — view/edit translation strings for EN/VI from admin (stored in DB, overrides file-based defaults)
+
+**Moderation:**
+- ADM-31: Report queue — view player reports (chat abuse, cheating); mark as resolved/dismissed; link to ban action
+- ADM-32: Chat log viewer — searchable chat history by room/user/date; flag offensive messages
+- ADM-33: Suspicious activity alerts — auto-flag accounts with unusual patterns (win rate >90% over 20+ games, rapid point accumulation, multiple accounts from same IP)
+
+**Operational Controls:**
+- ADM-34: Server health — real-time view of: Node.js memory, event loop lag, PostgreSQL connection pool, Redis connection status, uptime
+- ADM-35: Season management — trigger season reset from admin UI (same logic as CLI but with confirmation + preview of affected users count)
+- ADM-36: Maintenance mode — toggle maintenance mode; when active, players see "Server maintenance" message; only admins can still play
+- ADM-37: Config editor — view/edit runtime config values (rate limits, queue settings, matchmaking params) without restart (stored in DB, overrides env)
+- ADM-38: Backup trigger — one-click pg_dump trigger; show last backup time and size
+
+**UI/UX Design:**
+- ADM-39: Sidebar navigation — collapsible sidebar with icon + text links to each section; active state indicator
+- ADM-40: Dark/light theme — toggle between dark and light themes; persisted in localStorage; defaults to dark
+- ADM-41: Responsive design — fully usable on tablet (1024px); read-only dashboard on mobile (768px); management features desktop-preferred
+- ADM-42: Data tables — consistent table component with: pagination, column sorting, row selection, bulk actions toolbar, column visibility toggle
+- ADM-43: Toast notifications — success/error/warning toasts for all admin actions with auto-dismiss
+- ADM-44: Confirmation dialogs — destructive actions (ban, delete, void) require typed confirmation
+- ADM-45: Loading states — skeleton loaders for all data-fetching views; optimistic updates where safe
+- ADM-46: Charts library — lightweight chart library (Chart.js or Recharts) for analytics visualizations
+- ADM-47: Vietnamese + English — full i18n for all admin UI strings
+
+**Technical:**
+- ADM-48: Separate bundle — admin React app built separately from game client (`public/admin/` → `dist/admin/`); not loaded by regular players
+- ADM-49: Admin API routes — all under `/api/admin/*` prefix; middleware checks admin session + role before any handler
+- ADM-50: Database migrations — new tables: admin_roles, admin_audit_log, admin_sessions, announcements, reports, chat_logs, runtime_config
+- ADM-51: CLI bootstrap — `npm run admin:create <email>` CLI to promote an existing user to super_admin (first admin setup)
+- ADM-52: No external admin framework — built with same React + Express stack; no AdminJS/Forest Admin/etc. to keep dependencies minimal
+
+**Depends on:** Phase 2 (identity/auth), Phase 3 (matches), Phase 7 (points), Phase 8 (passkey auth)
+**Plans:** 8 plans
+
+Plans:
+
+- [ ] Plan 01: Database migrations — admin_roles, admin_audit_log, admin_sessions, announcements, reports, chat_logs, runtime_config tables + CLI bootstrap
+- [ ] Plan 02: Admin auth & middleware — login endpoint, session management, role-based access control middleware, rate limiting, IP allowlist, audit logging
+- [ ] Plan 03: Admin API — User management endpoints (list, detail, edit, ban/unban, mute, point adjustment, delete, export)
+- [ ] Plan 04: Admin API — Match management, content management (emoji/power-up CRUD, announcements), moderation (reports, chat logs, suspicious activity)
+- [ ] Plan 05: Admin API — Analytics endpoints (dashboard stats, charts data, real-time WebSocket feed, retention metrics)
+- [ ] Plan 06: Admin API — Operational controls (server health, season management, maintenance mode, config editor, backup)
+- [ ] Plan 07: Admin Frontend — React app scaffold, routing, sidebar layout, auth flow, theme system, data table component, chart components, i18n
+- [ ] Plan 08: Admin Frontend — All management views (users, matches, content, moderation, analytics dashboard, operational controls, responsive polish)

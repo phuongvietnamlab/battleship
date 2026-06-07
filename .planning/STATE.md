@@ -111,6 +111,7 @@ Recent decisions affecting current work:
 - Phase 13 added: Match history — view past battles with results, points, and win/loss status
 - Phase 14 added: Premium animated emoji — purchasable GIF stickers (6 initial) that fly from sender to receiver avatar with explosion effects, deducted from points
 - Phase 15 added: Power-up redesign — remove advance mode, new purchase-based power-up system (4 power-ups: Sonar Ping, Cross Missile, Decoy, Scatter Blast; buy during placement phase, max 2/game, 10% stake price)
+- Phase 16 added: Admin dashboard — full-featured admin panel with CRUD management (users, matches, content), analytics/charts, real-time stats, moderation tools, operational controls, audit logging, role-based access (super_admin/admin/moderator), separate React bundle at /admin
 
 ### Pending Todos
 
