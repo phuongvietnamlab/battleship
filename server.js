@@ -349,6 +349,23 @@ app.get("/api/emojis", async (req, res) => {
   res.json({ emojis: emojiCache });
 });
 
+// ─── Public announcements endpoint (Phase 16) ────────────────────────────────
+// No auth required. Returns only active announcements within their time window.
+app.get("/api/announcements", async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, title_en, title_vi, body_en, body_vi, type, start_at, end_at
+       FROM announcements
+       WHERE active=true AND start_at <= now() AND (end_at IS NULL OR end_at > now())
+       ORDER BY start_at DESC LIMIT 5`
+    );
+    res.json({ announcements: rows });
+  } catch (e) {
+    console.error("[api] announcements error:", e.message);
+    res.json({ announcements: [] });
+  }
+});
+
 // ─── Email auth routes ───────────────────────────────────────────────────────
 // POST /auth/signup — create an email/password account and log in.
 // POST /auth/login  — sign in an existing email account.
