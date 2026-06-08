@@ -899,33 +899,47 @@ function BottomSheet({ open, onClose, title, children }) {
 
 // ---------- LobbyFriendsWidget (Phase 17) ----------
 // Inline widget showing online friends directly in the lobby
-function LobbyFriendsWidget({ authUser, onChallenge }) {
+function LobbyFriendsWidget({ authUser, onChallenge, balance }) {
   const [friends, setFriends] = useState([]);
   const [pending, setPending] = useState([]);
   const [loaded, setLoaded] = useState(false);
+  const [challengeTarget, setChallengeTarget] = useState(null);
+  const [challengeStake, setChallengeStake] = useState(0);
+  const [challengeWaiting, setChallengeWaiting] = useState(false);
+  const [notice, setNotice] = useState(null);
 
   useEffect(() => {
     if (!authUser) return;
     fetch("/api/friends").then(r => r.ok ? r.json() : []).then(data => { setFriends(data); setLoaded(true); }).catch(() => setLoaded(true));
     fetch("/api/friends/pending").then(r => r.ok ? r.json() : []).then(setPending).catch(() => {});
-    // Listen for presence updates
     const onStatus = ({ userId, status }) => {
       setFriends(prev => prev.map(f => f.id === userId ? { ...f, status } : f));
     };
     const onList = (data) => setFriends(data);
     const onPendingUpdate = (data) => setPending(data);
-    const onReq = () => setPending(prev => [...prev, {}]);
+    const onReq = (req) => setPending(prev => [...prev, req]);
+    const onChallengeAccepted = () => { setChallengeWaiting(false); setChallengeTarget(null); };
+    const onChallengeDeclined = () => { setChallengeWaiting(false); setChallengeTarget(null); setNotice(t("challenge.declined")); };
+    const onChallengeExpired = () => { setChallengeWaiting(false); setChallengeTarget(null); setNotice(t("challenge.expired")); };
     socket.on("friend:status-change", onStatus);
     socket.on("friend:list", onList);
     socket.on("friend:pending", onPendingUpdate);
     socket.on("friend:request-received", onReq);
+    socket.on("friend:challenge-accepted", onChallengeAccepted);
+    socket.on("friend:challenge-declined", onChallengeDeclined);
+    socket.on("friend:challenge-expired", onChallengeExpired);
     return () => {
       socket.off("friend:status-change", onStatus);
       socket.off("friend:list", onList);
       socket.off("friend:pending", onPendingUpdate);
       socket.off("friend:request-received", onReq);
+      socket.off("friend:challenge-accepted", onChallengeAccepted);
+      socket.off("friend:challenge-declined", onChallengeDeclined);
+      socket.off("friend:challenge-expired", onChallengeExpired);
     };
   }, [authUser]);
+
+  function showNotice(msg) { setNotice(msg); setTimeout(() => setNotice(null), 3000); }
 
   function handleAccept(friendshipId) {
     socket.emit("friend:accept", { friendshipId }, (res) => {
@@ -938,6 +952,18 @@ function LobbyFriendsWidget({ authUser, onChallenge }) {
     });
   }
 
+  function sendChallenge() {
+    if (!challengeTarget) return;
+    setChallengeWaiting(true);
+    socket.emit("friend:challenge", { friendId: challengeTarget.id, stake: challengeStake }, (res) => {
+      if (!res || !res.ok) {
+        setChallengeWaiting(false);
+        setChallengeTarget(null);
+        showNotice(t("challenge.notAvailable"));
+      }
+    });
+  }
+
   const online = friends.filter(f => f.status === "online");
   const inGame = friends.filter(f => f.status === "in-game");
   const hasFriends = friends.length > 0 || pending.length > 0;
@@ -947,6 +973,7 @@ function LobbyFriendsWidget({ authUser, onChallenge }) {
   return (
     <div className="lobby-friends-widget">
       <div className="lobby-friends-title">👥 {t("friends.title")}</div>
+      {notice && <div className="notice-toast" style={{fontSize:"12px",padding:"4px 10px",marginBottom:6}}>{notice}</div>}
       {/* Pending requests */}
       {pending.length > 0 && (
         <div className="lobby-friends-pending">
@@ -964,8 +991,7 @@ function LobbyFriendsWidget({ authUser, onChallenge }) {
         <div key={f.id} className="lobby-friend-row">
           <span className="status-dot online"></span>
           <span className="friend-name">{f.display_name}</span>
-          <span className="friend-h2h">{f.h2h ? `${f.h2h.myWins}-${f.h2h.theirWins}` : ""}</span>
-          <button className="btn-mini challenge" onClick={() => onChallenge && onChallenge(f)}>⚔️</button>
+          <button className="btn-mini challenge" onClick={() => { setChallengeTarget(f); setChallengeStake(0); }}>⚔️</button>
         </div>
       ))}
       {/* In-game friends */}
@@ -973,10 +999,24 @@ function LobbyFriendsWidget({ authUser, onChallenge }) {
         <div key={f.id} className="lobby-friend-row">
           <span className="status-dot ingame"></span>
           <span className="friend-name">{f.display_name}</span>
-          <span className="friend-h2h">{f.h2h ? `${f.h2h.myWins}-${f.h2h.theirWins}` : ""}</span>
           <span className="friend-status-label">🎮</span>
         </div>
       ))}
+      {/* Challenge BottomSheet */}
+      <BottomSheet open={!!challengeTarget && !challengeWaiting} onClose={() => setChallengeTarget(null)} title={t("challenge.title", { name: challengeTarget?.display_name || "" })}>
+        <div className="wager-chips" style={{ justifyContent: "center", margin: "10px 0" }}>
+          {[0, 10, 25, 50, 100].map(s => (
+            <button key={s} className={"chip" + (challengeStake === s ? " active" : "")} onClick={() => setChallengeStake(s)} disabled={s > 0 && (balance == null || balance < s)}>
+              {s === 0 ? t("queue.stake0") : s}
+            </button>
+          ))}
+        </div>
+        <div style={{ textAlign: "center", marginBottom: 10, fontSize: "1.1em" }}>💰 {balance ?? 0}</div>
+        <button className="btn primary" onClick={sendChallenge}>⚔️ {t("challenge.send")}</button>
+      </BottomSheet>
+      {challengeWaiting && (
+        <div className="challenge-waiting">⏳ {t("challenge.waiting")}</div>
+      )}
     </div>
   );
 }
@@ -1049,7 +1089,7 @@ function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onHelp, onHistory, onFri
 
       {/* Inline Friends Widget (Phase 17) — shows above footer for auth users */}
       {authUser && (
-        <LobbyFriendsWidget authUser={authUser} onChallenge={onChallenge} />
+        <LobbyFriendsWidget authUser={authUser} balance={balance} />
       )}
 
       {/* Footer utilities */}

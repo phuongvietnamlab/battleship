@@ -1172,8 +1172,8 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 .friend-h2h { font-size:12px; color:#7ab3e0; font-weight:600; min-width:36px; text-align:center; }
 .friend-actions { display:flex; gap:4px; }
 .friends-empty { text-align:center; color:#7ab3e0; padding:40px 20px; font-size:14px; }
-.status-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
-.status-dot.online { background:#4cff8b; }
+.status-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+.status-dot.online { background:#4cff8b; box-shadow:0 0 4px #4cff8b; }
 .status-dot.ingame { background:#ffd700; }
 .status-dot.offline { background:#555; }
 .challenge-waiting { text-align:center; padding:20px; color:#7ab3e0; }
@@ -1196,10 +1196,10 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 .lobby-friend-row:hover { background:rgba(120,190,255,.08); }
 .lobby-friend-row.pending { background:rgba(255,200,100,.08); margin-bottom:4px; border-radius:6px; padding:6px 8px; }
 .lobby-friends-pending { margin-bottom:8px; border-bottom:1px solid rgba(120,190,255,.1); padding-bottom:8px; }
-.btn-mini { border:none; background:rgba(120,190,255,.15); color:#fff; border-radius:6px; padding:4px 8px; font-size:12px; cursor:pointer; transition:background .15s; }
+.btn-mini { border:none; background:rgba(120,190,255,.15); color:#fff; border-radius:8px; padding:6px 12px; font-size:14px; cursor:pointer; transition:background .15s; }
 .btn-mini:hover { background:rgba(120,190,255,.3); }
-.btn-mini.challenge { background:rgba(255,200,50,.2); color:#ffd700; }
-.btn-mini.challenge:hover { background:rgba(255,200,50,.35); }
+.btn-mini.challenge { background:rgba(255,200,50,.25); color:#ffd700; font-size:16px; padding:6px 14px; }
+.btn-mini.challenge:hover { background:rgba(255,200,50,.45); }
 .btn-mini.accept { background:rgba(76,255,139,.2); color:#4cff8b; }
 .btn-mini.reject { background:rgba(255,107,107,.15); color:#ff6b6b; }
 .friend-status-label { font-size:11px; color:#7ab3e0; }
