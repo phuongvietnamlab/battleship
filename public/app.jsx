@@ -2893,16 +2893,16 @@ function App() {
   const [graceLeft, setGraceLeft] = useState(0);        // đếm ngược giây chờ kết nối lại
   const [confirmLeave, setConfirmLeave] = useState(false); // hỏi xác nhận trước khi rời
   const [profile, setProfile] = useState({ name: null, photo: null });
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
+  // Auth state: null = guest; {id, displayName, avatarUrl} = signed-in (D-12)
+  const [authUser, setAuthUser] = useState(null);
   // Sync profile from authUser so it gets sent to server in joinQueue/createRoom
   useEffect(() => {
     if (authUser) {
       setProfile({ name: authUser.displayName || null, photo: authUser.avatarUrl || null, id: authUser.id });
     }
   }, [authUser]);
-  const [helpOpen, setHelpOpen] = useState(false);
-  const [chatOpen, setChatOpen] = useState(false);
-  // Auth state: null = guest; {id, displayName, avatarUrl} = signed-in (D-12)
-  const [authUser, setAuthUser] = useState(null);
   const [authError, setAuthError] = useState(null);   // 'failed' | 'rateLimited'
   const [verifyNotice, setVerifyNotice] = useState(null); // 'success' | 'error' (AUTH-07)
   const [signInDisabled, setSignInDisabled] = useState(false); // during OAuth redirect
