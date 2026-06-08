@@ -1169,6 +1169,8 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 .friend-row { display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:8px; background:rgba(120,190,255,.06); margin-bottom:4px; }
 .friend-row.pending-row { background:rgba(255,200,100,.08); }
 .friend-name { flex:1; font-size:14px; color:#fff; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.friend-name.clickable { cursor:pointer; }
+.friend-name.clickable:hover { color:#7ab3e0; text-decoration:underline; }
 .friend-h2h { font-size:12px; color:#7ab3e0; font-weight:600; min-width:36px; text-align:center; }
 .friend-actions { display:flex; gap:4px; }
 .friends-empty { text-align:center; color:#7ab3e0; padding:40px 20px; font-size:14px; }
