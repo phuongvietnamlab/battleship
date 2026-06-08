@@ -897,8 +897,92 @@ function BottomSheet({ open, onClose, title, children }) {
   );
 }
 
+// ---------- LobbyFriendsWidget (Phase 17) ----------
+// Inline widget showing online friends directly in the lobby
+function LobbyFriendsWidget({ authUser, onChallenge }) {
+  const [friends, setFriends] = useState([]);
+  const [pending, setPending] = useState([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!authUser) return;
+    fetch("/api/friends").then(r => r.ok ? r.json() : []).then(data => { setFriends(data); setLoaded(true); }).catch(() => setLoaded(true));
+    fetch("/api/friends/pending").then(r => r.ok ? r.json() : []).then(setPending).catch(() => {});
+    // Listen for presence updates
+    const onStatus = ({ userId, status }) => {
+      setFriends(prev => prev.map(f => f.id === userId ? { ...f, status } : f));
+    };
+    const onList = (data) => setFriends(data);
+    const onPendingUpdate = (data) => setPending(data);
+    const onReq = () => setPending(prev => [...prev, {}]);
+    socket.on("friend:status-change", onStatus);
+    socket.on("friend:list", onList);
+    socket.on("friend:pending", onPendingUpdate);
+    socket.on("friend:request-received", onReq);
+    return () => {
+      socket.off("friend:status-change", onStatus);
+      socket.off("friend:list", onList);
+      socket.off("friend:pending", onPendingUpdate);
+      socket.off("friend:request-received", onReq);
+    };
+  }, [authUser]);
+
+  function handleAccept(friendshipId) {
+    socket.emit("friend:accept", { friendshipId }, (res) => {
+      if (res.ok) setPending(prev => prev.filter(p => p.friendship_id !== friendshipId));
+    });
+  }
+  function handleReject(friendshipId) {
+    socket.emit("friend:reject", { friendshipId }, (res) => {
+      if (res.ok) setPending(prev => prev.filter(p => p.friendship_id !== friendshipId));
+    });
+  }
+
+  const online = friends.filter(f => f.status === "online");
+  const inGame = friends.filter(f => f.status === "in-game");
+  const hasFriends = friends.length > 0 || pending.length > 0;
+
+  if (!loaded || !hasFriends) return null;
+
+  return (
+    <div className="lobby-friends-widget">
+      <div className="lobby-friends-title">👥 {t("friends.title")}</div>
+      {/* Pending requests */}
+      {pending.length > 0 && (
+        <div className="lobby-friends-pending">
+          {pending.map(p => (
+            <div key={p.friendship_id} className="lobby-friend-row pending">
+              <span className="friend-name">{p.display_name || "?"}</span>
+              <button className="btn-mini accept" onClick={() => handleAccept(p.friendship_id)}>✓</button>
+              <button className="btn-mini reject" onClick={() => handleReject(p.friendship_id)}>✗</button>
+            </div>
+          ))}
+        </div>
+      )}
+      {/* Online friends */}
+      {online.length > 0 && online.map(f => (
+        <div key={f.id} className="lobby-friend-row">
+          <span className="status-dot online"></span>
+          <span className="friend-name">{f.display_name}</span>
+          <span className="friend-h2h">{f.h2h ? `${f.h2h.myWins}-${f.h2h.theirWins}` : ""}</span>
+          <button className="btn-mini challenge" onClick={() => onChallenge && onChallenge(f)}>⚔️</button>
+        </div>
+      ))}
+      {/* In-game friends */}
+      {inGame.length > 0 && inGame.map(f => (
+        <div key={f.id} className="lobby-friend-row">
+          <span className="status-dot ingame"></span>
+          <span className="friend-name">{f.display_name}</span>
+          <span className="friend-h2h">{f.h2h ? `${f.h2h.myWins}-${f.h2h.theirWins}` : ""}</span>
+          <span className="friend-status-label">🎮</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ---------- Lobby ----------
-function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onHelp, onHistory, onFriends, error, authUser, authError, verifyNotice, clientId, signInDisabled, onSignInDisable, onEmailAuthSuccess, balance }) {
+function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onHelp, onHistory, onFriends, onChallenge, error, authUser, authError, verifyNotice, clientId, signInDisabled, onSignInDisable, onEmailAuthSuccess, balance }) {
   const [code, setCode] = useState("");
   const [roomStake, setRoomStake] = useState(0);
   const [friendSheetOpen, setFriendSheetOpen] = useState(false);
@@ -962,6 +1046,11 @@ function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onHelp, onHistory, onFri
           <small>{t("lobby.friendCardSub")}</small>
         </button>
       </div>
+
+      {/* Inline Friends Widget (Phase 17) — shows above footer for auth users */}
+      {authUser && (
+        <LobbyFriendsWidget authUser={authUser} onChallenge={onChallenge} />
+      )}
 
       {/* Footer utilities */}
       <div className="lobby-footer">
@@ -3647,7 +3736,7 @@ function App() {
 
       {notice && <div className="notice-toast">{notice}</div>}
 
-      {screen === "lobby" && <Lobby onCreate={createRoom} onJoin={joinRoom} onBot={handleBot} onQuickMatch={handleQuickMatch} onHelp={() => setHelpOpen(true)} onHistory={() => setScreen("history")} onFriends={() => setScreen("friends")} error={error} authUser={authUser} authError={authError} verifyNotice={verifyNotice} clientId={clientId} signInDisabled={signInDisabled} onSignInDisable={() => setSignInDisabled(true)} onEmailAuthSuccess={setAuthUser} balance={balance} />}
+      {screen === "lobby" && <Lobby onCreate={createRoom} onJoin={joinRoom} onBot={handleBot} onQuickMatch={handleQuickMatch} onHelp={() => setHelpOpen(true)} onHistory={() => setScreen("history")} onFriends={() => setScreen("friends")} onChallenge={() => setScreen("friends")} error={error} authUser={authUser} authError={authError} verifyNotice={verifyNotice} clientId={clientId} signInDisabled={signInDisabled} onSignInDisable={() => setSignInDisabled(true)} onEmailAuthSuccess={setAuthUser} balance={balance} />}
 
       {screen === "queue" && (
         <div className="lobby">
