@@ -1609,14 +1609,14 @@ function Battle({ myTurn, vsBot, occ, incoming, myShots, onFire, log, sunkOpp, s
 
   // Fetch opponent stats + H2H on avatar click
   function handleOppClick() {
-    if (vsBot || !oppProfile || !oppProfile.id) return;
+    if (vsBot || !oppProfile) return;
     if (oppStatsCache.current) {
       setOppStats(oppStatsCache.current);
       setOppStatsOpen(true);
     } else {
       // Fetch both profile stats and H2H in parallel
-      const profileP = fetch("/api/profile/" + oppProfile.id).then(r => r.ok ? r.json() : null);
-      const h2hP = authUser ? fetch("/api/friends/h2h/" + oppProfile.id).then(r => r.ok ? r.json() : null) : Promise.resolve(null);
+      const profileP = oppProfile.id ? fetch("/api/profile/" + oppProfile.id).then(r => r.ok ? r.json() : null) : Promise.resolve(null);
+      const h2hP = (authUser && oppProfile.id) ? fetch("/api/friends/h2h/" + oppProfile.id).then(r => r.ok ? r.json() : null) : Promise.resolve(null);
       Promise.all([profileP, h2hP]).then(([profile, h2h]) => {
         const combined = {
           winRate: profile?.stats?.winRate ?? 0,
@@ -1715,7 +1715,7 @@ function Battle({ myTurn, vsBot, occ, incoming, myShots, onFire, log, sunkOpp, s
                   </div>
                 </>
               )}
-              {authUser && friendStatus === "none" && !friendReqSent && (
+              {authUser && oppProfile?.id && friendStatus === "none" && !friendReqSent && (
                 <button className="btn compact primary opp-add-friend" onClick={handleAddFriend}>➕ {t("friends.add")}</button>
               )}
               {friendStatus === "accepted" && (
@@ -1723,6 +1723,9 @@ function Battle({ myTurn, vsBot, occ, incoming, myShots, onFire, log, sunkOpp, s
               )}
               {(friendStatus === "pending" || friendReqSent) && (
                 <div className="friendship-badge">⏳ {t("friends.pendingSent")}</div>
+              )}
+              {!oppProfile?.id && authUser && (
+                <div className="friendship-badge" style={{color:"#555"}}>{LANG === "vi" ? "Khách — không thể kết bạn" : "Guest — can't add"}</div>
               )}
             </div>
           )}
@@ -2890,6 +2893,12 @@ function App() {
   const [graceLeft, setGraceLeft] = useState(0);        // đếm ngược giây chờ kết nối lại
   const [confirmLeave, setConfirmLeave] = useState(false); // hỏi xác nhận trước khi rời
   const [profile, setProfile] = useState({ name: null, photo: null });
+  // Sync profile from authUser so it gets sent to server in joinQueue/createRoom
+  useEffect(() => {
+    if (authUser) {
+      setProfile({ name: authUser.displayName || null, photo: authUser.avatarUrl || null, id: authUser.id });
+    }
+  }, [authUser]);
   const [helpOpen, setHelpOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   // Auth state: null = guest; {id, displayName, avatarUrl} = signed-in (D-12)

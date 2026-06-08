@@ -1293,6 +1293,13 @@ function sanitizeProfile(p) {
   return { name, photo };
 }
 
+// Phase 17: Build profile payload including server-trusted userId for oppProfile emit
+function buildOppProfile(player) {
+  if (!player) return null;
+  const p = player.profile || {};
+  return { name: p.name || null, photo: p.photo || null, id: player.userId || null };
+}
+
 // Validate and sanitize chat text (SEC-04). Returns null for invalid/empty input
 // so the chat handler can early-return cleanly.
 function sanitizeChat(text) {
@@ -1583,7 +1590,7 @@ function syncPayload(room, code, clientId) {
     yourTurn: room.turn === clientId,
     turnDeadline: room.started ? (room.turnDeadline || null) : null,
     turnDur: TURN_MS,
-    oppProfile: (opp && opp.profile) || null,
+    oppProfile: opp ? buildOppProfile(opp) : null,
     youReady: !!(me && me.ready),
     oppPresent: !!opp,
     oppReady: !!(opp && opp.ready),
@@ -1969,8 +1976,8 @@ async function createMatchedRoom(entryA, entryB, type) {
   }
   io.to(code).emit("roomUpdate", roomPublic(rooms[code]));
   io.to(code).emit("opponentJoined");
-  io.to(entryA.socketId).emit("oppProfile", entryB.profile || null);
-  io.to(entryB.socketId).emit("oppProfile", entryA.profile || null);
+  io.to(entryA.socketId).emit("oppProfile", buildOppProfile(rooms[code].players[entryB.clientId]));
+  io.to(entryB.socketId).emit("oppProfile", buildOppProfile(rooms[code].players[entryA.clientId]));
   io.to(entryA.socketId).emit("matchFound", { code, stake: rooms[code].stake || 0 });
   io.to(entryB.socketId).emit("matchFound", { code, stake: rooms[code].stake || 0 });
   console.log(`[queue] matched ${type}: ${entryA.clientId} vs ${entryB.clientId} -> room ${code}`);
@@ -2108,8 +2115,8 @@ io.on("connection", (socket) => {
     // Exchange profiles
     const oppId = opponentOf(room, clientId);
     if (oppId) {
-      emitToClient(room, oppId, "oppProfile", room.players[clientId].profile || null);
-      emitToClient(room, clientId, "oppProfile", room.players[oppId].profile || null);
+      emitToClient(room, oppId, "oppProfile", buildOppProfile(room.players[clientId]));
+      emitToClient(room, clientId, "oppProfile", buildOppProfile(room.players[oppId]));
     }
     cb && cb({ ok: true, code: challenge.roomCode, stake: challenge.stake });
     // Notify sender
@@ -2417,8 +2424,8 @@ io.on("connection", (socket) => {
     // exchange profiles so both scoreboards show avatar + name immediately
     const oppId = opponentOf(room, clientId);
     if (oppId) {
-      emitToClient(room, oppId, "oppProfile", room.players[clientId].profile || null);
-      emitToClient(room, clientId, "oppProfile", room.players[oppId].profile || null);
+      emitToClient(room, oppId, "oppProfile", buildOppProfile(room.players[clientId]));
+      emitToClient(room, clientId, "oppProfile", buildOppProfile(room.players[oppId]));
     }
   });
 
