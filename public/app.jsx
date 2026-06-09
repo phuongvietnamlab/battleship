@@ -3074,7 +3074,13 @@ function App() {
   const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) && !window.MSStream;
   const isStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
   const [dismissedInstall, setDismissedInstall] = useState(() => {
-    try { return localStorage.getItem("pwa_dismissed") === "1"; } catch { return false; }
+    if (isStandalone) return true;
+    try {
+      const ts = localStorage.getItem("pwa_dismissed_at");
+      if (!ts) return false;
+      // 7 days expiry
+      return (Date.now() - parseInt(ts, 10)) < 7 * 24 * 60 * 60 * 1000;
+    } catch { return false; }
   });
   useEffect(() => {
     if (isStandalone || dismissedInstall) return;
@@ -3957,7 +3963,7 @@ function App() {
           {isIOS ? (
             <>
               <span>📲 {LANG === "vi" ? "Bấm" : "Tap"} <strong style={{fontSize:"18px"}}>⎋</strong> {LANG === "vi" ? "rồi chọn \"Thêm vào MH chính\" để chơi như app" : "then \"Add to Home Screen\" to play like an app"}</span>
-              <button className="btn-mini reject" onClick={() => { setShowInstallBanner(false); setDismissedInstall(true); try { localStorage.setItem("pwa_dismissed","1"); } catch {} }}>✕</button>
+              <button className="btn-mini reject" onClick={() => { setShowInstallBanner(false); setDismissedInstall(true); try { localStorage.setItem("pwa_dismissed_at",String(Date.now())); } catch {} }}>✕</button>
             </>
           ) : (
             <>
@@ -3966,7 +3972,7 @@ function App() {
                 if (installPrompt) { installPrompt.prompt(); installPrompt.userChoice.then(() => setShowInstallBanner(false)); }
                 else setShowInstallBanner(false);
               }}>{LANG === "vi" ? "Cài đặt" : "Install"}</button>
-              <button className="btn-mini reject" onClick={() => { setShowInstallBanner(false); setDismissedInstall(true); try { localStorage.setItem("pwa_dismissed","1"); } catch {} }}>✕</button>
+              <button className="btn-mini reject" onClick={() => { setShowInstallBanner(false); setDismissedInstall(true); try { localStorage.setItem("pwa_dismissed_at",String(Date.now())); } catch {} }}>✕</button>
             </>
           )}
         </div>
