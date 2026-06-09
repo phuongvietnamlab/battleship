@@ -27,7 +27,8 @@ console.error = (...args) => {
   if (global._adminLogBuffer.length > LOG_BUFFER_MAX) global._adminLogBuffer.shift();
 };
 const store = require("./store"); // optional Redis snapshot; no-op without REDIS_URL
-const { pool, runMigrations, upsertGuestCredential, linkOrPromoteAccount, createEmailAccount, verifyEmailLogin, recordMatch, getMatchHistory, getUserStats, resolveUserIdFromClientId, getWalletBalance, debitWallet, creditWallet, createWallet, getUserById, setEmailPassword, linkEmailToUser, getPremiumEmojis, getPremiumEmojiById, sendFriendRequest, acceptFriendRequest, rejectFriendRequest, removeFriend, getFriendsList, getPendingRequests, searchUsers, getFriendshipStatus, getH2HStats, getBatchH2HStats } = require("./db"); // Postgres: identity persistence + wallet + emoji + friends
+const { pool, runMigrations, upsertGuestCredential, linkOrPromoteAccount, createEmailAccount, verifyEmailLogin, recordMatch, getMatchHistory, getUserStats, resolveUserIdFromClientId, getWalletBalance, debitWallet, creditWallet, createWallet, getUserById, setEmailPassword, linkEmailToUser, getPremiumEmojis, getPremiumEmojiById, sendFriendRequest, acceptFriendRequest, rejectFriendRequest, removeFriend, getFriendsList, getPendingRequests, searchUsers, getFriendshipStatus, getH2HStats, getBatchH2HStats, getAvailableBots, replenishBotWallet, getBotUserIds } = require("./db"); // Postgres: identity persistence + wallet + emoji + friends + bot
+const { generateBotFleet, pickRandomTarget, getBotFireDelay, allShipsSunk, findSunkShip } = require("./bot-engine"); // Phase 18: server-side bot
 
 // Helper: resolve userId for match recording — uses room player userId first, falls back to DB lookup via clientId
 async function resolveMatchUserId(room, clientId) {
@@ -168,6 +169,11 @@ const RL_ABUSE_THRESHOLD = 10;
 // ─── Matchmaking queue constants and maps (05-01) ────────────────────────────
 const BOT_OFFER_DELAY_MS       = 30000; // 30 s alone before bot prompt (D-09)
 const QUEUE_SWEEP_MS           = 5000;  // sweep timer cadence
+
+// Phase 18: Bot Quick Match — auto-pair with bot after timeout
+const BOT_MATCH_TIMEOUT_MS = parseInt(process.env.BOT_MATCH_TIMEOUT_MS, 10) || 15000;
+const activeBotMatches = new Map(); // botUserId → roomCode
+let cachedBotUsers = []; // loaded at startup from DB
 
 // mirrors rooms map — module-level, never per-request (clientId → QueueEntry)
 const queues = {
@@ -1682,6 +1688,11 @@ function sweepRooms() {
 function armTurnTimer(room) {
   clearTurnTimer(room);
   if (!room.started || !room.turn) return;
+  // Phase 18: if it's the bot's turn, don't arm a timeout — schedule bot shot instead
+  if (room.isBotMatch && room.turn === room.botClientId) {
+    scheduleBotTurn(room.code);
+    return;
+  }
   const who = room.turn;
   room.turnDeadline = Date.now() + TURN_MS;
   for (const id of room.order) emitToClient(room, id, "turnTimer", { deadline: room.turnDeadline, dur: TURN_MS, yourTurn: id === who });
@@ -1729,7 +1740,12 @@ function onTurnTimeout(room, who) {
   const p = room.players[who];
   if (!p) return;
   p.timeouts = (p.timeouts || 0) + 1;
-  if (p.timeouts >= MAX_TIMEOUTS) { endGameForfeit(room, who, "timeout"); return; }
+  if (p.timeouts >= MAX_TIMEOUTS) {
+    endGameForfeit(room, who, "timeout");
+    // Phase 18: clean up bot tracking on forfeit
+    if (room.isBotMatch) activeBotMatches.delete(room.botUserId);
+    return;
+  }
   // bỏ lượt: chuyển cho đối thủ, báo cả hai, rồi lên giờ lại
   const opp = opponentOf(room, who);
   emitToClient(room, who, "turnSkipped", { you: true });
@@ -1992,6 +2008,288 @@ async function createMatchedRoom(entryA, entryB, type) {
   io.to(entryA.socketId).emit("matchFound", { code, stake: rooms[code].stake || 0 });
   io.to(entryB.socketId).emit("matchFound", { code, stake: rooms[code].stake || 0 });
   console.log(`[queue] matched ${type}: ${entryA.clientId} vs ${entryB.clientId} -> room ${code}`);
+}
+
+// ─── Phase 18: Bot Quick Match — server-side bot match creation + game loop ──
+
+async function createBotMatchRoom(humanEntry, botUser, type) {
+  const code = newCode();
+  const botFleet = generateBotFleet();
+  let stake = type === 'wagered' ? (humanEntry.stake || 0) : 0;
+
+  // Debit bot wallet for the stake (if wagered)
+  let botWagerId = null;
+  if (stake > 0) {
+    const refId = 'bot_wager_' + Date.now() + '_' + botUser.id;
+    const result = await debitWallet(botUser.id, stake, 'wager_debit', refId);
+    if (!result.ok) {
+      // Bot can't afford — refund human and downgrade to free match
+      if (humanEntry.wagerId && humanEntry.userId) {
+        await creditWallet(humanEntry.userId, humanEntry.stake, 'wager_refund', humanEntry.wagerId + '_botfail');
+        const sock = io.of('/').sockets.get(humanEntry.socketId);
+        if (sock) {
+          const bal = await getWalletBalance(humanEntry.userId);
+          sock.emit('balanceUpdate', { balance: bal });
+        }
+      }
+      stake = 0;
+    } else {
+      botWagerId = refId;
+    }
+  }
+
+  const botClientId = 'bot_' + botUser.id + '_' + Date.now();
+  rooms[code] = {
+    code, players: {}, order: [], started: false, turn: null, scores: {},
+    lastStarter: null, mode: 'classic',
+    turnTimer: null, turnDeadline: null,
+    resolving: false, lastActivityAt: Date.now(),
+    matchQueueType: type,
+    stake,
+    purchases: {},
+    // Phase 18: bot match metadata
+    isBotMatch: true,
+    botUserId: botUser.id,
+    botClientId,
+    botFleet, // { occ, ships }
+    botShots: new Set(),
+    startedAt: new Date(),
+  };
+
+  // Seat human player
+  rooms[code].players[humanEntry.clientId] = {
+    sid: humanEntry.socketId, ready: false, occ: null, hits: new Set(), online: true,
+    timer: null, bonus: 0, timeouts: 0, skipNext: false,
+    profile: humanEntry.profile,
+    userId: humanEntry.userId ?? null,
+    matchQueueType: type,
+    wagerId: humanEntry.wagerId ?? null,
+    inv: newInv(), decoyCell: null,
+  };
+  rooms[code].order.push(humanEntry.clientId);
+
+  // Seat bot player (virtual — no real socket, sid=null)
+  rooms[code].players[botClientId] = {
+    sid: null, ready: true, occ: botFleet.occ, ships: botFleet.ships, hits: new Set(), online: true,
+    timer: null, bonus: 0, timeouts: 0, skipNext: false,
+    profile: { name: botUser.display_name, avatar: botUser.avatar_url },
+    userId: botUser.id,
+    matchQueueType: type,
+    wagerId: botWagerId,
+    inv: newInv(), decoyCell: null,
+  };
+  rooms[code].order.push(botClientId);
+
+  // Join human socket to room
+  const humanSocket = io.of('/').sockets.get(humanEntry.socketId);
+  if (humanSocket) {
+    humanSocket.join(code);
+    humanSocket.data.code = code;
+    humanSocket.data.clientId = humanEntry.clientId;
+    humanSocket.data.queueType = null;
+    humanSocket.data.queueClientId = null;
+  }
+
+  // Track active bot
+  activeBotMatches.set(botUser.id, code);
+
+  // Emit matchFound + opponent profile to human (looks exactly like PvP)
+  if (humanSocket) {
+    humanSocket.emit('matchFound', { code, stake });
+    humanSocket.emit('oppProfile', {
+      name: botUser.display_name,
+      avatar: botUser.avatar_url,
+    });
+    humanSocket.emit('roomUpdate', roomPublic(rooms[code]));
+    humanSocket.emit('opponentJoined');
+  }
+
+  upsertGuestCredential(humanEntry.clientId); // fire-and-forget
+  console.log(`[bot-match] created room ${code}: ${humanEntry.clientId} vs bot ${botUser.display_name} (stake=${stake})`);
+}
+
+/**
+ * Start a bot match game after the human places ships.
+ * Called from the placeShips handler when it detects a bot match.
+ */
+function startBotMatchGame(room, code, humanClientId) {
+  room.started = true;
+  room.startedAt = new Date();
+  // Randomly pick who goes first
+  room.turn = Math.random() < 0.5 ? humanClientId : room.botClientId;
+  room.lastStarter = room.turn;
+  // Reset player states
+  for (const id of room.order) {
+    const p = room.players[id];
+    if (p) { p.bonus = 0; p.skipNext = false; p.timeouts = 0; }
+  }
+  // Emit game start to human
+  emitToClient(room, humanClientId, 'gameStart', { yourTurn: room.turn === humanClientId });
+  // If bot goes first, schedule bot's turn
+  if (room.turn === room.botClientId) {
+    scheduleBotTurn(code);
+  } else {
+    armTurnTimer(room);
+  }
+}
+
+/**
+ * Schedule the bot's next shot with a random 2-5s delay.
+ */
+function scheduleBotTurn(code) {
+  const room = rooms[code];
+  if (!room || !room.isBotMatch || !room.started) return;
+  const delay = getBotFireDelay();
+  room.botTurnTimer = setTimeout(() => {
+    if (!rooms[code]) return;
+    if (rooms[code].turn !== rooms[code].botClientId) return;
+    executeBotShot(code);
+  }, delay);
+}
+
+/**
+ * Execute a single bot shot. Resolves hit/miss, checks win, chains or hands turn.
+ */
+function executeBotShot(code) {
+  const room = rooms[code];
+  if (!room || !room.isBotMatch || !room.started) return;
+
+  const target = pickRandomTarget(room.botShots);
+  if (!target) return;
+
+  room.botShots.add(target);
+  const [r, c] = target.split(',').map(Number);
+
+  // Find human player
+  const humanClientId = room.order.find(id => id !== room.botClientId);
+  const humanPlayer = room.players[humanClientId];
+  if (!humanPlayer || !humanPlayer.occ) return;
+
+  const hit = humanPlayer.occ.has(target);
+
+  // Track bot's hits on human
+  const botPlayer = room.players[room.botClientId];
+  if (hit) botPlayer.hits.add(target);
+
+  // Compute sunk info
+  const sunkCount = humanPlayer.ships
+    ? humanPlayer.ships.filter(ship => [...ship].every(k => botPlayer.hits.has(k))).length
+    : 0;
+  const sunkCells = [];
+  if (humanPlayer.ships) {
+    for (const ship of humanPlayer.ships) {
+      if ([...ship].every(k => botPlayer.hits.has(k))) {
+        ship.forEach(k => sunkCells.push(k));
+      }
+    }
+  }
+
+  // Emit incoming shot to human
+  emitToClient(room, humanClientId, 'incoming', {
+    cells: [{ r, c, hit }],
+    sunkCells,
+    sunkMineCount: sunkCount,
+    newSunk: hit && humanPlayer.ships ? (
+      humanPlayer.ships.some(ship => ship.has(target) && [...ship].every(k => botPlayer.hits.has(k))) ? 1 : 0
+    ) : 0,
+  });
+
+  // Check win condition — bot sunk all human ships
+  const win = humanPlayer.ships && sunkCount >= humanPlayer.ships.length;
+  if (win) {
+    room.started = false;
+    clearTurnTimer(room);
+    room.scores = room.scores || {};
+    room.scores[room.botClientId] = (room.scores[room.botClientId] || 0) + 1;
+    emitToClient(room, humanClientId, 'gameOver', { win: false });
+    // Record match: bot wins
+    if (!room.recorded) {
+      room.recorded = true;
+      recordMatch(room.botUserId, humanPlayer.userId, 'normal', room.mode || 'classic', room.startedAt, room.stake || 0).catch(() => {});
+      // Push updated balance to human
+      if (humanPlayer.userId) {
+        getWalletBalance(humanPlayer.userId).then(bal => {
+          emitToClient(room, humanClientId, 'balanceUpdate', { balance: bal });
+        }).catch(() => {});
+      }
+    }
+    // Clean up
+    activeBotMatches.delete(room.botUserId);
+    return;
+  }
+
+  // Hit → bot gets another turn (chain); Miss → human's turn
+  if (hit) {
+    scheduleBotTurn(code);
+  } else {
+    room.turn = humanClientId;
+    for (const id of room.order) emitToClient(room, id, 'turnUpdate', { yourTurn: room.turn === id });
+    armTurnTimer(room);
+  }
+}
+
+/**
+ * Try to match queued players with bots after BOT_MATCH_TIMEOUT_MS.
+ * Called from the queue sweep interval.
+ */
+async function tryBotMatch() {
+  if (cachedBotUsers.length === 0) return;
+  const now = Date.now();
+
+  for (const type of ['free', 'wagered']) {
+    const q = queues[type];
+    for (const [queueKey, entry] of [...q.entries()]) {
+      if (entry.pairing) continue;
+      if (now - entry.enqueuedAt < BOT_MATCH_TIMEOUT_MS) continue;
+      if (!socketIsLive(entry.socketId)) continue;
+
+      // Check if a human pair is available right now — let normal pairing handle it
+      const otherEntries = [...q.values()].filter(e => e !== entry && !e.pairing);
+      const humanPairAvailable = type === 'wagered'
+        ? otherEntries.some(e => e.stake === entry.stake)
+        : otherEntries.length > 0;
+      if (humanPairAvailable) continue;
+
+      // Find an available bot
+      const busyBotIds = new Set(activeBotMatches.keys());
+      const availableBots = cachedBotUsers.filter(b => !busyBotIds.has(b.id));
+      if (availableBots.length === 0) {
+        console.log(`[bot-match] all bots busy, retrying next sweep for ${entry.clientId}`);
+        continue;
+      }
+
+      // Pick random bot
+      const bot = availableBots[Math.floor(Math.random() * availableBots.length)];
+
+      // Replenish bot wallet if needed (BOT-QM-12)
+      await replenishBotWallet(bot.id);
+
+      // Remove entry from queue (synchronous race guard)
+      entry.pairing = true;
+      q.delete(queueKey);
+
+      const sock = io.of('/').sockets.get(entry.socketId);
+      if (sock) {
+        sock.data.queueType = null;
+        sock.data.queueClientId = null;
+      }
+
+      try {
+        await createBotMatchRoom(entry, bot, type);
+        console.log(`[bot-match] auto-matched ${entry.clientId} with bot ${bot.display_name} after ${now - entry.enqueuedAt}ms`);
+      } catch (err) {
+        console.error('[bot-match] createBotMatchRoom failed:', err.message);
+        entry.pairing = false;
+        q.set(queueKey, entry);
+        if (sock) {
+          sock.data.queueType = type;
+          sock.data.queueClientId = entry.clientId;
+        }
+      }
+      // One bot match per sweep cycle to avoid thundering herd
+      break;
+    }
+  }
 }
 
 io.on("connection", (socket) => {
@@ -2604,6 +2902,12 @@ io.on("connection", (socket) => {
     const opp = opponentOf(room, clientId);
     if (opp) emitToClient(room, opp, "opponentReady");
 
+    // Phase 18: bot match — skip countdown, start immediately
+    if (allReady && room.isBotMatch) {
+      startBotMatchGame(room, code, clientId);
+      return;
+    }
+
     if (allReady) {
       // Start 3s countdown before game begins (allows cancel)
       room.countdownTimer = setTimeout(() => {
@@ -2712,6 +3016,10 @@ io.on("connection", (socket) => {
       room.resolving = false;
     }
     cb && cb(summary);
+    // Phase 18: if human won the bot match, clean up bot tracking
+    if (room.isBotMatch && summary && summary.win) {
+      activeBotMatches.delete(room.botUserId);
+    }
   });
 
   // Power-up ability handler — Phase 15-03: sonar, cross missile, scatter blast
@@ -2944,6 +3252,11 @@ io.on("connection", (socket) => {
     const clientId = socket.data.clientId;
     const room = rooms[code];
     if (room && clientId && room.players[clientId]) {
+      // Phase 18: clean up bot match tracking on leave
+      if (room.isBotMatch) {
+        if (room.botTurnTimer) { clearTimeout(room.botTurnTimer); room.botTurnTimer = null; }
+        activeBotMatches.delete(room.botUserId);
+      }
       // Record match BEFORE any mutation (Pitfall 1: room.started cleared after delete).
       // Guard: room.started (D-05) and !room.recorded (D-06) and order.length===2 (D-04).
       // Keep existing opponentLeft emit — do NOT route through endGameForfeit (locked decision).
@@ -3125,6 +3438,23 @@ io.on("connection", (socket) => {
 
     p.online = false;
     const oppId = opponentOf(room, clientId);
+
+    // Phase 18: if human disconnects during a bot match, bot wins by forfeit
+    if (room.isBotMatch && room.started && clientId !== room.botClientId) {
+      room.started = false;
+      clearTurnTimer(room);
+      if (room.botTurnTimer) { clearTimeout(room.botTurnTimer); room.botTurnTimer = null; }
+      if (!room.recorded) {
+        room.recorded = true;
+        const humanUserId = room.players[clientId]?.userId ?? null;
+        recordMatch(room.botUserId, humanUserId, 'disconnect', room.mode || 'classic', room.startedAt, room.stake || 0).catch(() => {});
+      }
+      activeBotMatches.delete(room.botUserId);
+      delete rooms[code];
+      console.log(`[bot-match] human ${clientId} disconnected, bot wins by forfeit in room ${code}`);
+      return;
+    }
+
     if (oppId) emitToClient(room, oppId, "opponentOffline");
     io.to(code).emit("roomUpdate", roomPublic(room));
     // free the seat only after grace period if not reconnected
@@ -3169,6 +3499,10 @@ if (require.main === module) {
     // Queue pairing sweep: re-run tryPairAll every QUEUE_SWEEP_MS so entries that
     // missed a pair on enqueue (e.g. single waiter) get matched when a second joins.
     setInterval(tryPairAll, QUEUE_SWEEP_MS).unref();
+    // Phase 18: Bot Quick Match sweep — check for timed-out queue entries
+    setInterval(() => { tryBotMatch().catch(e => console.error('[bot-match] sweep error:', e.message)); }, QUEUE_SWEEP_MS).unref();
+    // Phase 18: Load bot user accounts at startup
+    getBotUserIds().then(bots => { cachedBotUsers = bots; console.log(`[bot-match] cached ${bots.length} bot accounts`); }).catch(e => console.error('[bot-match] failed to load bots:', e.message));
     server.listen(PORT, () => {
       console.log(`Battleship server running at http://localhost:${PORT}`);
     });
