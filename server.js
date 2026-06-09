@@ -946,6 +946,7 @@ app.get("/api/friends", async (req, res) => {
     const h2h = await getBatchH2HStats(userId, friendIds);
     const result = friends.map(f => ({
       ...f,
+      status: userPresence.get(f.id) || "offline",
       h2h: h2h[f.id] || { myWins: 0, theirWins: 0 },
     }));
     res.json(result);

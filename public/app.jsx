@@ -1121,11 +1121,6 @@ function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onHelp, onHistory, onFri
         {authUser && (
           <button className="btn ghost compact" onClick={onHistory}>{t("history.open")}</button>
         )}
-        {authUser && (
-          <button className="btn ghost compact" onClick={onFriends}>
-            👥 {t("friends.list")}
-          </button>
-        )}
         {!authUser && (
           <button className="btn ghost compact" onClick={() => setAuthSheetOpen(true)}>{t("auth.signIn")}</button>
         )}
@@ -3808,7 +3803,7 @@ function App() {
 
       {notice && <div className="notice-toast">{notice}</div>}
 
-      {screen === "lobby" && <Lobby onCreate={createRoom} onJoin={joinRoom} onBot={handleBot} onQuickMatch={handleQuickMatch} onHelp={() => setHelpOpen(true)} onHistory={() => setScreen("history")} onFriends={() => setScreen("friends")} onChallenge={() => setScreen("friends")} onViewProfile={(id) => viewProfile(id)} error={error} authUser={authUser} authError={authError} verifyNotice={verifyNotice} clientId={clientId} signInDisabled={signInDisabled} onSignInDisable={() => setSignInDisabled(true)} onEmailAuthSuccess={setAuthUser} balance={balance} />}
+      {screen === "lobby" && <Lobby onCreate={createRoom} onJoin={joinRoom} onBot={handleBot} onQuickMatch={handleQuickMatch} onHelp={() => setHelpOpen(true)} onHistory={() => setScreen("history")} onFriends={() => setScreen("friends")} onChallenge={() => setScreen("friends")} onViewProfile={(id) => handleViewProfile(id)} error={error} authUser={authUser} authError={authError} verifyNotice={verifyNotice} clientId={clientId} signInDisabled={signInDisabled} onSignInDisable={() => setSignInDisabled(true)} onEmailAuthSuccess={setAuthUser} balance={balance} />}
 
       {screen === "queue" && (
         <div className="lobby">
