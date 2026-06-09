@@ -1207,6 +1207,9 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 .btn-mini.reject { background:rgba(255,107,107,.15); color:#ff6b6b; }
 .friend-status-label { font-size:11px; color:#7ab3e0; }
 
+/* Battle decoy marker */
+.battle-decoy-marker { display:flex; align-items:center; justify-content:center; font-size:14px; pointer-events:none; opacity:0.7; z-index:5; border:1px dashed rgba(255,200,50,.5); border-radius:3px; background:rgba(255,200,50,.1); }
+
 @media (max-width:360px) {
   .history-view { padding:18px 14px; margin:3vh auto 0; }
   .match-card { padding:10px 12px; gap:10px; }

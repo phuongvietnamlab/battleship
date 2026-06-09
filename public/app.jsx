@@ -1675,7 +1675,7 @@ function SonarDrag({ onDrop, onCancel }) {
   );
 }
 
-function Battle({ myTurn, vsBot, occ, incoming, myShots, onFire, log, sunkOpp, sunkMine, sunkEnemyCells, sunkMyCells, myScore, oppScore, oppLabel, myProfile, oppProfile, myBubble, oppBubble, flashEnemy, flashMine, turnDeadline, turnDur, shake, inv, aim, onPower, onCrossHover, hoverCells, sonarScan, authUser, onAddFriend }) {
+function Battle({ myTurn, vsBot, occ, incoming, myShots, onFire, log, sunkOpp, sunkMine, sunkEnemyCells, sunkMyCells, myScore, oppScore, oppLabel, myProfile, oppProfile, myBubble, oppBubble, flashEnemy, flashMine, turnDeadline, turnDur, shake, inv, aim, onPower, onCrossHover, hoverCells, sonarScan, authUser, onAddFriend, decoyCell }) {
   const [tab, setTab] = useState("enemy"); // enemy | own (mobile)
   const [oppStats, setOppStats] = useState(null); // { winRate, gamesPlayed, myWins, theirWins, ... }
   const [oppStatsOpen, setOppStatsOpen] = useState(false);
@@ -1831,8 +1831,19 @@ function Battle({ myTurn, vsBot, occ, incoming, myShots, onFire, log, sunkOpp, s
         </div>
         <div className="board-wrap wrap-own">
           <div className="board-title own">{t("board.yourFleet")}</div>
-          <Grid occ={occ} incoming={incoming} sunk={sunkMyCells} flash={flashMine}
-            onCellClick={() => {}} />
+          <div style={{position:"relative"}}>
+            <Grid occ={occ} incoming={incoming} sunk={sunkMyCells} flash={flashMine}
+              onCellClick={() => {}} />
+            {decoyCell && (
+              <div className="battle-decoy-marker" style={{
+                position:"absolute",
+                left: `calc(${decoyCell.c} * (100% / ${BOARD}))`,
+                top: `calc(${decoyCell.r} * (100% / ${BOARD}))`,
+                width: `calc(100% / ${BOARD})`,
+                height: `calc(100% / ${BOARD})`,
+              }}>🎭</div>
+            )}
+          </div>
           <Counter label={t("counter.sunkOwn")} value={sunkMine} cls="own" />
         </div>
       </div>
@@ -3983,7 +3994,7 @@ function App() {
               💰 {t("game.pot", { n: stake * 2 })}
             </div>
           )}
-          <Battle myTurn={myTurn} vsBot={vsBot} occ={occ} incoming={incoming} myShots={myShots} onFire={fire} log={log} sunkOpp={sunkOpp} sunkMine={sunkMine} sunkEnemyCells={sunkEnemyCells} sunkMyCells={sunkMyCells} myScore={myScore} oppScore={oppScore} oppLabel={vsBot ? t("common.bot") : t("common.opponent")} myProfile={profile} oppProfile={vsBot ? null : oppProfile} myBubble={myBubble} oppBubble={vsBot ? null : oppBubble} flashEnemy={flashEnemy} flashMine={flashMine} turnDeadline={vsBot ? null : turnDeadline} turnDur={turnDur} shake={shake} inv={inv} aim={aim} onPower={activatePower} onCrossHover={handleCrossHover} hoverCells={crossHover} sonarScan={sonarScan} authUser={authUser} />
+          <Battle myTurn={myTurn} vsBot={vsBot} occ={occ} incoming={incoming} myShots={myShots} onFire={fire} log={log} sunkOpp={sunkOpp} sunkMine={sunkMine} sunkEnemyCells={sunkEnemyCells} sunkMyCells={sunkMyCells} myScore={myScore} oppScore={oppScore} oppLabel={vsBot ? t("common.bot") : t("common.opponent")} myProfile={profile} oppProfile={vsBot ? null : oppProfile} myBubble={myBubble} oppBubble={vsBot ? null : oppBubble} flashEnemy={flashEnemy} flashMine={flashMine} turnDeadline={vsBot ? null : turnDeadline} turnDur={turnDur} shake={shake} inv={inv} aim={aim} onPower={activatePower} onCrossHover={handleCrossHover} hoverCells={crossHover} sonarScan={sonarScan} authUser={authUser} decoyCell={decoyCell} />
         </div>
       )}
 
