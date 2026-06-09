@@ -2603,9 +2603,10 @@ function MatchHistory({ authUser, onBack }) {
 // Renders own or another player's public zero-state profile.
 // PROF-01: own profile shows sign-out shortcut + member-since + 0/0/0 stats.
 // PROF-02: other player shows disabled Challenge placeholder, no sign-out.
-function ProfileView({ userId, currentUserId, onBack, onSignOut }) {
+function ProfileView({ userId, currentUserId, onBack, onSignOut, onChallengeFriend, onUnfriend }) {
   const [data, setData] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
+  const [friendStatus, setFriendStatus] = useState("none"); // none, pending, accepted
   const [notFound, setNotFound] = React.useState(false);
   const [editing, setEditing] = useState(false);
   const [nameInput, setNameInput] = useState("");
@@ -2635,6 +2636,12 @@ function ProfileView({ userId, currentUserId, onBack, onSignOut }) {
         setLoading(false);
       })
       .catch(() => { setNotFound(true); setLoading(false); });
+    // Fetch friendship status if viewing another user
+    if (currentUserId && userId !== currentUserId) {
+      fetch("/api/friends/h2h/" + userId).then(r => r.ok ? r.json() : null).then(d => {
+        if (d) setFriendStatus(d.friendshipStatus || "none");
+      }).catch(() => {});
+    }
   }, [userId]);
 
   const isOwn = userId != null && currentUserId != null && String(userId) === String(currentUserId);
@@ -2924,9 +2931,30 @@ function ProfileView({ userId, currentUserId, onBack, onSignOut }) {
         {isOwn && onSignOut && (
           <button className="btn ghost" style={{ padding: "8px 20px" }} onClick={onSignOut}>{t("auth.signOut")}</button>
         )}
-        {!isOwn && (
-          <button className="btn ghost" style={{ padding: "8px 20px", opacity: 0.4, cursor: "not-allowed" }} disabled aria-disabled="true">
-            {t("profile.challengeSoon")}
+        {!isOwn && friendStatus === "accepted" && (
+          <button className="btn primary" style={{ padding: "8px 20px" }} onClick={() => onChallengeFriend && onChallengeFriend(userId)}>
+            ⚔️ {t("challenge.send")}
+          </button>
+        )}
+        {!isOwn && friendStatus === "accepted" && (
+          <button className="btn ghost" style={{ padding: "8px 20px", color: "#ff6b6b" }} onClick={() => {
+            if (onUnfriend) onUnfriend(userId);
+            setFriendStatus("none");
+          }}>
+            {t("friends.remove")}
+          </button>
+        )}
+        {!isOwn && friendStatus === "none" && currentUserId && (
+          <button className="btn primary" style={{ padding: "8px 20px" }} onClick={() => {
+            fetch("/api/friends/request", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({targetUserId: userId}) })
+              .then(r => { if (r.ok) setFriendStatus("pending"); });
+          }}>
+            ➕ {t("friends.add")}
+          </button>
+        )}
+        {!isOwn && friendStatus === "pending" && (
+          <button className="btn ghost" style={{ padding: "8px 20px", opacity: 0.6 }} disabled>
+            ⏳ {t("friends.pendingSent")}
           </button>
         )}
         <button className="btn ghost" style={{ padding: "8px 20px" }} onClick={onBack}>{t("profile.back")}</button>
@@ -3874,6 +3902,8 @@ function App() {
           currentUserId={authUser ? authUser.id : null}
           onBack={() => setScreen("lobby")}
           onSignOut={handleSignOut}
+          onChallengeFriend={(friendId) => { setScreen("friends"); }}
+          onUnfriend={(friendId) => { socket.emit("friend:remove", { friendId }); }}
         />
       )}
 
