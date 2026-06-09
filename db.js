@@ -1044,6 +1044,50 @@ async function getBatchH2HStats(userId, friendIds) {
   return map;
 }
 
+// ─── Bot Quick Match utilities (Phase 18) ─────────────────────────────────────
+
+/**
+ * Get all bot accounts with their wallet balance.
+ * Filters out bots whose IDs are in the activeBotIds set (currently in a match).
+ */
+async function getAvailableBots(activeBotIds = new Set()) {
+  const { rows } = await pool.query(
+    "SELECT u.id, u.display_name, u.avatar_url, w.balance FROM users u JOIN wallets w ON w.user_id = u.id WHERE u.is_bot = true"
+  );
+  return rows.filter(r => !activeBotIds.has(r.id));
+}
+
+/**
+ * Replenish a bot's wallet to 1000 if balance < 100.
+ * Returns the new balance.
+ */
+async function replenishBotWallet(botUserId) {
+  const { rows } = await pool.query(
+    "SELECT balance FROM wallets WHERE user_id = $1", [botUserId]
+  );
+  if (rows.length === 0) return 0;
+  const current = rows[0].balance;
+  if (current >= 100) return current;
+  const topUp = 1000 - current;
+  await pool.query(
+    "UPDATE wallets SET balance = 1000, updated_at = now() WHERE user_id = $1",
+    [botUserId]
+  );
+  await pool.query(
+    "INSERT INTO transactions (user_id, type, amount, balance_after, reference_id) VALUES ($1, 'bot_replenish', $2, 1000, $3)",
+    [botUserId, topUp, 'replenish_' + Date.now()]
+  );
+  return 1000;
+}
+
+/**
+ * Get all bot user IDs (for server startup caching).
+ */
+async function getBotUserIds() {
+  const { rows } = await pool.query("SELECT id, display_name, avatar_url FROM users WHERE is_bot = true");
+  return rows;
+}
+
 module.exports = {
   pool,
   runMigrations,
@@ -1082,4 +1126,7 @@ module.exports = {
   getFriendshipStatus,
   getH2HStats,
   getBatchH2HStats,
+  getAvailableBots,
+  replenishBotWallet,
+  getBotUserIds,
 };
