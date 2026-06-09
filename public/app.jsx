@@ -3071,11 +3071,21 @@ function App() {
   // PWA install prompt
   const [installPrompt, setInstallPrompt]       = useState(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
+  const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) && !window.MSStream;
+  const isStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+  const [dismissedInstall, setDismissedInstall] = useState(() => {
+    try { return localStorage.getItem("pwa_dismissed") === "1"; } catch { return false; }
+  });
   useEffect(() => {
+    if (isStandalone || dismissedInstall) return;
+    // Android/Chrome: capture beforeinstallprompt
     function handleBIP(e) { e.preventDefault(); setInstallPrompt(e); setShowInstallBanner(true); }
     window.addEventListener("beforeinstallprompt", handleBIP);
-    // Check if already installed (standalone mode)
-    if (window.matchMedia("(display-mode: standalone)").matches) setShowInstallBanner(false);
+    // iOS: show manual guide after 3s (no API available)
+    if (isIOS) {
+      const t = setTimeout(() => setShowInstallBanner(true), 3000);
+      return () => { clearTimeout(t); window.removeEventListener("beforeinstallprompt", handleBIP); };
+    }
     return () => window.removeEventListener("beforeinstallprompt", handleBIP);
   }, []);
   // Battle-phase power-up state (Phase 15-05)
@@ -3944,12 +3954,21 @@ function App() {
       {/* PWA Install Banner */}
       {showInstallBanner && screen === "lobby" && (
         <div className="pwa-install-banner">
-          <span>📲 {LANG === "vi" ? "Cài lên màn hình chính để chơi nhanh hơn" : "Install to home screen for quick access"}</span>
-          <button className="btn-mini" onClick={() => {
-            if (installPrompt) { installPrompt.prompt(); installPrompt.userChoice.then(() => setShowInstallBanner(false)); }
-            else setShowInstallBanner(false);
-          }}>{LANG === "vi" ? "Cài đặt" : "Install"}</button>
-          <button className="btn-mini reject" onClick={() => setShowInstallBanner(false)}>✕</button>
+          {isIOS ? (
+            <>
+              <span>📲 {LANG === "vi" ? "Bấm" : "Tap"} <strong style={{fontSize:"18px"}}>⎋</strong> {LANG === "vi" ? "rồi chọn \"Thêm vào MH chính\" để chơi như app" : "then \"Add to Home Screen\" to play like an app"}</span>
+              <button className="btn-mini reject" onClick={() => { setShowInstallBanner(false); setDismissedInstall(true); try { localStorage.setItem("pwa_dismissed","1"); } catch {} }}>✕</button>
+            </>
+          ) : (
+            <>
+              <span>📲 {LANG === "vi" ? "Cài lên màn hình chính để chơi nhanh hơn" : "Install to home screen for quick access"}</span>
+              <button className="btn-mini" onClick={() => {
+                if (installPrompt) { installPrompt.prompt(); installPrompt.userChoice.then(() => setShowInstallBanner(false)); }
+                else setShowInstallBanner(false);
+              }}>{LANG === "vi" ? "Cài đặt" : "Install"}</button>
+              <button className="btn-mini reject" onClick={() => { setShowInstallBanner(false); setDismissedInstall(true); try { localStorage.setItem("pwa_dismissed","1"); } catch {} }}>✕</button>
+            </>
+          )}
         </div>
       )}
 
