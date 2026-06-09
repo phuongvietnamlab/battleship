@@ -3074,8 +3074,11 @@ function App() {
   const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const isSafari = /^((?!chrome|crios|fxios|edgios).)*safari/i.test(navigator.userAgent);
   const isStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+  // If running standalone, mark as installed permanently
+  if (isStandalone) { try { localStorage.setItem("pwa_installed", "1"); } catch {} }
+  const isInstalled = isStandalone || (() => { try { return localStorage.getItem("pwa_installed") === "1"; } catch { return false; } })();
   const [dismissedInstall, setDismissedInstall] = useState(() => {
-    if (isStandalone) return true;
+    if (isInstalled) return true;
     try {
       const ts = localStorage.getItem("pwa_dismissed_at");
       if (!ts) return false;
@@ -3083,11 +3086,9 @@ function App() {
     } catch { return false; }
   });
   useEffect(() => {
-    if (isStandalone || dismissedInstall) return;
-    // Android/Chrome: capture beforeinstallprompt
+    if (isInstalled || dismissedInstall) return;
     function handleBIP(e) { e.preventDefault(); setInstallPrompt(e); setShowInstallBanner(true); }
     window.addEventListener("beforeinstallprompt", handleBIP);
-    // iOS Safari only: show manual guide after 2s
     if (isIOS && isSafari) {
       const t = setTimeout(() => setShowInstallBanner(true), 2000);
       return () => { clearTimeout(t); window.removeEventListener("beforeinstallprompt", handleBIP); };
