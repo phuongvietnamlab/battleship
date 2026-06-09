@@ -1033,14 +1033,20 @@ function LobbyFriendsWidget({ authUser, balance, onViewProfile, onRoomCreated })
       {/* Challenge BottomSheet */}
       <BottomSheet open={!!challengeTarget && !challengeWaiting} onClose={() => setChallengeTarget(null)} title={t("challenge.title", { name: challengeTarget?.display_name || "" })}>
         <div className="wager-chips" style={{ justifyContent: "center", margin: "10px 0" }}>
-          {[0, 10, 25, 50, 100].map(s => (
-            <button key={s} className={"chip" + (challengeStake === s ? " active" : "")} onClick={() => setChallengeStake(s)} disabled={s > 0 && (balance == null || balance < s)}>
-              {s === 0 ? t("queue.stake0") : s}
-            </button>
-          ))}
+          {[0, 10, 25, 50, 100].map(s => {
+            const myOk = s === 0 || (balance != null && balance >= s);
+            const theirOk = s === 0 || (challengeTarget?.balance != null && challengeTarget.balance >= s);
+            return (
+              <button key={s} className={"chip" + (challengeStake === s ? " active" : "")} onClick={() => setChallengeStake(s)} disabled={!myOk || !theirOk}>
+                {s === 0 ? t("queue.stake0") : s}
+              </button>
+            );
+          })}
         </div>
-        <div style={{ textAlign: "center", marginBottom: 10, fontSize: "1.1em" }}>💰 {balance ?? 0}</div>
-        <button className="btn primary" onClick={sendChallenge}>⚔️ {t("challenge.send")}</button>
+        <div style={{ textAlign: "center", marginBottom: 4, fontSize: "0.85em", color: "#7ab3e0" }}>
+          💰 {LANG === "vi" ? "Bạn" : "You"}: {balance ?? 0} · {challengeTarget?.display_name}: {challengeTarget?.balance ?? 0}
+        </div>
+        <button className="btn primary" onClick={sendChallenge} style={{marginTop:10}}>⚔️ {t("challenge.send")}</button>
       </BottomSheet>
       {challengeWaiting && (
         <div className="challenge-waiting">⏳ {t("challenge.waiting")}</div>

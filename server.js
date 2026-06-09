@@ -944,10 +944,20 @@ app.get("/api/friends", async (req, res) => {
     const friends = await getFriendsList(userId);
     const friendIds = friends.map(f => f.id);
     const h2h = await getBatchH2HStats(userId, friendIds);
+    // Fetch balances for friends (to limit challenge stake options)
+    const balances = {};
+    if (friendIds.length > 0) {
+      const { rows: balRows } = await pool.query(
+        "SELECT user_id, balance FROM wallets WHERE user_id = ANY($1)",
+        [friendIds]
+      );
+      for (const r of balRows) balances[r.user_id] = r.balance;
+    }
     const result = friends.map(f => ({
       ...f,
       status: userPresence.get(f.id) || "offline",
       h2h: h2h[f.id] || { myWins: 0, theirWins: 0 },
+      balance: balances[f.id] ?? 0,
     }));
     res.json(result);
   } catch (e) {
