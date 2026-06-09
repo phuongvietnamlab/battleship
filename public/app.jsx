@@ -8,9 +8,6 @@ const BOARD = 11;
 const COLS = ["1","2","3","4","5","6","7","8","9","10","11"];
 const ROWS = ["A","B","C","D","E","F","G","H","I","J","K"];
 
-// D-09: delay before bot offer appears on the queue wait screen (mirrors server BOT_OFFER_DELAY_MS)
-const BOT_OFFER_DELAY_MS = 30000;
-
 // ---------- i18n (English primary, Vietnamese secondary) ----------
 // Locale auto-detected once at load: Vietnamese device -> vi, everything else -> en.
 // t(key, params) interpolates {name} placeholders. Missing keys fall back to en.
@@ -169,8 +166,6 @@ const I18N = {
     "queue.searching": "Searching…",
     "queue.elapsed": "Time waiting",
     "queue.cancel": "Leave Queue",
-    "queue.botOfferBody": "No opponent yet. Play against the bot instead?",
-    "queue.botOfferBtn": "🤖 Play vs Bot",
     "err.ALREADY_IN_QUEUE": "You're already in a queue",
     "err.ALREADY_IN_ROOM": "You're already in a match",
     "err.RATE_LIMITED": "Too many attempts — wait a moment",
@@ -363,8 +358,6 @@ const I18N = {
     "queue.searching": "Đang tìm…",
     "queue.elapsed": "Thời gian chờ",
     "queue.cancel": "Rời hàng chờ",
-    "queue.botOfferBody": "Chưa tìm được đối thủ. Chơi với máy thay vào?",
-    "queue.botOfferBtn": "🤖 Chơi với máy",
     "err.ALREADY_IN_QUEUE": "Bạn đang trong hàng chờ rồi",
     "err.ALREADY_IN_ROOM": "Bạn đang trong trận rồi",
     "err.RATE_LIMITED": "Quá nhiều lần thử — chờ một lát",
@@ -3053,7 +3046,6 @@ function App() {
   const [queueType, setQueueType]               = useState(null);   // "free" | "wagered" | null
   const [queueSince, setQueueSince]             = useState(null);   // Date.now() when enqueued
   const [queueWindow, setQueueWindow]           = useState(null);   // (legacy — unused, kept for state cleanup)
-  const [botOfferVisible, setBotOfferVisible]   = useState(false);  // D-09 delayed bot prompt
   const [elapsedSec, setElapsedSec]             = useState(0);      // re-render tick for elapsed timer
   // Points economy (Phase 7)
   const [balance, setBalance]                   = useState(null);   // null = guest/unknown, number = signed-in
@@ -3107,7 +3099,6 @@ function App() {
   const myBubbleTimer = useRef(null);
   const oppBubbleTimer = useRef(null);
   const graceTimerRef = useRef(null);
-  const botOfferTimerRef = useRef(null);
   const queueTimerRef    = useRef(null);
   const queueTypeRef     = useRef(null); // mirrors queueType for cleanup closures (D-12)
   const joinedUrlRef = useRef(false);   // chỉ auto-join từ link mời 1 lần
@@ -3506,8 +3497,6 @@ function App() {
       setQueueType(null);
       setQueueSince(null);
       setQueueWindow(null);
-      setBotOfferVisible(false);
-      if (botOfferTimerRef.current) { clearTimeout(botOfferTimerRef.current); botOfferTimerRef.current = null; }
       if (queueTimerRef.current) { clearInterval(queueTimerRef.current); queueTimerRef.current = null; }
       setElapsedSec(0);
       setScreen("placement");
@@ -3518,8 +3507,6 @@ function App() {
       setQueueType(type || "free");
       setQueueSince(Date.now());
       setQueueWindow(null);
-      setBotOfferVisible(false);
-      if (botOfferTimerRef.current) { clearTimeout(botOfferTimerRef.current); botOfferTimerRef.current = null; }
       setCode(null);
       persistRoom(null);
       setScreen("queue");
@@ -3543,7 +3530,7 @@ function App() {
   // (e.g. matchFound: setQueueType(null) + setScreen) change both atomically.
   useEffect(() => { queueTypeRef.current = queueType; }, [queueType]);
 
-  // Elapsed timer + bot-offer timer + navigate-away leaveQueue cleanup.
+  // Elapsed timer + navigate-away leaveQueue cleanup.
   // Gated on screen === "queue": all timers start on mount, all cleared on unmount.
   useEffect(() => {
     if (screen !== "queue") {
@@ -3554,12 +3541,8 @@ function App() {
     queueTimerRef.current = setInterval(() => {
       setElapsedSec(queueSince ? Math.floor((Date.now() - queueSince) / 1000) : 0);
     }, 1000);
-    // D-09: show bot offer after delay if still waiting
-    if (botOfferTimerRef.current) clearTimeout(botOfferTimerRef.current);
-    botOfferTimerRef.current = setTimeout(() => setBotOfferVisible(true), BOT_OFFER_DELAY_MS);
     return () => {
       if (queueTimerRef.current) { clearInterval(queueTimerRef.current); queueTimerRef.current = null; }
-      if (botOfferTimerRef.current) { clearTimeout(botOfferTimerRef.current); botOfferTimerRef.current = null; }
       // D-12: navigate-away / unmount while still queued → drop the entry immediately.
       // Use queueTypeRef (not closed-over queueType) to read the LATEST value at cleanup
       // time — avoids firing leaveQueue on the matchFound transition where React batches
@@ -3635,8 +3618,6 @@ function App() {
     setQueueType(null);
     setQueueSince(null);
     setQueueWindow(null);
-    setBotOfferVisible(false);
-    if (botOfferTimerRef.current) { clearTimeout(botOfferTimerRef.current); botOfferTimerRef.current = null; }
     if (queueTimerRef.current) { clearInterval(queueTimerRef.current); queueTimerRef.current = null; }
     setElapsedSec(0);
     setScreen("lobby");
@@ -3996,22 +3977,6 @@ function App() {
           <span className="status-pill pill-wait">{t("queue.searching")}</span>
           <div style={{ height: 20 }} />
           <button className="btn ghost" onClick={handleLeaveQueue}>{t("queue.cancel")}</button>
-          {botOfferVisible && (
-            <div className="queue-bot-offer">
-              <p className="sub">{t("queue.botOfferBody")}</p>
-              <button className="btn ghost" onClick={() => {
-                socket.emit("leaveQueue", {}, () => {});
-                setQueueType(null);
-                setQueueSince(null);
-                setQueueWindow(null);
-                setBotOfferVisible(false);
-                if (botOfferTimerRef.current) { clearTimeout(botOfferTimerRef.current); botOfferTimerRef.current = null; }
-                if (queueTimerRef.current) { clearInterval(queueTimerRef.current); queueTimerRef.current = null; }
-                setElapsedSec(0);
-                startBot();
-              }}>{t("queue.botOfferBtn")}</button>
-            </div>
-          )}
         </div>
       )}
 
