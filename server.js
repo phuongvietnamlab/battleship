@@ -2970,6 +2970,8 @@ io.on("connection", (socket) => {
       }
     }
     socket.data.code = null;
+    // Phase 17: reset presence to online after leaving room
+    if (socket.data.userId) setPresenceOnline(socket.data.userId);
     cb && cb({ ok: true });
   });
 
