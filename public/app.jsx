@@ -3325,7 +3325,18 @@ function App() {
       // Only show if not in a game
       setIncomingChallenge(data);
     });
-    socket.on("friend:challenge-expired", () => setIncomingChallenge(null));
+    socket.on("friend:challenge-expired", () => {
+      setIncomingChallenge(null);
+      // Sender: if waiting in room for opponent, go back to lobby
+      setScreen(s => { if (s === "room") { showNotice(t("challenge.expired")); return "lobby"; } return s; });
+    });
+    socket.on("friend:challenge-declined", () => {
+      // Sender: opponent declined, go back to lobby
+      setScreen(s => { if (s === "room") { showNotice(t("challenge.declined")); return "lobby"; } return s; });
+    });
+    socket.on("friend:challenge-accepted", () => {
+      // Sender is already in room, opponentJoined will handle transition to placement
+    });
     socket.on("friend:pending", (data) => setPendingFriendCount(data.length));
     socket.on("friend:request-received", () => setPendingFriendCount(prev => prev + 1));
     socket.on("premiumEmoji", (data) => {
