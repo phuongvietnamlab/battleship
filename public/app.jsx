@@ -1722,14 +1722,24 @@ function Battle({ myTurn, vsBot, occ, incoming, myShots, onFire, log, sunkOpp, s
     if (onAddFriend) onAddFriend(oppProfile.id);
   }
 
-  // Close popup on outside click
+  function handleUnfriend() {
+    if (!oppProfile?.id) return;
+    fetch("/api/friends/" + oppProfile.id, { method: "DELETE" }).then(r => {
+      if (r.ok) setFriendStatus("none");
+    }).catch(() => {});
+  }
+
+  // Close popup on outside click (delay to avoid same-event-bubble close)
   useEffect(() => {
     if (!oppStatsOpen) return;
+    let active = false;
+    const timer = setTimeout(() => { active = true; }, 50);
     function handleClick(e) {
+      if (!active) return;
       if (!e.target.closest(".opp-stats-popup")) setOppStatsOpen(false);
     }
     document.addEventListener("click", handleClick);
-    return () => document.removeEventListener("click", handleClick);
+    return () => { clearTimeout(timer); document.removeEventListener("click", handleClick); };
   }, [oppStatsOpen]);
 
   // đếm ngược lượt từ deadline server gửi (null = không giới hạn, vd đấu máy)
@@ -1795,7 +1805,7 @@ function Battle({ myTurn, vsBot, occ, incoming, myShots, onFire, log, sunkOpp, s
                 <button className="btn compact primary opp-add-friend" onClick={handleAddFriend}>➕ {t("friends.add")}</button>
               )}
               {friendStatus === "accepted" && (
-                <div className="friendship-badge">👥 {t("friends.already")}</div>
+                <div className="friendship-badge">👥 {t("friends.already")} <button className="btn-mini reject" onClick={handleUnfriend} style={{marginLeft:8,fontSize:11}}>{t("friends.remove")}</button></div>
               )}
               {(friendStatus === "pending" || friendReqSent) && (
                 <div className="friendship-badge">⏳ {t("friends.pendingSent")}</div>
