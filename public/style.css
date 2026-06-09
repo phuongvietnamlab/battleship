@@ -1174,6 +1174,7 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 .friend-h2h { font-size:12px; color:#7ab3e0; font-weight:600; min-width:36px; text-align:center; }
 .friend-actions { display:flex; gap:4px; }
 .friends-empty { text-align:center; color:#7ab3e0; padding:40px 20px; font-size:14px; }
+.friends-empty-inline { text-align:center; color:#5a8ab0; padding:12px 8px; font-size:13px; }
 .status-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
 .status-dot.online { background:#4cff8b; box-shadow:0 0 4px #4cff8b; }
 .status-dot.ingame { background:#ffd700; }

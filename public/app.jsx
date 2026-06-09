@@ -987,14 +987,23 @@ function LobbyFriendsWidget({ authUser, balance, onViewProfile, onRoomCreated })
   const online = friends.filter(f => f.status === "online");
   const inGame = friends.filter(f => f.status === "in-game");
   const offline = friends.filter(f => !f.status || f.status === "offline");
-  const hasFriends = friends.length > 0 || pending.length > 0;
+  // Combine all friends in priority order: online > in-game > offline
+  const allSorted = [...online, ...inGame, ...offline];
+  const [showAll, setShowAll] = useState(false);
+  const LIMIT = 5;
+  const visible = showAll ? allSorted : allSorted.slice(0, LIMIT);
+  const hasMore = allSorted.length > LIMIT;
 
-  if (!loaded || !hasFriends) return null;
+  if (!loaded) return null;
 
   return (
     <div className="lobby-friends-widget">
       <div className="lobby-friends-title">👥 {t("friends.title")}</div>
       {notice && <div className="notice-toast" style={{fontSize:"12px",padding:"4px 10px",marginBottom:6}}>{notice}</div>}
+      {/* Empty state */}
+      {friends.length === 0 && pending.length === 0 && (
+        <div className="friends-empty-inline">{t("friends.none")}</div>
+      )}
       {/* Pending requests */}
       {pending.length > 0 && (
         <div className="lobby-friends-pending">
@@ -1007,29 +1016,27 @@ function LobbyFriendsWidget({ authUser, balance, onViewProfile, onRoomCreated })
           ))}
         </div>
       )}
-      {/* Online friends */}
-      {online.length > 0 && online.map(f => (
+      {/* Friends list (max 5, show more on click) */}
+      {visible.map(f => (
         <div key={f.id} className="lobby-friend-row">
-          <span className="status-dot online"></span>
+          <span className={"status-dot " + (f.status === "online" ? "online" : f.status === "in-game" ? "ingame" : "offline")}></span>
           <span className="friend-name clickable" onClick={() => onViewProfile && onViewProfile(f.id)}>{f.display_name}</span>
-          <button className="btn-mini challenge" onClick={() => { setChallengeTarget(f); setChallengeStake(0); }}>⚔️</button>
+          {f.status === "online" && (
+            <button className="btn-mini challenge" onClick={() => { setChallengeTarget(f); setChallengeStake(0); }}>⚔️</button>
+          )}
+          {f.status === "in-game" && <span className="friend-status-label">🎮</span>}
         </div>
       ))}
-      {/* In-game friends */}
-      {inGame.length > 0 && inGame.map(f => (
-        <div key={f.id} className="lobby-friend-row">
-          <span className="status-dot ingame"></span>
-          <span className="friend-name clickable" onClick={() => onViewProfile && onViewProfile(f.id)}>{f.display_name}</span>
-          <span className="friend-status-label">🎮</span>
-        </div>
-      ))}
-      {/* Offline friends */}
-      {offline.length > 0 && offline.map(f => (
-        <div key={f.id} className="lobby-friend-row">
-          <span className="status-dot offline"></span>
-          <span className="friend-name clickable" onClick={() => onViewProfile && onViewProfile(f.id)}>{f.display_name}</span>
-        </div>
-      ))}
+      {hasMore && !showAll && (
+        <button className="btn-mini" onClick={() => setShowAll(true)} style={{width:"100%",marginTop:4,textAlign:"center"}}>
+          {LANG === "vi" ? `Xem thêm (${allSorted.length - LIMIT})` : `Show more (${allSorted.length - LIMIT})`}
+        </button>
+      )}
+      {showAll && hasMore && (
+        <button className="btn-mini" onClick={() => setShowAll(false)} style={{width:"100%",marginTop:4,textAlign:"center"}}>
+          {LANG === "vi" ? "Thu gọn" : "Show less"}
+        </button>
+      )}
       {/* Challenge BottomSheet */}
       <BottomSheet open={!!challengeTarget && !challengeWaiting} onClose={() => setChallengeTarget(null)} title={t("challenge.title", { name: challengeTarget?.display_name || "" })}>
         <div className="wager-chips" style={{ justifyContent: "center", margin: "10px 0" }}>
