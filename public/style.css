@@ -1214,6 +1214,16 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 .pwa-install-banner { display:flex; align-items:center; gap:8px; padding:10px 14px; margin:0 0 10px; border-radius:10px; background:linear-gradient(135deg,rgba(76,255,139,.1),rgba(120,190,255,.1)); border:1px solid rgba(76,255,139,.3); font-size:13px; color:#cfe8ff; }
 .pwa-install-banner span:first-child { flex:1; }
 
+/* iOS PWA Guide */
+.pwa-ios-guide { position:relative; width:100%; text-align:center; padding:4px 0; }
+.pwa-ios-steps { display:flex; justify-content:center; gap:16px; margin-bottom:6px; }
+.pwa-ios-step { display:flex; align-items:center; gap:4px; font-size:13px; }
+.pwa-ios-num { width:20px; height:20px; border-radius:50%; background:rgba(76,255,139,.3); color:#4cff8b; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; flex-shrink:0; }
+.pwa-ios-result { font-size:11px; color:#7ab3e0; margin-top:2px; }
+.pwa-ios-close { position:absolute; top:0; right:0; }
+.pwa-ios-arrow { position:absolute; bottom:-18px; left:50%; transform:translateX(-50%); font-size:20px; color:rgba(76,255,139,.6); animation:bounce-arrow 1.5s ease infinite; }
+@keyframes bounce-arrow { 0%,100%{transform:translateX(-50%) translateY(0)} 50%{transform:translateX(-50%) translateY(5px)} }
+
 @media (max-width:360px) {
   .history-view { padding:18px 14px; margin:3vh auto 0; }
   .match-card { padding:10px 12px; gap:10px; }

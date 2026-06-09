@@ -3071,14 +3071,14 @@ function App() {
   // PWA install prompt
   const [installPrompt, setInstallPrompt]       = useState(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
-  const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) && !window.MSStream;
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const isSafari = /^((?!chrome|crios|fxios|edgios).)*safari/i.test(navigator.userAgent);
   const isStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
   const [dismissedInstall, setDismissedInstall] = useState(() => {
     if (isStandalone) return true;
     try {
       const ts = localStorage.getItem("pwa_dismissed_at");
       if (!ts) return false;
-      // 7 days expiry
       return (Date.now() - parseInt(ts, 10)) < 7 * 24 * 60 * 60 * 1000;
     } catch { return false; }
   });
@@ -3087,9 +3087,9 @@ function App() {
     // Android/Chrome: capture beforeinstallprompt
     function handleBIP(e) { e.preventDefault(); setInstallPrompt(e); setShowInstallBanner(true); }
     window.addEventListener("beforeinstallprompt", handleBIP);
-    // iOS: show manual guide after 3s (no API available)
-    if (isIOS) {
-      const t = setTimeout(() => setShowInstallBanner(true), 3000);
+    // iOS Safari only: show manual guide after 2s
+    if (isIOS && isSafari) {
+      const t = setTimeout(() => setShowInstallBanner(true), 2000);
       return () => { clearTimeout(t); window.removeEventListener("beforeinstallprompt", handleBIP); };
     }
     return () => window.removeEventListener("beforeinstallprompt", handleBIP);
@@ -3961,10 +3961,21 @@ function App() {
       {showInstallBanner && screen === "lobby" && (
         <div className="pwa-install-banner">
           {isIOS ? (
-            <>
-              <span>📲 {LANG === "vi" ? "Bấm" : "Tap"} <strong style={{fontSize:"18px"}}>⎋</strong> {LANG === "vi" ? "rồi chọn \"Thêm vào MH chính\" để chơi như app" : "then \"Add to Home Screen\" to play like an app"}</span>
-              <button className="btn-mini reject" onClick={() => { setShowInstallBanner(false); setDismissedInstall(true); try { localStorage.setItem("pwa_dismissed_at",String(Date.now())); } catch {} }}>✕</button>
-            </>
+            <div className="pwa-ios-guide">
+              <div className="pwa-ios-steps">
+                <div className="pwa-ios-step">
+                  <span className="pwa-ios-num">1</span>
+                  <span>{LANG === "vi" ? "Bấm nút" : "Tap"} <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{verticalAlign:"middle",margin:"0 2px"}}><path d="M4 12v5a2 2 0 002 2h12a2 2 0 002-2v-5"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> {LANG === "vi" ? "bên dưới" : "below"}</span>
+                </div>
+                <div className="pwa-ios-step">
+                  <span className="pwa-ios-num">2</span>
+                  <span>{LANG === "vi" ? 'Chọn "Thêm vào MH chính"' : '"Add to Home Screen"'}</span>
+                </div>
+              </div>
+              <div className="pwa-ios-result">📲 {LANG === "vi" ? "Chơi như app, không cần mở Safari" : "Play like an app, no Safari needed"}</div>
+              <button className="btn-mini reject pwa-ios-close" onClick={() => { setShowInstallBanner(false); setDismissedInstall(true); try { localStorage.setItem("pwa_dismissed_at",String(Date.now())); } catch {} }}>✕</button>
+              <div className="pwa-ios-arrow">▼</div>
+            </div>
           ) : (
             <>
               <span>📲 {LANG === "vi" ? "Cài lên màn hình chính để chơi nhanh hơn" : "Install to home screen for quick access"}</span>
