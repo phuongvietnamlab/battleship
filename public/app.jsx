@@ -3068,6 +3068,16 @@ function App() {
   const [pendingFriendCount, setPendingFriendCount] = useState(0);
   const [decoyCell, setDecoyCell]               = useState(null);   // {r,c} or null
   const [countdown, setCountdown]               = useState(null);   // null or seconds remaining
+  // PWA install prompt
+  const [installPrompt, setInstallPrompt]       = useState(null);
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
+  useEffect(() => {
+    function handleBIP(e) { e.preventDefault(); setInstallPrompt(e); setShowInstallBanner(true); }
+    window.addEventListener("beforeinstallprompt", handleBIP);
+    // Check if already installed (standalone mode)
+    if (window.matchMedia("(display-mode: standalone)").matches) setShowInstallBanner(false);
+    return () => window.removeEventListener("beforeinstallprompt", handleBIP);
+  }, []);
   // Battle-phase power-up state (Phase 15-05)
   const [inv, setInv]                           = useState({ sonar: 0, cross: 0, decoy: 0, scatter: 0 });
   const [aim, setAim]                           = useState(null);   // null | "sonar" | "cross"
@@ -3931,6 +3941,18 @@ function App() {
 
       {notice && <div className="notice-toast">{notice}</div>}
 
+      {/* PWA Install Banner */}
+      {showInstallBanner && screen === "lobby" && (
+        <div className="pwa-install-banner">
+          <span>📲 {LANG === "vi" ? "Cài lên màn hình chính để chơi nhanh hơn" : "Install to home screen for quick access"}</span>
+          <button className="btn-mini" onClick={() => {
+            if (installPrompt) { installPrompt.prompt(); installPrompt.userChoice.then(() => setShowInstallBanner(false)); }
+            else setShowInstallBanner(false);
+          }}>{LANG === "vi" ? "Cài đặt" : "Install"}</button>
+          <button className="btn-mini reject" onClick={() => setShowInstallBanner(false)}>✕</button>
+        </div>
+      )}
+
       {screen === "lobby" && <Lobby onCreate={createRoom} onJoin={joinRoom} onBot={handleBot} onQuickMatch={handleQuickMatch} onHelp={() => setHelpOpen(true)} onHistory={() => setScreen("history")} onFriends={() => setScreen("friends")} onChallenge={() => setScreen("friends")} onViewProfile={(id) => handleViewProfile(id)} onRoomCreated={(code, stake) => { setCode(code); setStake(stake || 0); setScreen("room"); }} error={error} authUser={authUser} authError={authError} verifyNotice={verifyNotice} clientId={clientId} signInDisabled={signInDisabled} onSignInDisable={() => setSignInDisabled(true)} onEmailAuthSuccess={setAuthUser} balance={balance} />}
 
       {screen === "queue" && (
@@ -4135,6 +4157,10 @@ function boot() {
   if (_booted) return;
   _booted = true;
   try { document.title = t("lobby.title") + " · Battleship"; } catch (e) {}
+  // Register Service Worker for PWA install support
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  }
   // NB: do NOT socket.connect() here — the App effect connects only after it has
   // attached the "connect"/"sync" listeners, otherwise a fast connect event can
   // fire before anyone is listening and auto-resume is silently missed.
