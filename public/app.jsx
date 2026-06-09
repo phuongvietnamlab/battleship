@@ -3968,7 +3968,7 @@ function App() {
           challenge={incomingChallenge}
           onAccept={() => {
             socket.emit("friend:challenge-accept", { challengeId: incomingChallenge.challengeId }, (res) => {
-              if (res.ok) { setIncomingChallenge(null); setCode(res.code); setStake(res.stake || 0); setScreen("room"); }
+              if (res.ok) { setIncomingChallenge(null); setCode(res.code); setStake(res.stake || 0); setOppPresent(true); setScreen("placement"); }
               else setIncomingChallenge(null);
             });
           }}
