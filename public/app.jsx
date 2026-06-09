@@ -899,7 +899,7 @@ function BottomSheet({ open, onClose, title, children }) {
 
 // ---------- LobbyFriendsWidget (Phase 17) ----------
 // Inline widget showing online friends directly in the lobby
-function LobbyFriendsWidget({ authUser, balance, onViewProfile }) {
+function LobbyFriendsWidget({ authUser, balance, onViewProfile, onRoomCreated }) {
   const [friends, setFriends] = useState([]);
   const [pending, setPending] = useState([]);
   const [loaded, setLoaded] = useState(false);
@@ -975,6 +975,11 @@ function LobbyFriendsWidget({ authUser, balance, onViewProfile }) {
         setChallengeWaiting(false);
         setChallengeTarget(null);
         showNotice(t("challenge.notAvailable"));
+      } else {
+        // Server created room and seated us — navigate to room screen
+        setChallengeWaiting(false);
+        setChallengeTarget(null);
+        if (onRoomCreated) onRoomCreated(res.code, challengeStake);
       }
     });
   }
@@ -1045,7 +1050,7 @@ function LobbyFriendsWidget({ authUser, balance, onViewProfile }) {
 }
 
 // ---------- Lobby ----------
-function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onHelp, onHistory, onFriends, onChallenge, onViewProfile, error, authUser, authError, verifyNotice, clientId, signInDisabled, onSignInDisable, onEmailAuthSuccess, balance }) {
+function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onHelp, onHistory, onFriends, onChallenge, onViewProfile, onRoomCreated, error, authUser, authError, verifyNotice, clientId, signInDisabled, onSignInDisable, onEmailAuthSuccess, balance }) {
   const [code, setCode] = useState("");
   const [roomStake, setRoomStake] = useState(0);
   const [friendSheetOpen, setFriendSheetOpen] = useState(false);
@@ -1112,7 +1117,7 @@ function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onHelp, onHistory, onFri
 
       {/* Inline Friends Widget (Phase 17) — shows above footer for auth users */}
       {authUser && (
-        <LobbyFriendsWidget authUser={authUser} balance={balance} onViewProfile={onViewProfile} />
+        <LobbyFriendsWidget authUser={authUser} balance={balance} onViewProfile={onViewProfile} onRoomCreated={onRoomCreated} />
       )}
 
       {/* Footer utilities */}
@@ -3803,7 +3808,7 @@ function App() {
 
       {notice && <div className="notice-toast">{notice}</div>}
 
-      {screen === "lobby" && <Lobby onCreate={createRoom} onJoin={joinRoom} onBot={handleBot} onQuickMatch={handleQuickMatch} onHelp={() => setHelpOpen(true)} onHistory={() => setScreen("history")} onFriends={() => setScreen("friends")} onChallenge={() => setScreen("friends")} onViewProfile={(id) => handleViewProfile(id)} error={error} authUser={authUser} authError={authError} verifyNotice={verifyNotice} clientId={clientId} signInDisabled={signInDisabled} onSignInDisable={() => setSignInDisabled(true)} onEmailAuthSuccess={setAuthUser} balance={balance} />}
+      {screen === "lobby" && <Lobby onCreate={createRoom} onJoin={joinRoom} onBot={handleBot} onQuickMatch={handleQuickMatch} onHelp={() => setHelpOpen(true)} onHistory={() => setScreen("history")} onFriends={() => setScreen("friends")} onChallenge={() => setScreen("friends")} onViewProfile={(id) => handleViewProfile(id)} onRoomCreated={(code, stake) => { setCode(code); setStake(stake || 0); setScreen("room"); }} error={error} authUser={authUser} authError={authError} verifyNotice={verifyNotice} clientId={clientId} signInDisabled={signInDisabled} onSignInDisable={() => setSignInDisabled(true)} onEmailAuthSuccess={setAuthUser} balance={balance} />}
 
       {screen === "queue" && (
         <div className="lobby">
