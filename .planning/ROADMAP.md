@@ -408,6 +408,6 @@ Plans:
 
 Plans:
 
-- [ ] Plan 01: Database migration + Bot accounts + Bot utility functions
-- [ ] Plan 02: Server-side bot game logic + createBotMatchRoom
-- [ ] Plan 03: Queue timeout integration + Client-side adjustments
+- [x] Plan 01: Database migration + Bot accounts + Bot utility functions
+- [x] Plan 02: Server-side bot game logic + createBotMatchRoom
+- [x] Plan 03: Queue timeout integration + Client-side adjustments
