@@ -3961,28 +3961,17 @@ function App() {
       {showInstallBanner && screen === "lobby" && (
         <div className="pwa-install-banner">
           {isIOS ? (
-            <div className="pwa-ios-guide">
-              <div className="pwa-ios-steps">
-                <div className="pwa-ios-step">
-                  <span className="pwa-ios-num">1</span>
-                  <span>{LANG === "vi" ? "Bấm nút" : "Tap"} <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{verticalAlign:"middle",margin:"0 2px"}}><path d="M4 12v5a2 2 0 002 2h12a2 2 0 002-2v-5"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> {LANG === "vi" ? "bên dưới" : "below"}</span>
-                </div>
-                <div className="pwa-ios-step">
-                  <span className="pwa-ios-num">2</span>
-                  <span>{LANG === "vi" ? 'Chọn "Thêm vào MH chính"' : '"Add to Home Screen"'}</span>
-                </div>
-              </div>
-              <div className="pwa-ios-result">📲 {LANG === "vi" ? "Chơi như app, không cần mở Safari" : "Play like an app, no Safari needed"}</div>
-              <button className="btn-mini reject pwa-ios-close" onClick={() => { setShowInstallBanner(false); setDismissedInstall(true); try { localStorage.setItem("pwa_dismissed_at",String(Date.now())); } catch {} }}>✕</button>
-              <div className="pwa-ios-arrow">▼</div>
-            </div>
+            <>
+              <span>📲 {LANG === "vi" ? "Bấm Chia sẻ ⬆ → Thêm vào MH chính" : "Tap Share ⬆ → Add to Home Screen"}</span>
+              <button className="btn-mini reject" onClick={() => { setShowInstallBanner(false); setDismissedInstall(true); try { localStorage.setItem("pwa_dismissed_at",String(Date.now())); } catch {} }}>✕</button>
+            </>
           ) : (
             <>
-              <span>📲 {LANG === "vi" ? "Cài lên màn hình chính để chơi nhanh hơn" : "Install to home screen for quick access"}</span>
+              <span>📲 {LANG === "vi" ? "Cài lên màn hình chính" : "Add to Home Screen"}</span>
               <button className="btn-mini" onClick={() => {
                 if (installPrompt) { installPrompt.prompt(); installPrompt.userChoice.then(() => setShowInstallBanner(false)); }
                 else setShowInstallBanner(false);
-              }}>{LANG === "vi" ? "Cài đặt" : "Install"}</button>
+              }}>{LANG === "vi" ? "Cài" : "Install"}</button>
               <button className="btn-mini reject" onClick={() => { setShowInstallBanner(false); setDismissedInstall(true); try { localStorage.setItem("pwa_dismissed_at",String(Date.now())); } catch {} }}>✕</button>
             </>
           )}
