@@ -331,6 +331,7 @@ Plans:
 **Requirements**:
 
 **Friends System:**
+
 - SOCL-01a: Send friend request from battle avatar popup or friends list search
 - SOCL-01b: Recipient sees pending requests, can accept/reject
 - SOCL-01c: Either side can unfriend (removes both ways)
@@ -340,6 +341,7 @@ Plans:
 - SOCL-01g: Auth-only (guests cannot use friend system)
 
 **Online Presence:**
+
 - PRES-01: Real-time Socket.IO broadcast to online friends on connect
 - PRES-02: 30s grace period before offline (avoids flicker)
 - PRES-03: States: online (lobby), in-game (active match), offline
@@ -347,6 +349,7 @@ Plans:
 - PRES-05: Server userId→socket map for targeted broadcasts
 
 **Head-to-Head Stats (via battle avatar popup):**
+
 - H2H-01: Click opponent avatar in battle → expanded popup: H2H record + "Add Friend" button
 - H2H-02: Popup shows: wins each side, total games, current streak, last played
 - H2H-03: Friends list also shows mini H2H (X-Y) per friend row
@@ -354,6 +357,7 @@ Plans:
 - H2H-05: "Rival" badge on most-played friend (cosmetic)
 
 **Direct Challenge (reuses room creation flow):**
+
 - CHAL-01: Tap online friend in friends list → BottomSheet with coin selector (same as room wager)
 - CHAL-02: Server creates room (reuse createRoom), sends invite via Socket.IO
 - CHAL-03: Recipient sees modal popup with accept/decline + 60s countdown
@@ -362,6 +366,7 @@ Plans:
 - CHAL-06: Cannot challenge in-game or offline friends
 
 **i18n:**
+
 - SOCL-i18n: Full Vietnamese + English for all social UI strings
 
 **Depends on:** Phase 2 (accounts/identity), Phase 3 (match recording for H2H)
@@ -374,3 +379,35 @@ Plans:
 - [x] Plan 03: Head-to-head stats + enhanced battle avatar popup with "Add Friend"
 - [x] Plan 04: Direct challenge flow — server creates room, Socket.IO invite, accept/decline/expire
 - [x] Plan 05: Frontend — Friends list screen, challenge send/receive UI, post-match add friend, i18n
+
+### Phase 18: Bot Quick Match: auto-match with bot after 15s queue timeout, 10 pre-created bot accounts, real coin wagering
+
+**Goal:** When a real player taps Quick Match and waits 15 seconds without finding a human opponent, the system automatically matches them against one of 10 pre-created bot accounts. The bot plays as a real player — placing ships, firing shots with server-side AI, and wagering real coins. The match is fully server-authoritative and recorded like any PvP match.
+
+**Requirements**:
+
+- BOT-QM-01: 10 pre-seeded bot accounts in the `users` table (bot_01 through bot_10), each with a display name, avatar, and initial point balance; identifiable by a `is_bot` flag
+- BOT-QM-02: Database migration to seed bot accounts + add `is_bot` boolean column to users table
+- BOT-QM-03: After 15s in the quick-match queue without a human match, server automatically pairs the player with a random available bot account
+- BOT-QM-04: Bot selection logic — pick a random bot that is not currently in an active match; if all 10 are busy, extend the wait (retry every 5s)
+- BOT-QM-05: Bot joins the match as player 2 using its own user account (bot userId, bot display_name visible to opponent)
+- BOT-QM-06: Bot places ships automatically using a randomized valid placement (server-side, no client needed)
+- BOT-QM-07: Bot fires shots using the existing 4-tier AI algorithms (difficulty assigned per bot account or random per match — configurable)
+- BOT-QM-08: Bot respects the same turn timer (20s) — fires within 2-5s of its turn starting (randomized delay for realism)
+- BOT-QM-09: Real coin wagering — bot matches the player's stake from its own balance; if bot has insufficient balance, use stake=0 (free match)
+- BOT-QM-10: Match is fully recorded in the matches table with winner/loser, points transferred, same as PvP
+- BOT-QM-11: Points won from bot are real — deducted from bot account balance, credited to player (and vice versa if player loses)
+- BOT-QM-12: Bot accounts have a mechanism to replenish points (e.g., auto-topped-up to 1000 pts if balance drops below 100, via a check before each match)
+- BOT-QM-13: Player should NOT know they're playing a bot — no visual indicator; bot display names are realistic Vietnamese/English names
+- BOT-QM-14: Bot does not use premium emoji or power-ups (keeps it simple for v1)
+- BOT-QM-15: The 15s timeout is configurable via environment variable (BOT_MATCH_TIMEOUT_MS, default 15000)
+- BOT-QM-16: i18n — no new user-facing strings needed (bot plays silently, no chat)
+
+**Depends on:** Phase 5 (public matchmaking queue), Phase 6 (bot AI algorithms), Phase 7 (points economy)
+**Plans:** 3 plans
+
+Plans:
+
+- [ ] Plan 01: Database migration + Bot accounts + Bot utility functions
+- [ ] Plan 02: Server-side bot game logic + createBotMatchRoom
+- [ ] Plan 03: Queue timeout integration + Client-side adjustments

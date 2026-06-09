@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-06-01)
 
 ## Current Position
 
-Phase: Phase 14 — Premium Animated Emoji
+Phase: Phase 18 — Bot Quick Match
 Plan: Ready to execute (3 plans)
 Status: Planned
-Last activity: 2026-06-06 — Phase 14 planned (3 plans)
+Last activity: 2026-06-09 — Phase 18 planned (3 plans)
 
 ## Performance Metrics
 
@@ -113,6 +113,7 @@ Recent decisions affecting current work:
 - Phase 15 added: Power-up redesign — remove advance mode, new purchase-based power-up system (4 power-ups: Sonar Ping, Cross Missile, Decoy, Scatter Blast; buy during placement phase, max 2/game, 10% stake price)
 - Phase 16 added: Admin dashboard — full-featured admin panel with CRUD management (users, matches, content), analytics/charts, real-time stats, moderation tools, operational controls, audit logging, role-based access (super_admin/admin/moderator), separate React bundle at /admin
 - Phase 17 added: Social & Friends — friend request system, real-time online presence (Socket.IO, friends-only), head-to-head stats, direct challenge/invite
+- Phase 18 added: Bot Quick Match — auto-match with random bot after 15s queue timeout, 10 pre-seeded bot accounts with realistic names, real coin wagering (bot has own balance, points transfer is real)
 
 ### Pending Todos
 
