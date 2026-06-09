@@ -2605,32 +2605,83 @@ io.on("connection", (socket) => {
     if (opp) emitToClient(room, opp, "opponentReady");
 
     if (allReady) {
-      room.started = true;
-      room.startedAt = new Date(); // capture battle start time for match recording (MATCH-01)
-      // Phase 17: set both players to in-game presence
-      for (const id of ids) {
-        const p = room.players[id];
-        if (p && p.userId) setPresenceInGame(p.userId);
-      }
-      // Phase 13: resolve userId for guest players so recordMatch can persist the match
-      for (const id of ids) {
-        if (!room.players[id].userId) {
-          resolveUserIdFromClientId(id).then(uid => { if (uid && room.players[id]) room.players[id].userId = uid; }).catch(() => {});
+      // Start 3s countdown before game begins (allows cancel)
+      room.countdownTimer = setTimeout(() => {
+        room.countdownTimer = null;
+        // Re-check both still ready (someone may have unready'd during countdown)
+        const stillReady = ids.length === 2 && ids.every((id) => room.players[id].ready);
+        if (!stillReady) return;
+        // Start the game
+        room.started = true;
+        room.startedAt = new Date();
+        for (const id of ids) {
+          const p = room.players[id];
+          if (p && p.userId) setPresenceInGame(p.userId);
         }
-      }
-      // ván đầu chọn ngẫu nhiên; các ván sau đổi lượt người đi trước (so le)
-      if (room.lastStarter && ids.includes(room.lastStarter)) {
-        room.turn = ids.find((id) => id !== room.lastStarter);
-      } else {
-        room.turn = ids[Math.floor(Math.random() * 2)];
-      }
-      room.lastStarter = room.turn;
-      for (const id of ids) { room.players[id].bonus = 0; room.players[id].skipNext = false; room.players[id].timeouts = 0; }
-      for (const id of ids) {
-        emitToClient(room, id, "gameStart", { yourTurn: room.turn === id });
-      }
-      armTurnTimer(room);
+        for (const id of ids) {
+          if (!room.players[id].userId) {
+            resolveUserIdFromClientId(id).then(uid => { if (uid && room.players[id]) room.players[id].userId = uid; }).catch(() => {});
+          }
+        }
+        if (room.lastStarter && ids.includes(room.lastStarter)) {
+          room.turn = ids.find((id) => id !== room.lastStarter);
+        } else {
+          room.turn = ids[Math.floor(Math.random() * 2)];
+        }
+        room.lastStarter = room.turn;
+        for (const id of ids) { room.players[id].bonus = 0; room.players[id].skipNext = false; room.players[id].timeouts = 0; }
+        for (const id of ids) {
+          emitToClient(room, id, "gameStart", { yourTurn: room.turn === id });
+        }
+        armTurnTimer(room);
+      }, 3000);
+      io.to(code).emit("countdown", { seconds: 3 });
     }
+  });
+
+  // ─── Unready (cancel ready during placement) ──────────────────────────────
+  socket.on("unready", (cb) => {
+    const code = socket.data.code;
+    const clientId = socket.data.clientId;
+    const room = rooms[code];
+    if (!room || !room.players[clientId]) return cb && cb({ ok: false });
+    if (room.started) return cb && cb({ ok: false, code: "GAME_ALREADY_STARTED" });
+    const me = room.players[clientId];
+    if (!me.ready) return cb && cb({ ok: false, code: "NOT_READY" });
+    me.ready = false;
+    // Cancel countdown if active
+    if (room.countdownTimer) {
+      clearTimeout(room.countdownTimer);
+      room.countdownTimer = null;
+      io.to(code).emit("countdownCancel");
+    }
+    const opp = opponentOf(room, clientId);
+    if (opp) emitToClient(room, opp, "opponentUnready");
+    cb && cb({ ok: true });
+  });
+
+  // ─── Refund placement power-up ─────────────────────────────────────────────
+  socket.on("refundPlacementPowerup", async ({ type }, cb) => {
+    const code = socket.data.code;
+    const clientId = socket.data.clientId;
+    const room = rooms[code];
+    if (!room || !room.players[clientId]) return cb && cb({ ok: false, code: "NO_ROOM" });
+    if (room.started) return cb && cb({ ok: false, code: "GAME_ALREADY_STARTED" });
+    const me = room.players[clientId];
+    if (!me.userId) return cb && cb({ ok: false, code: "AUTH_REQUIRED" });
+    if (!me.inv || !me.inv[type] || me.inv[type] <= 0) return cb && cb({ ok: false, code: "NO_POWERUP" });
+    // Refund
+    const price = Math.round(room.stake * POWERUP_PRICE_PCT);
+    const referenceId = `pu_refund_${code}_${type}_${clientId}_${Date.now()}`;
+    const creditResult = await creditWallet(me.userId, price, "powerup_refund", referenceId);
+    if (!creditResult.ok) return cb && cb({ ok: false, code: "REFUND_FAILED" });
+    // Remove power-up
+    me.inv[type]--;
+    room.purchases[clientId] = Math.max(0, (room.purchases[clientId] || 0) - 1);
+    // If decoy was refunded, clear decoy cell
+    if (type === "decoy") me.decoyCell = null;
+    socket.emit("balanceUpdate", { balance: creditResult.balance });
+    cb && cb({ ok: true, type, newBalance: creditResult.balance, remaining: POWERUP_MAX_PER_MATCH - (room.purchases[clientId] || 0) });
   });
 
   socket.on("fire", async ({ r, c }, cb) => {

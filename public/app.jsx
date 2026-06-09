@@ -1252,7 +1252,7 @@ function Grid({ enemy, occ, hits, incoming, onCellClick, hoverCells, onCellHover
 }
 
 // ---------- Placement Shop (Phase 15 — power-up purchase during placement) ----------
-function PlacementShop({ stake, balance, inventory, purchaseCount, onBuy, disabled }) {
+function PlacementShop({ stake, balance, inventory, purchaseCount, onBuy, onRefund, disabled }) {
   const price = Math.round(stake * 0.10);
   const maxReached = purchaseCount >= 2;
   // balance=null means still loading; allow clicks (server validates anyway)
@@ -1287,10 +1287,10 @@ function PlacementShop({ stake, balance, inventory, purchaseCount, onBuy, disabl
           { type: "scatter", icon: "🌠", nameKey: "pw.scatter" },
         ].map(({ type, icon, nameKey }) => {
           const owned = (inventory[type] || 0) > 0;
-          const isDisabled = disabled || maxReached || !canAfford || owned || (type === "decoy" && (inventory.decoy || 0) >= 1);
+          const isDisabled = disabled || (!owned && (maxReached || !canAfford || (type === "decoy" && (inventory.decoy || 0) >= 1)));
           return (
             <button key={type} className={"shop-item" + (owned ? " selected" : "")}
-              onClick={() => onBuy(type)}
+              onClick={() => owned ? onRefund(type) : onBuy(type)}
               onPointerDown={() => onHoldStart(type)}
               onPointerUp={onHoldEnd}
               onPointerLeave={onHoldEnd}
@@ -1299,7 +1299,7 @@ function PlacementShop({ stake, balance, inventory, purchaseCount, onBuy, disabl
               disabled={isDisabled}>
               <span className="shop-icon">{icon}</span>
               <span className="shop-name">{t(nameKey)}</span>
-              {owned && <span className="shop-check">✓</span>}
+              {owned && <span className="shop-check">✓ {LANG === "vi" ? "bỏ" : "undo"}</span>}
             </button>
           );
         })}
@@ -1319,7 +1319,7 @@ function PlacementShop({ stake, balance, inventory, purchaseCount, onBuy, disabl
 }
 
 // ---------- Placement screen (touch + mouse drag) ----------
-function Placement({ onConfirm, ready, waiting, stake, balance, authUser, vsBot, onBuyPowerup, inventory, purchaseCount, decoyPending, decoyCell, onDecoyPlace }) {
+function Placement({ onConfirm, onUnready, ready, waiting, stake, balance, authUser, vsBot, onBuyPowerup, onRefundPowerup, inventory, purchaseCount, decoyPending, decoyCell, onDecoyPlace, countdown }) {
   // placed: id -> {r, c, dir}
   const [placed, setPlaced] = useState({});
   const [drag, setDrag] = useState(null);    // {id, dir, offset, dx, dy, sz, fromBoard}
@@ -1491,16 +1491,23 @@ function Placement({ onConfirm, ready, waiting, stake, balance, authUser, vsBot,
 
       {showShop && (
         <PlacementShop stake={stake} balance={balance} inventory={inventory}
-          purchaseCount={purchaseCount} onBuy={onBuyPowerup} disabled={ready} />
+          purchaseCount={purchaseCount} onBuy={onBuyPowerup} onRefund={onRefundPowerup} disabled={ready} />
       )}
 
       {decoyPending && <p className="hint decoy-hint">{t("decoy.place")}</p>}
 
       <div className="controls place-actions">
-        <button className="btn ghost" onClick={randomize}>{t("place.random")}</button>
-        <button className="btn primary" disabled={!allPlaced || ready || decoyPending} onClick={confirm}>
-          {ready ? (waiting ? t("place.waitingOpp") : t("place.readyMark")) : t("place.ready")}
-        </button>
+        <button className="btn ghost" onClick={randomize} disabled={ready}>{t("place.random")}</button>
+        {!ready && (
+          <button className="btn primary" disabled={!allPlaced || decoyPending} onClick={confirm}>
+            {t("place.ready")}
+          </button>
+        )}
+        {ready && (
+          <button className="btn ghost" onClick={() => onUnready && onUnready()} style={{color:"#ff6b6b"}}>
+            {countdown != null ? `⏱️ ${countdown}s — ${LANG === "vi" ? "Hủy" : "Cancel"}` : (waiting ? t("place.waitingOpp") : `✓ ${LANG === "vi" ? "Hủy sẵn sàng" : "Cancel Ready"}`)}
+          </button>
+        )}
       </div>
 
       <div className="board-wrap">
@@ -3060,6 +3067,7 @@ function App() {
   const [incomingChallenge, setIncomingChallenge] = useState(null); // { challengeId, from, stake, expiresAt }
   const [pendingFriendCount, setPendingFriendCount] = useState(0);
   const [decoyCell, setDecoyCell]               = useState(null);   // {r,c} or null
+  const [countdown, setCountdown]               = useState(null);   // null or seconds remaining
   // Battle-phase power-up state (Phase 15-05)
   const [inv, setInv]                           = useState({ sonar: 0, cross: 0, decoy: 0, scatter: 0 });
   const [aim, setAim]                           = useState(null);   // null | "sonar" | "cross"
@@ -3104,6 +3112,26 @@ function App() {
         if (typeof res.newBalance === "number") setBalance(res.newBalance);
       } else {
         showNotice(t("err." + (res?.code || "UNKNOWN")));
+      }
+    });
+  }
+  function handleRefundPowerup(type) {
+    socket.emit("refundPlacementPowerup", { type }, (res) => {
+      if (res && res.ok) {
+        setPlacementInv(prev => ({ ...prev, [type]: Math.max(0, (prev[type] || 0) - 1) }));
+        setPlacementPurchases(n => Math.max(0, n - 1));
+        if (type === "decoy") { setDecoyPending(false); setDecoyCell(null); }
+        if (typeof res.newBalance === "number") setBalance(res.newBalance);
+      } else {
+        showNotice(t("err." + (res?.code || "UNKNOWN")));
+      }
+    });
+  }
+  function handleUnready() {
+    socket.emit("unready", (res) => {
+      if (res && res.ok) {
+        setIReady(false);
+        setCountdown(null);
       }
     });
   }
@@ -3340,11 +3368,33 @@ function App() {
     });
     socket.on("gameStart", ({ yourTurn }) => {
       setScreen("battle"); setMyTurn(yourTurn); setTurnDeadline(null);
+      setCountdown(null);
       // Transfer placement inventory to battle-phase state
       setInv(prev => ({ ...prev })); // will be overridden below
       setPlacementInv(pi => { setInv({ ...pi }); return pi; });
       setAim(null); setCrossHover(null);
       addLog(yourTurn ? t("log.youFirst") : t("log.oppFirst"));
+    });
+    socket.on("countdown", ({ seconds }) => {
+      setCountdown(seconds);
+      // Tick down each second
+      let remaining = seconds;
+      const iv = setInterval(() => {
+        remaining--;
+        if (remaining <= 0) { clearInterval(iv); setCountdown(null); }
+        else setCountdown(remaining);
+      }, 1000);
+      // Store interval so countdownCancel can clear it
+      socket._countdownIv = iv;
+    });
+    socket.on("countdownCancel", () => {
+      setCountdown(null);
+      if (socket._countdownIv) { clearInterval(socket._countdownIv); socket._countdownIv = null; }
+    });
+    socket.on("opponentUnready", () => {
+      setOppReady(false);
+      setCountdown(null);
+      if (socket._countdownIv) { clearInterval(socket._countdownIv); socket._countdownIv = null; }
     });
     socket.on("invUpdate", ({ inv: newInv }) => { setInv(newInv); });
     socket.on("turnUpdate", ({ yourTurn }) => { setMyTurn(yourTurn); if (!yourTurn) { setAim(null); setCrossHover(null); } });
@@ -3979,11 +4029,11 @@ function App() {
               {vsBot ? t("place.botReady") : (oppPresent ? (oppReady ? t("place.oppReady") : t("place.oppPlacing")) : t("place.waitOpp"))}
             </div>
           </div>
-          <Placement onConfirm={confirmPlacement} ready={iReady} waiting={iReady && !oppReady}
+          <Placement onConfirm={confirmPlacement} onUnready={handleUnready} ready={iReady} waiting={iReady && !oppReady}
             stake={stake} balance={balance} authUser={authUser} vsBot={vsBot}
-            onBuyPowerup={handlePlacementBuy} inventory={placementInv}
+            onBuyPowerup={handlePlacementBuy} onRefundPowerup={handleRefundPowerup} inventory={placementInv}
             purchaseCount={placementPurchases} decoyPending={decoyPending}
-            decoyCell={decoyCell} onDecoyPlace={handleDecoyPlace} />
+            decoyCell={decoyCell} onDecoyPlace={handleDecoyPlace} countdown={countdown} />
         </div>
       )}
 
