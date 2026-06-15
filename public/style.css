@@ -41,7 +41,12 @@ html, body {
 
 body {
   margin: 0;
-  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  /* Safe-area insets are applied per-region (Phase 19 — MOBILE-07):
+     .app owns left/right, .shell-header owns top, .shell-footer owns
+     bottom. A body-level inset here would double-gutter against those
+     (the body's height:100dvh box would reserve the inset AND .app's
+     100dvh box would reserve it again). */
+  padding: 0;
   font-family: "Be Vietnam Pro", system-ui, sans-serif;
   color: #eaf2ff;
   height: 100dvh;
@@ -353,6 +358,14 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
   min-height: 0; /* CRITICAL (Pitfall 2): flex children default to min-height:auto */
   overflow-y: auto;
   padding: 14px;
+}
+/* Final safe-area pass (MOBILE-07): screens with no .shell-footer (friends,
+   history, profile not-found/loading) have nothing to absorb the
+   home-indicator inset, so .shell-main owns it directly here. Screens WITH a
+   .shell-footer already get the inset via .shell-footer's padding-bottom —
+   :has() scopes this rule to the footer-less case to avoid double-gutter. */
+.shell-main:not(:has(~ .shell-footer)) {
+  padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
 }
 
 .shell-footer {

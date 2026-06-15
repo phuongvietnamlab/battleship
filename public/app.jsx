@@ -1,5 +1,6 @@
 import React from "react";
 import * as ReactDOM from "react-dom/client";
+import { createPortal } from "react-dom";
 import { io } from "socket.io-client";
 import { startRegistration, startAuthentication } from "@simplewebauthn/browser";
 const { useState, useEffect, useRef, useCallback } = React;
@@ -859,6 +860,12 @@ function EmailAuthForm({ onAuthSuccess, clientId: cid }) {
 }
 
 // ---------- BottomSheet ----------
+// Rendered via createPortal into document.body (Phase 19 — Pitfall 3 /
+// T-19-07): .bottom-sheet-overlay is position:fixed, but several call sites
+// live inside a ScreenShell's .shell-main, which gains a `transform` during
+// the screen-enter animation and would become the fixed element's containing
+// block (trapping the sheet at the wrong position/size for ~220ms). Porting
+// to <body> keeps it fixed to the viewport regardless of ancestor transforms.
 function BottomSheet({ open, onClose, title, children }) {
   const panelRef = useRef(null);
   const onCloseRef = useRef(onClose);
@@ -881,14 +888,15 @@ function BottomSheet({ open, onClose, title, children }) {
     // Only close if the click is directly on the overlay, not bubbled from panel
     if (e.target === e.currentTarget) onCloseRef.current();
   }, []);
-  return (
+  return createPortal(
     <div className={"bottom-sheet-overlay" + (open ? " open" : "")} onClick={handleOverlayClick} onTouchEnd={handleOverlayClick} role="presentation">
       <div className="bottom-sheet-panel" ref={panelRef} role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()}>
         <div className="bottom-sheet-title">{title}</div>
         <button className="bottom-sheet-close" onClick={onClose} aria-label="Close">✕</button>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -915,6 +923,45 @@ function useMainHeight(ref) {
     ro.observe(el);
     return () => ro.disconnect();
   }, [ref]);
+}
+
+// ---------- useKeyboardInset (Phase 19 — MOBILE-12) ----------
+// Keeps the chat composer (.chat-panel, position:fixed; bottom:0) visible
+// above the on-screen keyboard by re-clamping it to window.visualViewport's
+// resized height/offset. Graceful no-op when visualViewport is unavailable
+// (CLAUDE.md: optional browser APIs degrade gracefully). Registers exactly
+// one resize + one scroll listener with matching cleanup (T-19-08) — the
+// listener writes inline styles on the panel element itself, never on the
+// observed viewport, so it cannot re-trigger itself.
+// `ready` (e.g. the composer's `open` state) re-runs the effect once the
+// panel element actually exists in the DOM.
+function useKeyboardInset(panelRef, ready) {
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv || !panelRef.current) return;
+    function reposition() {
+      const el = panelRef.current;
+      if (!el) return;
+      // Heuristic: keyboard is "open" when the visual viewport shrinks below
+      // ~85% of the layout viewport height.
+      if (vv.height < window.innerHeight * 0.85) {
+        el.style.position = "fixed";
+        el.style.top = (vv.offsetTop + vv.height - el.offsetHeight) + "px";
+        el.style.bottom = "auto";
+      } else {
+        el.style.position = "";
+        el.style.top = "";
+        el.style.bottom = "";
+      }
+    }
+    vv.addEventListener("resize", reposition);
+    vv.addEventListener("scroll", reposition);
+    reposition();
+    return () => {
+      vv.removeEventListener("resize", reposition);
+      vv.removeEventListener("scroll", reposition);
+    };
+  }, [panelRef, ready]);
 }
 
 // ---------- ScreenShell (Phase 19 — app shell) ----------
@@ -2109,10 +2156,12 @@ const CHAT_EMOJIS = ["😏", "😈", "💪", "🫵", "🥱", "🤡", "💀", "�
 function ChatComposer({ open, onSend, onToggle, premiumEmojis, balance, isGuest, emojiCooldown, onSendPremium, inBattle }) {
   const [text, setText] = useState("");
   const [tab, setTab] = useState("free"); // "free" | "premium"
+  const panelRef = useRef(null);
+  useKeyboardInset(panelRef, open);
   if (!open) return null;
   function submit(e) { if (e) e.preventDefault(); const tx = text.trim(); if (!tx) return; onSend(tx); setText(""); }
   return (
-    <div className="chat-panel">
+    <div className="chat-panel" ref={panelRef}>
       <div className="chat-head">
         <b>{t("chat.title")}</b>
         <button className="btn ghost" onClick={onToggle} style={{ width: "auto", padding: "2px 10px" }}>✕</button>
