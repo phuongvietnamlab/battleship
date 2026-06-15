@@ -3963,46 +3963,58 @@ function App() {
     setEmojiAnimQueue(prev => prev.filter(e => e.key !== key));
   }
 
+  // Phase 19: the existing .topbar block becomes the lobby screen's
+  // ScreenShell header (MOBILE-02). For room/placement/queue, each screen
+  // renders its own shell-header (title + back button per UI-SPEC); for
+  // screens not yet refactored (profile/history/friends/battle) the topbar
+  // continues to render as a plain sibling, unchanged from prior behavior.
+  const topbarContent = (
+    <div className="topbar">
+      <div className="logo">
+        <div className="badge">⚓</div>
+        <div><h1>BATTLESHIP</h1><small>{t("topbar.tagline")}</small></div>
+      </div>
+      <div className="topbar-right" style={{ position: "relative" }}>
+        {authUser ? (
+          <>
+            <ProfileChip
+              user={authUser}
+              onToggle={() => { setAvatarMenuOpen((v) => !v); }}
+              active={avatarMenuOpen}
+            />
+            {balance !== null && <span className="topbar-balance" title="Coin">💰 {balance}</span>}
+            <AvatarMenu
+              open={avatarMenuOpen}
+              user={authUser}
+              onViewProfile={handleViewProfile}
+              onSignOut={handleSignOut}
+              onCancel={() => { setAvatarMenuOpen(false); }}
+            />
+          </>
+        ) : (
+          profile.name && (
+            <div className="profile-chip" title={profile.name}>
+              {profile.photo
+                ? <img className="avatar" src={profile.photo} alt="" referrerPolicy="no-referrer" />
+                : <span className="avatar avatar-fallback">{profile.name.slice(0, 1)}</span>}
+              <span className="pname">{profile.name}</span>
+            </div>
+          )
+        )}
+        <button className="btn ghost topbar-sound" title={t("topbar.soundToggle")} onClick={toggleSound}>{soundOn ? "🔊" : "🔇"}</button>
+      </div>
+    </div>
+  );
+  // Screens that render their own shell-header (lobby uses topbarContent as
+  // its header; room/placement/queue build a title+back-button header below).
+  const SHELL_HEADER_SCREENS = ["lobby", "queue", "room", "placement"];
+
   return (
     <div className="app">
       <div className="ocean-bg"><div className="wave"></div><div className="wave w2"></div><div className="wave w3"></div></div>
-      <div className="topbar">
-        <div className="logo">
-          <div className="badge">⚓</div>
-          <div><h1>BATTLESHIP</h1><small>{t("topbar.tagline")}</small></div>
-        </div>
-        <div className="topbar-right" style={{ position: "relative" }}>
-          {authUser ? (
-            <>
-              <ProfileChip
-                user={authUser}
-                onToggle={() => { setAvatarMenuOpen((v) => !v); }}
-                active={avatarMenuOpen}
-              />
-              {balance !== null && <span className="topbar-balance" title="Coin">💰 {balance}</span>}
-              <AvatarMenu
-                open={avatarMenuOpen}
-                user={authUser}
-                onViewProfile={handleViewProfile}
-                onSignOut={handleSignOut}
-                onCancel={() => { setAvatarMenuOpen(false); }}
-              />
-            </>
-          ) : (
-            profile.name && (
-              <div className="profile-chip" title={profile.name}>
-                {profile.photo
-                  ? <img className="avatar" src={profile.photo} alt="" referrerPolicy="no-referrer" />
-                  : <span className="avatar avatar-fallback">{profile.name.slice(0, 1)}</span>}
-                <span className="pname">{profile.name}</span>
-              </div>
-            )
-          )}
-          <button className="btn ghost topbar-sound" title={t("topbar.soundToggle")} onClick={toggleSound}>{soundOn ? "🔊" : "🔇"}</button>
-        </div>
-      </div>
+      {!SHELL_HEADER_SCREENS.includes(screen) && topbarContent}
 
-      {screen !== "lobby" && (code || vsBot) && (
+      {!SHELL_HEADER_SCREENS.includes(screen) && screen !== "lobby" && (code || vsBot) && (
         <div className="roombar">
           <div className="roombar-info">{vsBot ? <b>{t("roombar.vsBot")}</b> : <span>{t("roombar.room")} <b className="roomcode">{code}</b></span>}</div>
           <div className="roombar-actions">
@@ -4037,24 +4049,31 @@ function App() {
         </div>
       )}
 
-      {screen === "lobby" && <Lobby onCreate={createRoom} onJoin={joinRoom} onBot={handleBot} onQuickMatch={handleQuickMatch} onHelp={() => setHelpOpen(true)} onHistory={() => setScreen("history")} onFriends={() => setScreen("friends")} onChallenge={() => setScreen("friends")} onViewProfile={(id) => handleViewProfile(id)} onRoomCreated={(code, stake) => { setCode(code); setStake(stake || 0); setScreen("room"); }} error={error} authUser={authUser} authError={authError} verifyNotice={verifyNotice} clientId={clientId} signInDisabled={signInDisabled} onSignInDisable={() => setSignInDisabled(true)} onEmailAuthSuccess={setAuthUser} balance={balance} />}
+      {screen === "lobby" && (
+        <ScreenShell header={topbarContent} screenKey="lobby">
+          <Lobby onCreate={createRoom} onJoin={joinRoom} onBot={handleBot} onQuickMatch={handleQuickMatch} onHelp={() => setHelpOpen(true)} onHistory={() => setScreen("history")} onFriends={() => setScreen("friends")} onChallenge={() => setScreen("friends")} onViewProfile={(id) => handleViewProfile(id)} onRoomCreated={(code, stake) => { setCode(code); setStake(stake || 0); setScreen("room"); }} error={error} authUser={authUser} authError={authError} verifyNotice={verifyNotice} clientId={clientId} signInDisabled={signInDisabled} onSignInDisable={() => setSignInDisabled(true)} onEmailAuthSuccess={setAuthUser} balance={balance} />
+        </ScreenShell>
+      )}
 
       {screen === "queue" && (
-        <div className="lobby">
-          <h2>{queueType === "wagered" ? t("queue.titleWagered") : t("queue.titleFree")}</h2>
-          <p className="sub">{t("queue.sub")}</p>
-          {queueType === "wagered" && queueStake > 0 && (
-            <div style={{ textAlign: "center", margin: "6px 0", fontWeight: "bold" }}>💰 {queueStake} coin</div>
-          )}
-          <div className="queue-timer">
-            <span className="queue-elapsed" aria-live="polite" aria-atomic="true">{String(Math.floor(elapsedSec / 60)).padStart(2, "0")}:{String(elapsedSec % 60).padStart(2, "0")}</span>
-            <span className="queue-label">{t("queue.elapsed")}</span>
+        <ScreenShell
+          header={<h2>{queueType === "wagered" ? t("queue.titleWagered") : t("queue.titleFree")}</h2>}
+          footer={<button className="btn ghost" onClick={handleLeaveQueue}>{t("queue.cancel")}</button>}
+          screenKey="queue"
+        >
+          <div className="lobby">
+            <p className="sub">{t("queue.sub")}</p>
+            {queueType === "wagered" && queueStake > 0 && (
+              <div style={{ textAlign: "center", margin: "6px 0", fontWeight: "bold" }}>💰 {queueStake} coin</div>
+            )}
+            <div className="queue-timer">
+              <span className="queue-elapsed" aria-live="polite" aria-atomic="true">{String(Math.floor(elapsedSec / 60)).padStart(2, "0")}:{String(elapsedSec % 60).padStart(2, "0")}</span>
+              <span className="queue-label">{t("queue.elapsed")}</span>
+            </div>
+            <div style={{ height: 12 }} />
+            <span className="status-pill pill-wait">{t("queue.searching")}</span>
           </div>
-          <div style={{ height: 12 }} />
-          <span className="status-pill pill-wait">{t("queue.searching")}</span>
-          <div style={{ height: 20 }} />
-          <button className="btn ghost" onClick={handleLeaveQueue}>{t("queue.cancel")}</button>
-        </div>
+        </ScreenShell>
       )}
 
       {screen === "profile" && (

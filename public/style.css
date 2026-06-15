@@ -324,6 +324,13 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 }
 .shell-header h2 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+/* Lobby's .topbar is nested inside .shell-header (Phase 19 Plan 02) — avoid
+   doubling the glass-panel chrome's padding and let .topbar fill the
+   header's width/height on its own terms. */
+.shell-header .topbar {
+  padding: 0; width: 100%; flex: 1; min-width: 0;
+}
+
 .shell-main {
   flex: 1;
   min-height: 0; /* CRITICAL (Pitfall 2): flex children default to min-height:auto */
