@@ -2550,7 +2550,7 @@ io.on("connection", (socket) => {
     rooms[code] = { code, players: {}, order: [], started: false, turn: null, scores: {}, lastStarter: null, mode: "classic", turnTimer: null, turnDeadline: null, resolving: false, lastActivityAt: Date.now(), stake, hostWagerId: hostWagerId || null, purchases: {} };
     rooms[code].players[clientId] = {
       sid: socket.id, ready: false, occ: null, hits: new Set(), online: true, timer: null, bonus: 0,
-      profile: sanitizeProfile(arg && arg.profile),
+      profile: await seatProfileForUser(socket.data.userId ?? null, arg && arg.profile),
       userId: socket.data.userId ?? null,
       wagerId: hostWagerId || null, // Phase 7: track for refund
       inv: newInv(), decoyCell: null,
@@ -2629,7 +2629,7 @@ io.on("connection", (socket) => {
       wagerId, // Phase 7: for refund tracking
       enqueuedAt: Date.now(),
       pairing: false,
-      profile: sanitizeProfile(arg && arg.profile), // T-5-01
+      profile: await seatProfileForUser(socket.data.userId ?? null, arg && arg.profile), // T-5-01
       queueType: type,
     };
     socket.data.queueType = type;
@@ -2730,7 +2730,7 @@ io.on("connection", (socket) => {
 
     room.players[clientId] = {
       sid: socket.id, ready: false, occ: null, hits: new Set(), online: true, timer: null, bonus: 0,
-      profile: sanitizeProfile(arg && arg.profile),
+      profile: await seatProfileForUser(socket.data.userId ?? null, arg && arg.profile),
       userId: socket.data.userId ?? null,
       wagerId: joinerWagerId, // Phase 7: track for refund
       inv: newInv(), decoyCell: null,
