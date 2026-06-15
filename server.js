@@ -1121,10 +1121,22 @@ async function sendFriendListWithPresence(userId, socket) {
     const friends = await getFriendsList(userId);
     const friendIds = friends.map(f => f.id);
     const h2h = await getBatchH2HStats(userId, friendIds);
+    // Include balance so this socket payload matches GET /api/friends. Without
+    // it, friend:list overwrites the HTTP-loaded list and drops the balance,
+    // so the challenge stake popup shows "0" until a refresh reorders the two.
+    const balances = {};
+    if (friendIds.length > 0) {
+      const { rows: balRows } = await pool.query(
+        "SELECT user_id, balance FROM wallets WHERE user_id = ANY($1)",
+        [friendIds]
+      );
+      for (const r of balRows) balances[r.user_id] = r.balance;
+    }
     const friendsWithPresence = friends.map(f => ({
       ...f,
       status: userPresence.get(f.id) || "offline",
       h2h: h2h[f.id] || { myWins: 0, theirWins: 0 },
+      balance: balances[f.id] ?? 0,
     }));
     socket.emit("friend:list", friendsWithPresence);
     const pending = await getPendingRequests(userId);
