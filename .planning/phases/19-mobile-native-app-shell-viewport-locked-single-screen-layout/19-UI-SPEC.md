@@ -47,11 +47,13 @@ Exceptions:
 - **44px minimum touch target** — all new tap targets introduced by this phase (back buttons, overlay-open chips, tab triggers) MUST be ≥44×44px hit area even if the visible icon is smaller (use padding to pad out the hit area). Existing `.btn` (padding:15px) and `.btn.ghost` (padding:5-8px on mobile) already vary; new controls follow the 44px rule via `min-height`/`min-width` regardless of visual padding.
 - **Safe-area insets** — `env(safe-area-inset-top/right/bottom/left)` MUST be added to the shell header (top) and footer/action-bar (bottom) per MOBILE-07. This is additive to the spacing scale, not a replacement.
 
+> **Planner note:** The 14px gutter is the ONLY justified non-canonical value. No NEW non-standard spacing values may be introduced in shell CSS beyond this 14px reuse and the 44px touch-target minimum. All other spacing uses the 4/8/16/24/32 scale above.
+
 ---
 
 ## Typography
 
-Existing typography is preserved exactly. No new sizes introduced; the shell reuses these declared roles:
+Existing typography is preserved exactly. No new sizes introduced; the shell reuses these declared roles. **The table below documents the existing LOCKED system for reference only — it is not a set of new declarations for this phase.** This phase introduces exactly ONE new typographic usage: the shell-header title (22px / 700 / Oswald / 1.2), described under the table.
 
 | Role | Size | Weight | Line Height |
 |------|------|--------|-------------|
@@ -80,6 +82,8 @@ Existing `:root` tokens (LOCKED, do not modify):
 ---
 
 ## App Shell Layout Contract (MOBILE-01 / 02 / 03 / 08)
+
+**Visual hierarchy intent:** Across all shell regions, the `.shell-main` content area is always the primary visual focus (highest contrast, the ocean background, the board/lobby/list). The `.shell-header` and `.shell-footer` are chrome — lower-contrast `--panel` glass that recedes — present for orientation and navigation, never competing with main content for attention. Accent `--gold` appears in chrome only to mark the single active/primary action.
 
 ### Root lock
 - `html, body`: `height: 100dvh`, `overflow: hidden` (replaces current `min-height: 100dvh` which permits page scroll). `overscroll-behavior: none` (already present) stays.
@@ -199,11 +203,11 @@ This phase introduces a small number of NEW user-facing strings (back buttons, o
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
+- [x] Dimension 1 Copywriting: PASS
+- [x] Dimension 2 Visuals: PASS (FLAG resolved — visual-hierarchy intent statement added)
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: PASS (FLAG resolved — table annotated as existing-system reference)
+- [x] Dimension 5 Spacing: PASS (FLAG resolved — 14px documented as sole justified exception)
+- [x] Dimension 6 Registry Safety: PASS
 
-**Approval:** pending
+**Approval:** APPROVED (gsd-ui-checker, 2026-06-15)

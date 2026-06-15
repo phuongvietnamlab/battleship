@@ -411,3 +411,25 @@ Plans:
 - [x] Plan 01: Database migration + Bot accounts + Bot utility functions
 - [x] Plan 02: Server-side bot game logic + createBotMatchRoom
 - [x] Plan 03: Queue timeout integration + Client-side adjustments
+
+### Phase 19: Mobile-Native App Shell: viewport-locked single-screen layout — each screen fits one mobile viewport, navigate by tap not scroll
+
+**Goal:** Convert the current responsive-document layout into a mobile-native app shell. On phones (iPhone/Android), every screen fits exactly one `100dvh` viewport with no page-level scroll — the app feels like an installed native app, not a scrolling web page. Navigation between screens happens by tap, and any overflow content is contained in a single scrollable region or a tap-open overlay, never the page body. Desktop preserves the existing centered phone-frame look. EN/VI i18n and all current behavior preserved.
+
+**Requirements**:
+
+- MOBILE-01: Root layout locked to viewport — `html, body` height `100dvh` with `overflow: hidden`; the app shell is a `100dvh` flex column so the page itself never scrolls
+- MOBILE-02: Per-screen app-shell regions — fixed/sticky header + flexible main content region + fixed footer/action bar; only the main region may scroll, and only when content genuinely exceeds available height
+- MOBILE-03: Battle screen fits one viewport — the 11×11 board is sized via `min(available-width, available-height)` so board + turn indicator + essential controls fit without page scroll
+- MOBILE-04: Power-up bar and battle log become tap-open overlays/sheets on mobile instead of stacked blocks that push content past the fold
+- MOBILE-05: Lobby, room, placement, profile, history, friends, and queue screens each refactored to the app-shell pattern and verified to fit one viewport at common mobile sizes (e.g. 360×640, 390×844, 414×896)
+- MOBILE-06: Screen transitions feel native — tap-driven navigation with a slide/push animation (respecting `prefers-reduced-motion`); no reliance on scroll to reach another screen
+- MOBILE-07: Safe-area insets honored — `env(safe-area-inset-*)` padding so header/footer clear the iPhone notch and home indicator and Android system bars
+- MOBILE-08: Desktop/tablet preserved — shell constrained to the existing ~480px centered "phone frame" on wide viewports; no regression to current desktop appearance
+- MOBILE-09: EN/VI i18n preserved — no untranslated strings introduced; any new controls (e.g. overlay toggles, back buttons) have EN+VI labels
+- MOBILE-10: Existing behavior preserved — reconnect/grace-window, chat bubbles, modals, install banner, and all game flows continue to work within the new shell
+- MOBILE-11: No horizontal scroll at any supported width; long names/text truncate or wrap within their region
+- MOBILE-12: Keyboard-open handling on mobile (chat composer) does not break the shell — input remains visible, layout adapts to the reduced viewport (`dvh`/visualViewport)
+
+**Depends on:** Phase 9 (lobby UI redesign), Phase 15 (power-up redesign), Phase 17 (friends UI), Phase 18 (bot match) — touches all existing screens
+**Plans:** TBD (run /gsd-plan-phase 19)
