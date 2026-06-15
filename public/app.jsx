@@ -921,14 +921,20 @@ function useMainHeight(ref) {
 // Wraps a screen's content in the 3-region shell: .shell-header (optional),
 // .shell-main (scrollable content), .shell-footer (optional). `screenKey`/
 // `direction` are plumbed through for Plan 04's screen-transition CSS classes
-// (undefined-safe — no-op until that plan lands).
-function ScreenShell({ header, footer, children, screenKey, direction }) {
-  const mainRef = useRef(null);
-  useMainHeight(mainRef);
+// (undefined-safe — no-op until that plan lands). `mainRef` is an optional
+// callback ref forwarded to the .shell-main DOM node, so children can wire
+// up scroll-container-relative APIs (e.g. IntersectionObserver root, MOBILE-10).
+function ScreenShell({ header, footer, children, screenKey, direction, mainRef }) {
+  const internalRef = useRef(null);
+  useMainHeight(internalRef);
+  const setRefs = (el) => {
+    internalRef.current = el;
+    if (typeof mainRef === "function") mainRef(el);
+  };
   return (
     <>
       {header && <div className="shell-header">{header}</div>}
-      <div className={"shell-main" + (direction ? " screen-enter-" + direction : "")} ref={mainRef} key={screenKey}>
+      <div className={"shell-main" + (direction ? " screen-enter-" + direction : "")} ref={setRefs} key={screenKey}>
         {children}
       </div>
       {footer && <div className="shell-footer">{footer}</div>}
@@ -2638,6 +2644,10 @@ function MatchHistory({ authUser, onBack }) {
   const [total, setTotal] = useState(0);
   const sentinelRef = useRef(null);
   const abortRef = useRef(null);
+  // .shell-main DOM node (Phase 19 MOBILE-10) — IntersectionObserver root must
+  // be the new scroll container, not the document viewport. Stored in state
+  // (not just a ref) so the observer effect re-runs once the node is attached.
+  const [mainEl, setMainEl] = useState(null);
 
   function formatMatchTime(isoStr) {
     const d = new Date(isoStr);
@@ -2678,27 +2688,34 @@ function MatchHistory({ authUser, onBack }) {
   // Load on page change
   useEffect(() => { loadPage(page); }, [page, loadPage]);
 
-  // IntersectionObserver for infinite scroll
+  // IntersectionObserver for infinite scroll.
+  // MOBILE-10: root must be .shell-main (mainEl), not the document viewport —
+  // .shell-main is the scroll container now that the page itself never
+  // scrolls. Guard for mainEl being null on first render; the effect re-runs
+  // once ScreenShell's mainRef callback attaches the node (setMainEl).
   useEffect(() => {
-    if (!sentinelRef.current || !hasMore || loading) return;
+    if (!sentinelRef.current || !mainEl || !hasMore || loading) return;
     const obs = new IntersectionObserver(([entry]) => {
       if (entry.isIntersecting && hasMore && !loading) {
         setPage(p => p + 1);
       }
-    }, { threshold: 0.1 });
+    }, { root: mainEl, threshold: 0.1 });
     obs.observe(sentinelRef.current);
     return () => obs.disconnect();
-  }, [hasMore, loading]);
+  }, [mainEl, hasMore, loading]);
+
+  const historyHeader = (
+    <>
+      <button className="btn ghost compact" onClick={onBack}>{t("history.back")}</button>
+      <div className="history-header-text">
+        <h2 className="history-title">{t("history.title")}</h2>
+        <span className="history-total">{total} {LANG === "vi" ? "trận đấu" : "matches"}</span>
+      </div>
+    </>
+  );
 
   return (
-    <div className="history-view">
-      <div className="history-header">
-        <button className="btn ghost compact" onClick={onBack}>←</button>
-        <div className="history-header-text">
-          <h2 className="history-title">{t("history.title")}</h2>
-          <span className="history-total">{total} {LANG === "vi" ? "trận đấu" : "matches"}</span>
-        </div>
-      </div>
+    <ScreenShell header={historyHeader} screenKey="history" mainRef={setMainEl}>
       <div className="history-list">
         {matches.map(m => (
           <div key={m.id} className={"match-card " + m.result}>
@@ -2726,7 +2743,7 @@ function MatchHistory({ authUser, onBack }) {
           <p>{t("history.empty")}</p>
         </div>
       )}
-    </div>
+    </ScreenShell>
   );
 }
 
