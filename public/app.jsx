@@ -2498,12 +2498,16 @@ function FriendsList({ authUser, onBack, socket, balance, onChallenge }) {
   const inGame = friends.filter(f => f.status === "in-game");
   const offline = friends.filter(f => !f.status || f.status === "offline");
 
+  const friendsHeader = (
+    <>
+      <button className="btn ghost compact" onClick={onBack}>{t("history.back")}</button>
+      <h2>👥 {t("friends.title")} ({friends.length})</h2>
+    </>
+  );
+
   return (
+    <ScreenShell header={friendsHeader} screenKey="friends">
     <div className="friends-screen">
-      <div className="friends-header">
-        <button className="btn ghost compact" onClick={onBack}>← {t("history.back")}</button>
-        <h2>👥 {t("friends.title")} ({friends.length})</h2>
-      </div>
       {notice && <div className="notice-toast">{notice}</div>}
       <div className="friends-search">
         <input type="text" placeholder={t("friends.search")} value={searchQuery} onChange={e => handleSearch(e.target.value)} className="code-input" />
@@ -2591,6 +2595,7 @@ function FriendsList({ authUser, onBack, socket, balance, onChallenge }) {
         </div>
       )}
     </div>
+    </ScreenShell>
   );
 }
 
@@ -2785,46 +2790,57 @@ function ProfileView({ userId, currentUserId, onBack, onSignOut, onChallengeFrie
 
   const allZero = data && data.stats && data.stats.wins === 0 && data.stats.losses === 0 && data.stats.gamesPlayed === 0;
 
+  const profileHeader = (
+    <>
+      <button className="btn ghost compact" onClick={onBack}>{t("history.back")}</button>
+      {data && <h2>{data.displayName || "—"}</h2>}
+    </>
+  );
+
   if (notFound) {
     return (
-      <div className="profile-view" role="main">
-        <div className="error" style={{ textAlign: "center", marginBottom: 20 }}>
-          {t("profile.notFound")}
+      <ScreenShell header={profileHeader} screenKey="profile">
+        <div className="profile-view" role="main">
+          <div className="error" style={{ textAlign: "center", marginBottom: 20 }}>
+            {t("profile.notFound")}
+          </div>
+          <div style={{ textAlign: "center" }}>
+            <button className="btn ghost" style={{ padding: "8px 20px" }} onClick={onBack}>{t("profile.back")}</button>
+          </div>
         </div>
-        <div style={{ textAlign: "center" }}>
-          <button className="btn ghost" style={{ padding: "8px 20px" }} onClick={onBack}>{t("profile.back")}</button>
-        </div>
-      </div>
+      </ScreenShell>
     );
   }
 
   if (loading) {
     return (
-      <div className="profile-view" role="main" aria-busy="true">
-        <div className="profile-header profile-skeleton">
-          <div className="profile-avatar-wrap">
-            <div className="profile-avatar-skel skeleton-pulse" aria-hidden="true" />
+      <ScreenShell header={profileHeader} screenKey="profile">
+        <div className="profile-view" role="main" aria-busy="true">
+          <div className="profile-header profile-skeleton">
+            <div className="profile-avatar-wrap">
+              <div className="profile-avatar-skel skeleton-pulse" aria-hidden="true" />
+            </div>
+            <div className="profile-meta-skel">
+              <div className="skeleton-pulse profile-name-skel" aria-hidden="true" />
+              <div className="skeleton-pulse profile-since-skel" aria-hidden="true" />
+            </div>
           </div>
-          <div className="profile-meta-skel">
-            <div className="skeleton-pulse profile-name-skel" aria-hidden="true" />
-            <div className="skeleton-pulse profile-since-skel" aria-hidden="true" />
+          <div className="profile-stats profile-skeleton" aria-hidden="true">
+            <div className="stat-cell">
+              <div className="skeleton-pulse stat-label-skel" />
+              <div className="skeleton-pulse stat-fig-skel" />
+            </div>
+            <div className="stat-cell">
+              <div className="skeleton-pulse stat-label-skel" />
+              <div className="skeleton-pulse stat-fig-skel" />
+            </div>
+            <div className="stat-cell">
+              <div className="skeleton-pulse stat-label-skel" />
+              <div className="skeleton-pulse stat-fig-skel" />
+            </div>
           </div>
         </div>
-        <div className="profile-stats profile-skeleton" aria-hidden="true">
-          <div className="stat-cell">
-            <div className="skeleton-pulse stat-label-skel" />
-            <div className="skeleton-pulse stat-fig-skel" />
-          </div>
-          <div className="stat-cell">
-            <div className="skeleton-pulse stat-label-skel" />
-            <div className="skeleton-pulse stat-fig-skel" />
-          </div>
-          <div className="stat-cell">
-            <div className="skeleton-pulse stat-label-skel" />
-            <div className="skeleton-pulse stat-fig-skel" />
-          </div>
-        </div>
-      </div>
+      </ScreenShell>
     );
   }
 
@@ -2923,7 +2939,43 @@ function ProfileView({ userId, currentUserId, onBack, onSignOut, onChallengeFrie
     }
   }
 
+  const profileActions = (
+    <div className="profile-actions">
+      {isOwn && onSignOut && (
+        <button className="btn ghost" style={{ padding: "8px 20px" }} onClick={onSignOut}>{t("auth.signOut")}</button>
+      )}
+      {!isOwn && friendStatus === "accepted" && (
+        <button className="btn primary" style={{ padding: "8px 20px" }} onClick={() => onChallengeFriend && onChallengeFriend(userId)}>
+          ⚔️ {t("challenge.send")}
+        </button>
+      )}
+      {!isOwn && friendStatus === "accepted" && (
+        <button className="btn ghost" style={{ padding: "8px 20px", color: "#ff6b6b" }} onClick={() => {
+          if (onUnfriend) onUnfriend(userId);
+          setFriendStatus("none");
+        }}>
+          {t("friends.remove")}
+        </button>
+      )}
+      {!isOwn && friendStatus === "none" && currentUserId && (
+        <button className="btn primary" style={{ padding: "8px 20px" }} onClick={() => {
+          fetch("/api/friends/request", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({targetUserId: userId}) })
+            .then(r => { if (r.ok) setFriendStatus("pending"); });
+        }}>
+          ➕ {t("friends.add")}
+        </button>
+      )}
+      {!isOwn && friendStatus === "pending" && (
+        <button className="btn ghost" style={{ padding: "8px 20px", opacity: 0.6 }} disabled>
+          ⏳ {t("friends.pendingSent")}
+        </button>
+      )}
+      <button className="btn ghost" style={{ padding: "8px 20px" }} onClick={onBack}>{t("profile.back")}</button>
+    </div>
+  );
+
   return (
+    <ScreenShell header={profileHeader} footer={profileActions} screenKey="profile">
     <div className="profile-view" role="main">
       <div className="profile-header">
         <div className="profile-avatar-wrap">
@@ -3053,39 +3105,8 @@ function ProfileView({ userId, currentUserId, onBack, onSignOut, onChallengeFrie
         </div>
       )}
 
-      <div className="profile-actions">
-        {isOwn && onSignOut && (
-          <button className="btn ghost" style={{ padding: "8px 20px" }} onClick={onSignOut}>{t("auth.signOut")}</button>
-        )}
-        {!isOwn && friendStatus === "accepted" && (
-          <button className="btn primary" style={{ padding: "8px 20px" }} onClick={() => onChallengeFriend && onChallengeFriend(userId)}>
-            ⚔️ {t("challenge.send")}
-          </button>
-        )}
-        {!isOwn && friendStatus === "accepted" && (
-          <button className="btn ghost" style={{ padding: "8px 20px", color: "#ff6b6b" }} onClick={() => {
-            if (onUnfriend) onUnfriend(userId);
-            setFriendStatus("none");
-          }}>
-            {t("friends.remove")}
-          </button>
-        )}
-        {!isOwn && friendStatus === "none" && currentUserId && (
-          <button className="btn primary" style={{ padding: "8px 20px" }} onClick={() => {
-            fetch("/api/friends/request", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({targetUserId: userId}) })
-              .then(r => { if (r.ok) setFriendStatus("pending"); });
-          }}>
-            ➕ {t("friends.add")}
-          </button>
-        )}
-        {!isOwn && friendStatus === "pending" && (
-          <button className="btn ghost" style={{ padding: "8px 20px", opacity: 0.6 }} disabled>
-            ⏳ {t("friends.pendingSent")}
-          </button>
-        )}
-        <button className="btn ghost" style={{ padding: "8px 20px" }} onClick={onBack}>{t("profile.back")}</button>
-      </div>
     </div>
+    </ScreenShell>
   );
 }
 
