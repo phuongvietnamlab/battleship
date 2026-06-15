@@ -322,7 +322,11 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
   -webkit-backdrop-filter: blur(14px) saturate(1.2);
   display: flex; align-items: center; gap: 8px;
 }
-.shell-header h2 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shell-header h2 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; margin: 0; }
+/* .btn defaults to width:100% — override so header back-buttons size to
+   their content instead of filling the flex row (Pitfall: width:100% +
+   flex:none resolves flex-basis to 100% of the header). */
+.shell-header .btn.ghost.compact { flex: none; width: auto; }
 
 /* Lobby's .topbar is nested inside .shell-header (Phase 19 Plan 02) — avoid
    doubling the glass-panel chrome's padding and let .topbar fill the
@@ -330,6 +334,19 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 .shell-header .topbar {
   padding: 0; width: 100%; flex: 1; min-width: 0;
 }
+
+/* Placement's .room-banner is nested inside .shell-header (Phase 19 Plan 02)
+   — strip the standalone glass-panel chrome (background/border/blur/shadow/
+   margin) since .shell-header already provides it; keep only the inner
+   flex layout, compacted to fit the header row alongside the back button. */
+.shell-header .room-banner {
+  background: none; border: none; backdrop-filter: none; -webkit-backdrop-filter: none;
+  box-shadow: none; margin: 0; padding: 0; flex: 1; min-width: 0;
+  gap: 8px; flex-wrap: nowrap;
+}
+.shell-header .room-banner .room-code-box { min-width: 0; overflow: hidden; }
+.shell-header .room-banner .room-code-box .code { font-size: 18px !important; padding: 4px 10px; letter-spacing: 4px; }
+.shell-header .room-banner .status-pill { flex: none; white-space: nowrap; font-size: 11px; padding: 5px 10px; }
 
 .shell-main {
   flex: 1;

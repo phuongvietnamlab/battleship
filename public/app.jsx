@@ -1358,7 +1358,7 @@ function PlacementShop({ stake, balance, inventory, purchaseCount, onBuy, onRefu
 }
 
 // ---------- Placement screen (touch + mouse drag) ----------
-function Placement({ onConfirm, onUnready, ready, waiting, stake, balance, authUser, vsBot, onBuyPowerup, onRefundPowerup, inventory, purchaseCount, decoyPending, decoyCell, onDecoyPlace, countdown }) {
+function Placement({ onConfirm, onUnready, ready, waiting, stake, balance, authUser, vsBot, onBuyPowerup, onRefundPowerup, inventory, purchaseCount, decoyPending, decoyCell, onDecoyPlace, countdown, error, code, copied, copyCode, oppPresent, oppReady, onBack }) {
   // placed: id -> {r, c, dir}
   const [placed, setPlaced] = useState({});
   const [drag, setDrag] = useState(null);    // {id, dir, offset, dx, dy, sz, fromBoard}
@@ -1524,73 +1524,103 @@ function Placement({ onConfirm, onUnready, ready, waiting, stake, balance, authU
 
   const showShop = stake > 0 && authUser && !vsBot;
 
-  return (
-    <div className="place-wrap">
-      <p className="hint place-hint">{t("place.hint")}</p>
+  // Header: back button (routes through leaveRoom() -> confirmLeave, T-19-03)
+  // + the existing .room-banner content (room code / vs-bot label + status pill).
+  const header = (
+    <>
+      <button className="btn ghost compact" onClick={onBack}>{t("history.back")}</button>
+      <div className="room-banner">
+        {vsBot ? (
+          <div className="room-code-box"><span>{t("common.vsBotFull")}</span></div>
+        ) : (
+          <div className="room-code-box">
+            <span>{t("common.roomCodeLabel")}</span>
+            <div className="code code-copy" style={{fontSize:24}} onClick={copyCode} title={t("common.tapToCopy")}>
+              {code}{copied && <span className="copied-tag">✓</span>}
+            </div>
+          </div>
+        )}
+        <div className={"status-pill " + (vsBot ? "pill-ready" : (oppReady ? "pill-ready" : "pill-wait"))}>
+          {vsBot ? t("place.botReady") : (oppPresent ? (oppReady ? t("place.oppReady") : t("place.oppPlacing")) : t("place.waitOpp"))}
+        </div>
+      </div>
+    </>
+  );
 
-      {showShop && (
-        <PlacementShop stake={stake} balance={balance} inventory={inventory}
-          purchaseCount={purchaseCount} onBuy={onBuyPowerup} onRefund={onRefundPowerup} disabled={ready} />
+  // Footer: existing .place-actions controls row (Random + Confirm/Cancel-ready)
+  // relocated into the shell footer (UI-SPEC explicit).
+  const footer = (
+    <div className="controls place-actions">
+      <button className="btn ghost" onClick={randomize} disabled={ready}>{t("place.random")}</button>
+      {!ready && (
+        <button className="btn primary" disabled={!allPlaced || decoyPending} onClick={confirm}>
+          {t("place.ready")}
+        </button>
       )}
-
-      {decoyPending && <p className="hint decoy-hint">{t("decoy.place")}</p>}
-
-      <div className="controls place-actions">
-        <button className="btn ghost" onClick={randomize} disabled={ready}>{t("place.random")}</button>
-        {!ready && (
-          <button className="btn primary" disabled={!allPlaced || decoyPending} onClick={confirm}>
-            {t("place.ready")}
-          </button>
-        )}
-        {ready && (
-          <button className="btn ghost" onClick={() => onUnready && onUnready()} style={{color:"#ff6b6b"}}>
-            {countdown != null ? `⏱️ ${countdown}s — ${LANG === "vi" ? "Hủy" : "Cancel"}` : (waiting ? t("place.waitingOpp") : `✓ ${LANG === "vi" ? "Hủy sẵn sàng" : "Cancel Ready"}`)}
-          </button>
-        )}
-      </div>
-
-      <div className="board-wrap">
-        <div className="grid-outer">
-          <div className="grid own" ref={gridRef}
-            style={{ gridTemplateColumns: `repeat(${BOARD}, var(--cell))`, position: "relative" }}>
-            {gridCells}
-            {Object.entries(placed).map(([id, p]) => {
-              if (drag && drag.id === id) return null; // hide while dragging
-              const sz = sizeOf(id);
-              const box = p.dir === "h"
-                ? { left: PAD + p.c * PITCH, top: PAD + p.r * PITCH, width: sz * PITCH - GAP, height: CELL }
-                : { left: PAD + p.c * PITCH, top: PAD + p.r * PITCH, width: CELL, height: sz * PITCH - GAP };
-              return (
-                <div key={id} className="ship-overlay" style={box}
-                  onPointerDown={(e) => startDrag(e, id, true)}
-                  onDoubleClick={() => rotatePlaced(id)}
-                  title={t("place.shipTitle")}>
-                  <div className={"ship-fig " + p.dir} style={{ width: sz * PITCH - GAP, height: CELL }}>
-                    <ShipSVG len={sz} />
-                  </div>
-                </div>
-              );
-            })}
-            {/* Decoy marker */}
-            {decoyCell && (
-              <div className="decoy-marker" style={{ left: PAD + decoyCell.c * PITCH, top: PAD + decoyCell.r * PITCH, width: CELL, height: CELL }}>
-                🎭
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* floating ghost following the finger / cursor */}
-      {drag && (
-        <div className="drag-ghost" style={Object.assign(
-          { left: pos.x - drag.dx, top: pos.y - drag.dy }, ghostBox(drag))}>
-          <div className={"ship-fig " + drag.dir} style={{ width: drag.sz * PITCH - GAP, height: CELL }}>
-            <ShipSVG len={drag.sz} />
-          </div>
-        </div>
+      {ready && (
+        <button className="btn ghost" onClick={() => onUnready && onUnready()} style={{color:"#ff6b6b"}}>
+          {countdown != null ? `⏱️ ${countdown}s — ${LANG === "vi" ? "Hủy" : "Cancel"}` : (waiting ? t("place.waitingOpp") : `✓ ${LANG === "vi" ? "Hủy sẵn sàng" : "Cancel Ready"}`)}
+        </button>
       )}
     </div>
+  );
+
+  return (
+    <ScreenShell header={header} footer={footer} screenKey="placement">
+      <div className="place-wrap">
+        {error && <div className="error">{error}</div>}
+        <p className="hint place-hint">{t("place.hint")}</p>
+
+        {showShop && (
+          <PlacementShop stake={stake} balance={balance} inventory={inventory}
+            purchaseCount={purchaseCount} onBuy={onBuyPowerup} onRefund={onRefundPowerup} disabled={ready} />
+        )}
+
+        {decoyPending && <p className="hint decoy-hint">{t("decoy.place")}</p>}
+
+        <div className="board-wrap">
+          <div className="grid-outer">
+            <div className="grid own" ref={gridRef}
+              style={{ gridTemplateColumns: `repeat(${BOARD}, var(--cell))`, position: "relative" }}>
+              {gridCells}
+              {Object.entries(placed).map(([id, p]) => {
+                if (drag && drag.id === id) return null; // hide while dragging
+                const sz = sizeOf(id);
+                const box = p.dir === "h"
+                  ? { left: PAD + p.c * PITCH, top: PAD + p.r * PITCH, width: sz * PITCH - GAP, height: CELL }
+                  : { left: PAD + p.c * PITCH, top: PAD + p.r * PITCH, width: CELL, height: sz * PITCH - GAP };
+                return (
+                  <div key={id} className="ship-overlay" style={box}
+                    onPointerDown={(e) => startDrag(e, id, true)}
+                    onDoubleClick={() => rotatePlaced(id)}
+                    title={t("place.shipTitle")}>
+                    <div className={"ship-fig " + p.dir} style={{ width: sz * PITCH - GAP, height: CELL }}>
+                      <ShipSVG len={sz} />
+                    </div>
+                  </div>
+                );
+              })}
+              {/* Decoy marker */}
+              {decoyCell && (
+                <div className="decoy-marker" style={{ left: PAD + decoyCell.c * PITCH, top: PAD + decoyCell.r * PITCH, width: CELL, height: CELL }}>
+                  🎭
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* floating ghost following the finger / cursor */}
+        {drag && (
+          <div className="drag-ghost" style={Object.assign(
+            { left: pos.x - drag.dx, top: pos.y - drag.dy }, ghostBox(drag))}>
+            <div className={"ship-fig " + drag.dir} style={{ width: drag.sz * PITCH - GAP, height: CELL }}>
+              <ShipSVG len={drag.sz} />
+            </div>
+          </div>
+        )}
+      </div>
+    </ScreenShell>
   );
 }
 
@@ -4098,52 +4128,45 @@ function App() {
       <HelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />
 
       {screen === "room" && (
-        <div className="lobby">
-          <h2>{t("room.title")}</h2>
-          <p className="sub">{t("room.sub")}</p>
-          <div className="room-code-box" style={{justifyContent:"center",marginBottom:6}}>
-            <div className="code code-copy" onClick={copyCode} title={t("common.tapToCopy")}>
-              {code}{copied && <span className="copied-tag">✓</span>}
+        <ScreenShell
+          header={
+            <>
+              <button className="btn ghost compact" onClick={leaveRoom}>{t("history.back")}</button>
+              <h2>{t("room.title")}</h2>
+            </>
+          }
+          screenKey="room"
+        >
+          <div className="lobby">
+            <p className="sub">{t("room.sub")}</p>
+            <div className="room-code-box" style={{justifyContent:"center",marginBottom:6}}>
+              <div className="code code-copy" onClick={copyCode} title={t("common.tapToCopy")}>
+                {code}{copied && <span className="copied-tag">✓</span>}
+              </div>
             </div>
+            <p className="sub copy-hint" style={{textAlign:"center",marginBottom:14}}>{copied ? t("common.copied") : t("common.tapToCopy")}</p>
+            <button className="btn primary" style={{width:"100%",marginBottom:10}} onClick={shareLink}>
+              {linkCopied ? t("room.linkCopied") : t("room.inviteLink")}
+            </button>
+            <p className="sub" style={{textAlign:"center",marginBottom:16}}>{t("room.shareHint")}</p>
+            {!oppPresent
+              ? <div className="status-pill pill-wait" style={{textAlign:"center"}}>{t("room.waiting")}</div>
+              : null}
+            {oppPresent && (
+              <button className="btn primary" style={{marginTop:16}} onClick={() => setScreen("placement")}>{t("room.startPlacement")}</button>
+            )}
           </div>
-          <p className="sub copy-hint" style={{textAlign:"center",marginBottom:14}}>{copied ? t("common.copied") : t("common.tapToCopy")}</p>
-          <button className="btn primary" style={{width:"100%",marginBottom:10}} onClick={shareLink}>
-            {linkCopied ? t("room.linkCopied") : t("room.inviteLink")}
-          </button>
-          <p className="sub" style={{textAlign:"center",marginBottom:16}}>{t("room.shareHint")}</p>
-          {!oppPresent
-            ? <div className="status-pill pill-wait" style={{textAlign:"center"}}>{t("room.waiting")}</div>
-            : null}
-          {oppPresent && (
-            <button className="btn primary" style={{marginTop:16}} onClick={() => setScreen("placement")}>{t("room.startPlacement")}</button>
-          )}
-        </div>
+        </ScreenShell>
       )}
 
       {screen === "placement" && (
-        <div>
-          {error && <div className="error">{error}</div>}
-          <div className="room-banner">
-            {vsBot ? (
-              <div className="room-code-box"><span>{t("common.vsBotFull")}</span></div>
-            ) : (
-              <div className="room-code-box">
-                <span>{t("common.roomCodeLabel")}</span>
-                <div className="code code-copy" style={{fontSize:24}} onClick={copyCode} title={t("common.tapToCopy")}>
-                  {code}{copied && <span className="copied-tag">✓</span>}
-                </div>
-              </div>
-            )}
-            <div className={"status-pill " + (vsBot ? "pill-ready" : (oppReady ? "pill-ready" : "pill-wait"))}>
-              {vsBot ? t("place.botReady") : (oppPresent ? (oppReady ? t("place.oppReady") : t("place.oppPlacing")) : t("place.waitOpp"))}
-            </div>
-          </div>
-          <Placement onConfirm={confirmPlacement} onUnready={handleUnready} ready={iReady} waiting={iReady && !oppReady}
-            stake={stake} balance={balance} authUser={authUser} vsBot={vsBot}
-            onBuyPowerup={handlePlacementBuy} onRefundPowerup={handleRefundPowerup} inventory={placementInv}
-            purchaseCount={placementPurchases} decoyPending={decoyPending}
-            decoyCell={decoyCell} onDecoyPlace={handleDecoyPlace} countdown={countdown} />
-        </div>
+        <Placement onConfirm={confirmPlacement} onUnready={handleUnready} ready={iReady} waiting={iReady && !oppReady}
+          stake={stake} balance={balance} authUser={authUser} vsBot={vsBot}
+          onBuyPowerup={handlePlacementBuy} onRefundPowerup={handleRefundPowerup} inventory={placementInv}
+          purchaseCount={placementPurchases} decoyPending={decoyPending}
+          decoyCell={decoyCell} onDecoyPlace={handleDecoyPlace} countdown={countdown}
+          error={error} code={code} copied={copied} copyCode={copyCode}
+          oppPresent={oppPresent} oppReady={oppReady} onBack={leaveRoom} />
       )}
 
       {screen === "battle" && (
