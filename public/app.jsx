@@ -19,7 +19,7 @@ function detectLocale() {
 const LANG = detectLocale();
 const I18N = {
   en: {
-    "common.or": "OR", "common.copied": "Copied ✓",
+    "common.or": "OR", "common.copied": "Copied ✓", "common.ok": "OK",
     "common.tapToCopy": "Tap the code to copy", "common.bot": "Bot", "common.opponent": "Opponent",
     "common.exit": "Exit", "common.leaveRoom": "Leave", "common.roomCodeLabel": "Room code:", "common.vsBotFull": "🤖 Play vs Bot",
     "topbar.tagline": "Online · Sea Battle", "topbar.soundToggle": "Toggle sound",
@@ -69,6 +69,7 @@ const I18N = {
     "help.chatTitle": "💬 Chat", "help.chatBody": "Tap 💬 to send a quick emoji or message — it pops as a bubble over your avatar for a few seconds (no chat log).",
     "help.reconnectTitle": "📡 Reconnect", "help.reconnectBody": "If you disconnect or background the app, your seat is held for 3 minutes. Re-open to resume the match.",
     "footer": "Battleship Online · share the room code to invite friends",
+    "shell.powersToggle": "⚡ Powers", "shell.about": "About",
     "history.open": "📋 History", "history.title": "Match History", "history.empty": "No battles yet. ⚓", "history.back": "← Back",
     "history.all": "All", "history.win": "Won", "history.loss": "Lost", "history.wager": "Wagered", "history.free": "Free",
     "history.classic": "Classic", "history.advance": "Advance", "history.pts": "coin", "history.total": "{n} matches",
@@ -211,7 +212,7 @@ const I18N = {
     "auth.signInTitle": "Sign in or create account",
   },
   vi: {
-    "common.or": "HOẶC", "common.copied": "Đã chép ✓",
+    "common.or": "HOẶC", "common.copied": "Đã chép ✓", "common.ok": "OK",
     "common.tapToCopy": "Chạm vào mã để chép", "common.bot": "Máy", "common.opponent": "Đối thủ",
     "common.exit": "Thoát", "common.leaveRoom": "Rời phòng", "common.roomCodeLabel": "Mã phòng:", "common.vsBotFull": "🤖 Chơi với máy",
     "topbar.tagline": "Online · Hải chiến", "topbar.soundToggle": "Bật/tắt âm thanh",
@@ -261,6 +262,7 @@ const I18N = {
     "help.chatTitle": "💬 Trò chuyện", "help.chatBody": "Bấm 💬 để gửi emoji hoặc tin nhắn nhanh — nó hiện thành bong bóng trên avatar bạn vài giây (không có khung chat).",
     "help.reconnectTitle": "📡 Kết nối lại", "help.reconnectBody": "Nếu mất kết nối hoặc thoát nền app, ghế của bạn được giữ 3 phút. Mở lại để chơi tiếp.",
     "footer": "Battleship Online · chia sẻ mã phòng để mời bạn bè",
+    "shell.powersToggle": "⚡ Vũ khí", "shell.about": "Giới thiệu",
     "history.open": "📋 Lịch sử", "history.title": "Lịch sử trận đấu", "history.empty": "Chưa có trận đấu nào. ⚓", "history.back": "← Quay lại",
     "history.all": "Tất cả", "history.win": "Thắng", "history.loss": "Thua", "history.wager": "Có cược", "history.free": "Không cược",
     "history.classic": "Classic", "history.advance": "Advance", "history.pts": "coin", "history.total": "{n} trận",
@@ -887,6 +889,50 @@ function BottomSheet({ open, onClose, title, children }) {
         {children}
       </div>
     </div>
+  );
+}
+
+// ---------- useMainHeight (Phase 19 — app shell) ----------
+// Measures .shell-main's rendered height via ResizeObserver and writes it to
+// the --main-h CSS custom property, consumed by the --cell height-cap formula
+// (MOBILE-03). Falls back to a one-shot measurement + window.resize listener
+// when ResizeObserver is unavailable (graceful degradation per CLAUDE.md).
+function useMainHeight(ref) {
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (typeof ResizeObserver === "undefined") {
+      const set = () => { el.style.setProperty("--main-h", el.clientHeight + "px"); };
+      set();
+      window.addEventListener("resize", set);
+      return () => window.removeEventListener("resize", set);
+    }
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        el.style.setProperty("--main-h", entry.contentRect.height + "px");
+      }
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [ref]);
+}
+
+// ---------- ScreenShell (Phase 19 — app shell) ----------
+// Wraps a screen's content in the 3-region shell: .shell-header (optional),
+// .shell-main (scrollable content), .shell-footer (optional). `screenKey`/
+// `direction` are plumbed through for Plan 04's screen-transition CSS classes
+// (undefined-safe — no-op until that plan lands).
+function ScreenShell({ header, footer, children, screenKey, direction }) {
+  const mainRef = useRef(null);
+  useMainHeight(mainRef);
+  return (
+    <>
+      {header && <div className="shell-header">{header}</div>}
+      <div className={"shell-main" + (direction ? " screen-enter-" + direction : "")} ref={mainRef} key={screenKey}>
+        {children}
+      </div>
+      {footer && <div className="shell-footer">{footer}</div>}
+    </>
   );
 }
 
@@ -1768,59 +1814,70 @@ function Battle({ myTurn, vsBot, occ, incoming, myShots, onFire, log, sunkOpp, s
   const showRing = turnDeadline != null || vsBot;
   const botFrac = vsBot ? (myTurn ? 1 : 0) : frac;
   const botSecs = vsBot ? (myTurn ? "⚡" : "⏳") : secs;
-  return (
-    <div>
-      <div className="scoreboard">
-        <div className="pcard-wrap">
-          <PlayerCard side="me" profile={myProfile} fallbackName={t("battle.you")} score={myScore} active={myTurn} bubble={myBubble} />
-        </div>
-        <TurnRing secs={turnDeadline != null ? secs : botSecs} frac={turnDeadline != null ? frac : botFrac} show={showRing} myTurn={myTurn} />
-        <div className="pcard-wrap" style={{position:"relative"}}>
-          <PlayerCard side="opp" profile={oppProfile} fallbackName={oppLabel} score={oppScore} active={!myTurn} isBot={vsBot} bubble={oppBubble} onClick={handleOppClick} />
-          {oppStatsOpen && oppStats && (
-            <div className="opp-stats-popup expanded" onClick={(e) => e.stopPropagation()}>
-              <div className="opp-stats-header">
-                <span className="opp-stats-name">{oppProfile?.name || oppLabel}</span>
-                <button className="opp-stats-close" onClick={() => setOppStatsOpen(false)}>✕</button>
-              </div>
-              <div className="stat-row"><span className="stat-value">{oppStats.winRate}%</span> {t("h2h.winRate")}</div>
-              <div className="stat-row"><span className="stat-value">{oppStats.gamesPlayed}</span> {t("h2h.totalGames")}</div>
-              {oppStats.totalGames > 0 && (
-                <>
-                  <div className="h2h-divider">⚔️ {t("h2h.title")}</div>
-                  <div className="h2h-record">
-                    <span className="h2h-me">{oppStats.myWins}</span>
-                    <span className="h2h-sep">-</span>
-                    <span className="h2h-them">{oppStats.theirWins}</span>
-                  </div>
-                  <div className="h2h-meta">
-                    {oppStats.totalGames} {t("h2h.games")}
-                    {oppStats.streak && oppStats.streak.count > 1 && (
-                      <span> · {oppStats.streak.holder === "me" ? t("h2h.streakMe") : t("h2h.streakThem")} +{oppStats.streak.count}</span>
-                    )}
-                  </div>
-                </>
-              )}
-              {authUser && oppProfile?.id && friendStatus === "none" && !friendReqSent && (
-                <button className="btn compact primary opp-add-friend" onClick={handleAddFriend}>➕ {t("friends.add")}</button>
-              )}
-              {friendStatus === "accepted" && (
-                <div className="friendship-badge">👥 {t("friends.already")} <button className="btn-mini reject" onClick={handleUnfriend} style={{marginLeft:8,fontSize:11}}>{t("friends.remove")}</button></div>
-              )}
-              {(friendStatus === "pending" || friendReqSent) && (
-                <div className="friendship-badge">⏳ {t("friends.pendingSent")}</div>
-              )}
-              {!oppProfile?.id && authUser && (
-                <div className="friendship-badge" style={{color:"#555"}}>{LANG === "vi" ? "Khách — không thể kết bạn" : "Guest — can't add"}</div>
-              )}
-            </div>
-          )}
-        </div>
+  // Powers footer chip (D-05): only show when at least one purchasable
+  // power-up is in inventory — mirrors PowerBar's own items.filter (Phase 19).
+  const [powersOpen, setPowersOpen] = useState(false);
+  const hasUsablePower = ["sonar", "cross", "scatter"].some((type) => (inv[type] || 0) > 0);
+
+  const header = (
+    <div className="scoreboard">
+      <div className="pcard-wrap">
+        <PlayerCard side="me" profile={myProfile} fallbackName={t("battle.you")} score={myScore} active={myTurn} bubble={myBubble} />
       </div>
+      <TurnRing secs={turnDeadline != null ? secs : botSecs} frac={turnDeadline != null ? frac : botFrac} show={showRing} myTurn={myTurn} />
+      <div className="pcard-wrap" style={{position:"relative"}}>
+        <PlayerCard side="opp" profile={oppProfile} fallbackName={oppLabel} score={oppScore} active={!myTurn} isBot={vsBot} bubble={oppBubble} onClick={handleOppClick} />
+        {oppStatsOpen && oppStats && (
+          <div className="opp-stats-popup expanded" onClick={(e) => e.stopPropagation()}>
+            <div className="opp-stats-header">
+              <span className="opp-stats-name">{oppProfile?.name || oppLabel}</span>
+              <button className="opp-stats-close" onClick={() => setOppStatsOpen(false)}>✕</button>
+            </div>
+            <div className="stat-row"><span className="stat-value">{oppStats.winRate}%</span> {t("h2h.winRate")}</div>
+            <div className="stat-row"><span className="stat-value">{oppStats.gamesPlayed}</span> {t("h2h.totalGames")}</div>
+            {oppStats.totalGames > 0 && (
+              <>
+                <div className="h2h-divider">⚔️ {t("h2h.title")}</div>
+                <div className="h2h-record">
+                  <span className="h2h-me">{oppStats.myWins}</span>
+                  <span className="h2h-sep">-</span>
+                  <span className="h2h-them">{oppStats.theirWins}</span>
+                </div>
+                <div className="h2h-meta">
+                  {oppStats.totalGames} {t("h2h.games")}
+                  {oppStats.streak && oppStats.streak.count > 1 && (
+                    <span> · {oppStats.streak.holder === "me" ? t("h2h.streakMe") : t("h2h.streakThem")} +{oppStats.streak.count}</span>
+                  )}
+                </div>
+              </>
+            )}
+            {authUser && oppProfile?.id && friendStatus === "none" && !friendReqSent && (
+              <button className="btn compact primary opp-add-friend" onClick={handleAddFriend}>➕ {t("friends.add")}</button>
+            )}
+            {friendStatus === "accepted" && (
+              <div className="friendship-badge">👥 {t("friends.already")} <button className="btn-mini reject" onClick={handleUnfriend} style={{marginLeft:8,fontSize:11}}>{t("friends.remove")}</button></div>
+            )}
+            {(friendStatus === "pending" || friendReqSent) && (
+              <div className="friendship-badge">⏳ {t("friends.pendingSent")}</div>
+            )}
+            {!oppProfile?.id && authUser && (
+              <div className="friendship-badge" style={{color:"#555"}}>{LANG === "vi" ? "Khách — không thể kết bạn" : "Guest — can't add"}</div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  const footer = hasUsablePower ? (
+    <button className="btn ghost compact" onClick={() => setPowersOpen(true)}>{t("shell.powersToggle")}</button>
+  ) : null;
+
+  return (
+    <ScreenShell header={header} footer={footer}>
       <div className={"boards tab-" + tab + (shake ? " shake" : "")}>
         <div className="board-wrap wrap-enemy">
           <div className="board-title enemy">{t("battle.enemyWaters")} {myTurn && !aim ? t("battle.fireSuffix") : ""}</div>
-          <PowerBar inv={inv} aim={aim} onPower={onPower} myTurn={myTurn} />
           {aim === "sonar" && <SonarDrag onDrop={(axis, index) => onPower("sonar-fire", { axis, index })} onCancel={() => onPower("sonar")} />}
           <Grid enemy hits={myShots} shootable={myTurn && aim !== "sonar"} sunk={sunkEnemyCells} flash={flashEnemy}
             aimCells={aim === "cross" ? hoverCells : null}
@@ -1848,11 +1905,10 @@ function Battle({ myTurn, vsBot, occ, incoming, myShots, onFire, log, sunkOpp, s
         </div>
       </div>
       {aim === "cross" && <div className="aim-hint">{t("battle.aimingCross")}</div>}
-      <div className="log">
-        {log.length === 0 && <div>{t("battle.logStart")}</div>}
-        {log.map((l, i) => <div key={i}>{l}</div>)}
-      </div>
-    </div>
+      <BottomSheet open={powersOpen} onClose={() => setPowersOpen(false)} title={t("shell.powersToggle")}>
+        <PowerBar inv={inv} aim={aim} onPower={onPower} myTurn={myTurn} />
+      </BottomSheet>
+    </ScreenShell>
   );
 }
 
@@ -2260,6 +2316,7 @@ function ProfileChip({ user, onToggle, active }) {
 // Closes on Escape, outside click, or item selection.
 function AvatarMenu({ open, user, onViewProfile, onSignOut, onCancel, setViewProfileId }) {
   const menuRef = useRef(null);
+  const [aboutOpen, setAboutOpen] = useState(false);
 
   // Close on outside click
   useEffect(() => {
@@ -2287,17 +2344,35 @@ function AvatarMenu({ open, user, onViewProfile, onSignOut, onCancel, setViewPro
     return () => document.removeEventListener("keydown", handleKey);
   }, [open, onCancel]);
 
-  if (!open) return null;
+  if (!open && !aboutOpen) return null;
 
   return (
-    <div className="avatar-menu" ref={menuRef} role="menu">
-      <button className="avatar-menu-item" role="menuitem" onClick={() => { onViewProfile(); onCancel(); }}>
-        👤 {t("auth.viewProfile")}
-      </button>
-      <button className="avatar-menu-item" role="menuitem" onClick={() => { onSignOut(); onCancel(); }}>
-        🚪 {t("auth.signOut")}
-      </button>
-    </div>
+    <>
+      {open && (
+        <div className="avatar-menu" ref={menuRef} role="menu">
+          <button className="avatar-menu-item" role="menuitem" onClick={() => { onViewProfile(); onCancel(); }}>
+            👤 {t("auth.viewProfile")}
+          </button>
+          <button className="avatar-menu-item" role="menuitem" onClick={() => { setAboutOpen(true); onCancel(); }}>
+            ℹ️ {t("shell.about")}
+          </button>
+          <button className="avatar-menu-item" role="menuitem" onClick={() => { onSignOut(); onCancel(); }}>
+            🚪 {t("auth.signOut")}
+          </button>
+        </div>
+      )}
+      {aboutOpen && (
+        <div className="overlay" onClick={() => setAboutOpen(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h2 style={{ fontSize: 22 }}>{t("shell.about")}</h2>
+            <p>{t("footer")}</p>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button className="btn primary" onClick={() => setAboutOpen(false)}>{t("common.ok")}</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -2986,7 +3061,9 @@ function ProfileView({ userId, currentUserId, onBack, onSignOut, onChallengeFrie
 
 // ---------- App ----------
 function App() {
-  const [screen, setScreen] = useState("lobby"); // lobby | room | placement | battle | profile | queue
+  // dev/test-only screen hook (Phase 19 — Playwright drives static screens via ?screen=<name>)
+  const devScreen = (typeof location !== "undefined" && new URLSearchParams(location.search).get("screen")) || null;
+  const [screen, setScreen] = useState(devScreen || "lobby"); // lobby | room | placement | battle | profile | queue
   const [code, setCode] = useState(null);
   const [error, setError] = useState(null);
   const [oppPresent, setOppPresent] = useState(false);
@@ -4138,7 +4215,6 @@ function App() {
         <PremiumEmojiAnimation key={ev.key} event={ev} myClientId={clientId} onComplete={() => handleEmojiAnimComplete(ev.key)} />
       ))}
 
-      <div className="footer-note">{t("footer")}</div>
     </div>
   );
 }

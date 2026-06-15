@@ -40,7 +40,7 @@ test.describe("no page scroll", () => {
 
   for (const screenName of QUERY_SCREENS) {
     test(`no page scroll — ${screenName}`, async ({ page }) => {
-      test.skip(({ project }) => project.name === "desktop", "mobile-only gate");
+      test.skip(test.info().project.name === "desktop", "mobile-only gate");
       await page.goto(`/?screen=${screenName}`);
       await page.waitForLoadState("domcontentloaded");
       await assertNoScroll(page);
@@ -48,9 +48,9 @@ test.describe("no page scroll", () => {
   }
 
   test("no page scroll — battle viewport fit @smoke", async ({ page }) => {
-    test.skip(({ project }) => project.name === "desktop", "mobile-only gate");
+    test.skip(test.info().project.name === "desktop", "mobile-only gate");
     await page.goto("/");
-    await page.getByRole("button", { name: /Play vs Bot/i }).click();
+    await page.getByRole("button", { name: /Bot - Practice/i }).click();
     await page.getByRole("button", { name: /Ready for battle/i }).click();
     // Battle screen renders the scoreboard + boards once placement completes.
     await page.locator(".boards").waitFor({ state: "visible", timeout: 15000 });
@@ -60,9 +60,9 @@ test.describe("no page scroll", () => {
 
 test.describe("battle viewport fit", () => {
   test("battle viewport fit — board + scoreboard + turn ring fit one screen @smoke", async ({ page }) => {
-    test.skip(({ project }) => project.name === "desktop", "mobile-only gate");
+    test.skip(test.info().project.name === "desktop", "mobile-only gate");
     await page.goto("/");
-    await page.getByRole("button", { name: /Play vs Bot/i }).click();
+    await page.getByRole("button", { name: /Bot - Practice/i }).click();
     await page.getByRole("button", { name: /Ready for battle/i }).click();
     await page.locator(".boards").waitFor({ state: "visible", timeout: 15000 });
     await assertNoScroll(page);
@@ -74,7 +74,7 @@ test.describe("battle viewport fit", () => {
 
 test.describe("desktop phone frame", () => {
   test("desktop phone frame — .app stays <= 480px wide @smoke", async ({ page }) => {
-    test.skip(({ project }) => project.name !== "desktop", "desktop-only check");
+    test.skip(test.info().project.name !== "desktop", "desktop-only check");
     await page.goto("/?screen=lobby");
     await page.waitForLoadState("domcontentloaded");
     const width = await page.locator(".app").evaluate((el) => el.getBoundingClientRect().width);
