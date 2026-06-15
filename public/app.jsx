@@ -1364,7 +1364,7 @@ function PlacementShop({ stake, balance, inventory, purchaseCount, onBuy, onRefu
 }
 
 // ---------- Placement screen (touch + mouse drag) ----------
-function Placement({ onConfirm, onUnready, ready, waiting, stake, balance, authUser, vsBot, onBuyPowerup, onRefundPowerup, inventory, purchaseCount, decoyPending, decoyCell, onDecoyPlace, countdown, error, code, copied, copyCode, oppPresent, oppReady, onBack }) {
+function Placement({ onConfirm, onUnready, ready, waiting, stake, balance, authUser, vsBot, onBuyPowerup, onRefundPowerup, inventory, purchaseCount, decoyPending, decoyCell, onDecoyPlace, countdown, error, code, copied, copyCode, oppPresent, oppReady, onBack, direction }) {
   // placed: id -> {r, c, dir}
   const [placed, setPlaced] = useState({});
   const [drag, setDrag] = useState(null);    // {id, dir, offset, dx, dy, sz, fromBoard}
@@ -1572,7 +1572,7 @@ function Placement({ onConfirm, onUnready, ready, waiting, stake, balance, authU
   );
 
   return (
-    <ScreenShell header={header} footer={footer} screenKey="placement">
+    <ScreenShell header={header} footer={footer} screenKey="placement" direction={direction}>
       <div className="place-wrap">
         {error && <div className="error">{error}</div>}
         <p className="hint place-hint">{t("place.hint")}</p>
@@ -1757,7 +1757,7 @@ function SonarDrag({ onDrop, onCancel }) {
   );
 }
 
-function Battle({ myTurn, vsBot, occ, incoming, myShots, onFire, log, sunkOpp, sunkMine, sunkEnemyCells, sunkMyCells, myScore, oppScore, oppLabel, myProfile, oppProfile, myBubble, oppBubble, flashEnemy, flashMine, turnDeadline, turnDur, shake, inv, aim, onPower, onCrossHover, hoverCells, sonarScan, authUser, onAddFriend, decoyCell }) {
+function Battle({ myTurn, vsBot, occ, incoming, myShots, onFire, log, sunkOpp, sunkMine, sunkEnemyCells, sunkMyCells, myScore, oppScore, oppLabel, myProfile, oppProfile, myBubble, oppBubble, flashEnemy, flashMine, turnDeadline, turnDur, shake, inv, aim, onPower, onCrossHover, hoverCells, sonarScan, authUser, onAddFriend, decoyCell, direction }) {
   const [tab, setTab] = useState("enemy"); // enemy | own (mobile)
   const [oppStats, setOppStats] = useState(null); // { winRate, gamesPlayed, myWins, theirWins, ... }
   const [oppStatsOpen, setOppStatsOpen] = useState(false);
@@ -1910,7 +1910,7 @@ function Battle({ myTurn, vsBot, occ, incoming, myShots, onFire, log, sunkOpp, s
   ) : null;
 
   return (
-    <ScreenShell header={header} footer={footer}>
+    <ScreenShell header={header} footer={footer} screenKey="battle" direction={direction}>
       <div className={"boards tab-" + tab + (shake ? " shake" : "")}>
         <div className="board-wrap wrap-enemy">
           <div className="board-title enemy">{t("battle.enemyWaters")} {myTurn && !aim ? t("battle.fireSuffix") : ""}</div>
@@ -2413,7 +2413,7 @@ function AvatarMenu({ open, user, onViewProfile, onSignOut, onCancel, setViewPro
 }
 
 // ---------- FriendsList (Phase 17) ----------
-function FriendsList({ authUser, onBack, socket, balance, onChallenge }) {
+function FriendsList({ authUser, onBack, socket, balance, onChallenge, direction }) {
   const [friends, setFriends] = useState([]);
   const [pending, setPending] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -2512,7 +2512,7 @@ function FriendsList({ authUser, onBack, socket, balance, onChallenge }) {
   );
 
   return (
-    <ScreenShell header={friendsHeader} screenKey="friends">
+    <ScreenShell header={friendsHeader} screenKey="friends" direction={direction}>
     <div className="friends-screen">
       {notice && <div className="notice-toast">{notice}</div>}
       <div className="friends-search">
@@ -2636,7 +2636,7 @@ function ChallengePopup({ challenge, onAccept, onDecline }) {
 
 // ---------- MatchHistory (Phase 13) ----------
 // Paginated, filterable match history screen for authenticated users.
-function MatchHistory({ authUser, onBack }) {
+function MatchHistory({ authUser, onBack, direction }) {
   const [matches, setMatches] = useState([]);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
@@ -2715,7 +2715,7 @@ function MatchHistory({ authUser, onBack }) {
   );
 
   return (
-    <ScreenShell header={historyHeader} screenKey="history" mainRef={setMainEl}>
+    <ScreenShell header={historyHeader} screenKey="history" mainRef={setMainEl} direction={direction}>
       <div className="history-list">
         {matches.map(m => (
           <div key={m.id} className={"match-card " + m.result}>
@@ -2751,7 +2751,7 @@ function MatchHistory({ authUser, onBack }) {
 // Renders own or another player's public zero-state profile.
 // PROF-01: own profile shows sign-out shortcut + member-since + 0/0/0 stats.
 // PROF-02: other player shows disabled Challenge placeholder, no sign-out.
-function ProfileView({ userId, currentUserId, onBack, onSignOut, onChallengeFriend, onUnfriend }) {
+function ProfileView({ userId, currentUserId, onBack, onSignOut, onChallengeFriend, onUnfriend, direction }) {
   const [data, setData] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [friendStatus, setFriendStatus] = useState("none"); // none, pending, accepted
@@ -2816,7 +2816,7 @@ function ProfileView({ userId, currentUserId, onBack, onSignOut, onChallengeFrie
 
   if (notFound) {
     return (
-      <ScreenShell header={profileHeader} screenKey="profile">
+      <ScreenShell header={profileHeader} screenKey="profile" direction={direction}>
         <div className="profile-view" role="main">
           <div className="error" style={{ textAlign: "center", marginBottom: 20 }}>
             {t("profile.notFound")}
@@ -2831,7 +2831,7 @@ function ProfileView({ userId, currentUserId, onBack, onSignOut, onChallengeFrie
 
   if (loading) {
     return (
-      <ScreenShell header={profileHeader} screenKey="profile">
+      <ScreenShell header={profileHeader} screenKey="profile" direction={direction}>
         <div className="profile-view" role="main" aria-busy="true">
           <div className="profile-header profile-skeleton">
             <div className="profile-avatar-wrap">
@@ -2992,7 +2992,7 @@ function ProfileView({ userId, currentUserId, onBack, onSignOut, onChallengeFrie
   );
 
   return (
-    <ScreenShell header={profileHeader} footer={profileActions} screenKey="profile">
+    <ScreenShell header={profileHeader} footer={profileActions} screenKey="profile" direction={direction}>
     <div className="profile-view" role="main">
       <div className="profile-header">
         <div className="profile-avatar-wrap">
@@ -3132,6 +3132,40 @@ function App() {
   // dev/test-only screen hook (Phase 19 — Playwright drives static screens via ?screen=<name>)
   const devScreen = (typeof location !== "undefined" && new URLSearchParams(location.search).get("screen")) || null;
   const [screen, setScreen] = useState(devScreen || "lobby"); // lobby | room | placement | battle | profile | queue
+
+  // ---------- Screen transition direction (Phase 19 — MOBILE-06) ----------
+  // Derive forward/back from the previous screen vs the current one by
+  // comparing positions in a fixed hierarchy order, instead of rewriting
+  // every setScreen() call site (CLAUDE.md minimal-abstraction convention).
+  // Primary flow: lobby -> queue -> room -> placement -> battle (increasing
+  // index = forward). Secondary screens (profile/history/friends) are
+  // lobby-rooted leaves: navigating TO one of them from lobby = forward,
+  // and back to lobby = back. Any transition INTO "lobby" (or to a lower
+  // hierarchy index) is "back"; everything else is "forward".
+  const prevScreenRef = useRef(screen);
+  const screenDirection = (() => {
+    const HIERARCHY = ["lobby", "queue", "room", "placement", "battle"];
+    const SECONDARY = ["profile", "history", "friends"];
+    const prev = prevScreenRef.current;
+    const next = screen;
+    let dir;
+    if (prev === next) {
+      dir = "forward"; // no-op (same screen) — direction irrelevant, default forward
+    } else if (next === "lobby") {
+      dir = "back";
+    } else if (SECONDARY.includes(next)) {
+      dir = SECONDARY.includes(prev) ? "forward" : "forward"; // lobby -> secondary = forward
+    } else if (SECONDARY.includes(prev) && HIERARCHY.includes(next)) {
+      dir = "forward"; // secondary -> primary (e.g. profile -> lobby handled above)
+    } else {
+      const prevIdx = HIERARCHY.indexOf(prev);
+      const nextIdx = HIERARCHY.indexOf(next);
+      dir = (prevIdx !== -1 && nextIdx !== -1 && nextIdx < prevIdx) ? "back" : "forward";
+    }
+    prevScreenRef.current = next;
+    return dir;
+  })();
+
   const [code, setCode] = useState(null);
   const [error, setError] = useState(null);
   const [oppPresent, setOppPresent] = useState(false);
@@ -4118,7 +4152,7 @@ function App() {
       )}
 
       {screen === "lobby" && (
-        <ScreenShell header={topbarContent} screenKey="lobby">
+        <ScreenShell header={topbarContent} screenKey="lobby" direction={screenDirection}>
           <Lobby onCreate={createRoom} onJoin={joinRoom} onBot={handleBot} onQuickMatch={handleQuickMatch} onHelp={() => setHelpOpen(true)} onHistory={() => setScreen("history")} onFriends={() => setScreen("friends")} onChallenge={() => setScreen("friends")} onViewProfile={(id) => handleViewProfile(id)} onRoomCreated={(code, stake) => { setCode(code); setStake(stake || 0); setScreen("room"); }} error={error} authUser={authUser} authError={authError} verifyNotice={verifyNotice} clientId={clientId} signInDisabled={signInDisabled} onSignInDisable={() => setSignInDisabled(true)} onEmailAuthSuccess={setAuthUser} balance={balance} />
         </ScreenShell>
       )}
@@ -4128,6 +4162,7 @@ function App() {
           header={<h2>{queueType === "wagered" ? t("queue.titleWagered") : t("queue.titleFree")}</h2>}
           footer={<button className="btn ghost" onClick={handleLeaveQueue}>{t("queue.cancel")}</button>}
           screenKey="queue"
+          direction={screenDirection}
         >
           <div className="lobby">
             <p className="sub">{t("queue.sub")}</p>
@@ -4152,15 +4187,16 @@ function App() {
           onSignOut={handleSignOut}
           onChallengeFriend={(friendId) => { setScreen("friends"); }}
           onUnfriend={(friendId) => { socket.emit("friend:remove", { friendId }); }}
+          direction={screenDirection}
         />
       )}
 
       {screen === "history" && (
-        <MatchHistory authUser={authUser} onBack={() => setScreen("lobby")} />
+        <MatchHistory authUser={authUser} onBack={() => setScreen("lobby")} direction={screenDirection} />
       )}
 
       {screen === "friends" && (
-        <FriendsList authUser={authUser} onBack={() => setScreen("lobby")} socket={socket} balance={balance} />
+        <FriendsList authUser={authUser} onBack={() => setScreen("lobby")} socket={socket} balance={balance} direction={screenDirection} />
       )}
 
       <HelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />
@@ -4174,6 +4210,7 @@ function App() {
             </>
           }
           screenKey="room"
+          direction={screenDirection}
         >
           <div className="lobby">
             <p className="sub">{t("room.sub")}</p>
@@ -4204,7 +4241,7 @@ function App() {
           purchaseCount={placementPurchases} decoyPending={decoyPending}
           decoyCell={decoyCell} onDecoyPlace={handleDecoyPlace} countdown={countdown}
           error={error} code={code} copied={copied} copyCode={copyCode}
-          oppPresent={oppPresent} oppReady={oppReady} onBack={leaveRoom} />
+          oppPresent={oppPresent} oppReady={oppReady} onBack={leaveRoom} direction={screenDirection} />
       )}
 
       {screen === "battle" && (
@@ -4214,7 +4251,7 @@ function App() {
               💰 {t("game.pot", { n: stake * 2 })}
             </div>
           )}
-          <Battle myTurn={myTurn} vsBot={vsBot} occ={occ} incoming={incoming} myShots={myShots} onFire={fire} log={log} sunkOpp={sunkOpp} sunkMine={sunkMine} sunkEnemyCells={sunkEnemyCells} sunkMyCells={sunkMyCells} myScore={myScore} oppScore={oppScore} oppLabel={vsBot ? t("common.bot") : t("common.opponent")} myProfile={profile} oppProfile={vsBot ? null : oppProfile} myBubble={myBubble} oppBubble={vsBot ? null : oppBubble} flashEnemy={flashEnemy} flashMine={flashMine} turnDeadline={vsBot ? null : turnDeadline} turnDur={turnDur} shake={shake} inv={inv} aim={aim} onPower={activatePower} onCrossHover={handleCrossHover} hoverCells={crossHover} sonarScan={sonarScan} authUser={authUser} decoyCell={decoyCell} />
+          <Battle myTurn={myTurn} vsBot={vsBot} occ={occ} incoming={incoming} myShots={myShots} onFire={fire} log={log} sunkOpp={sunkOpp} sunkMine={sunkMine} sunkEnemyCells={sunkEnemyCells} sunkMyCells={sunkMyCells} myScore={myScore} oppScore={oppScore} oppLabel={vsBot ? t("common.bot") : t("common.opponent")} myProfile={profile} oppProfile={vsBot ? null : oppProfile} myBubble={myBubble} oppBubble={vsBot ? null : oppBubble} flashEnemy={flashEnemy} flashMine={flashMine} turnDeadline={vsBot ? null : turnDeadline} turnDur={turnDur} shake={shake} inv={inv} aim={aim} onPower={activatePower} onCrossHover={handleCrossHover} hoverCells={crossHover} sonarScan={sonarScan} authUser={authUser} decoyCell={decoyCell} direction={screenDirection} />
         </div>
       )}
 

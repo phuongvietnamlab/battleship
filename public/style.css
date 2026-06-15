@@ -581,6 +581,17 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
   .grid.enemy .cell.shootable:hover { transform: none; }
 }
 
+/* Screen transitions under reduced-motion (Phase 19 — MOBILE-06): degrade
+   the slide/push to a short opacity-only cross-fade. Kept as a SEPARATE
+   rule from the .cell/.boards selector list above (different concern). */
+@media (prefers-reduced-motion: reduce) {
+  .shell-main.screen-enter-forward,
+  .shell-main.screen-enter-back {
+    animation: cross-fade .1s linear both;
+  }
+  @keyframes cross-fade { from { opacity:0; } to { opacity:1; } }
+}
+
 /* labels (A–J / 1–10) removed — grid wraps tight with no gutter */
 .grid-outer { display:inline-block; }
 
@@ -672,6 +683,15 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
   .board-wrap { animation: rise .5s cubic-bezier(.34,1.3,.4,1) both; }
   .wrap-enemy { animation-delay: .05s; }
   .wrap-own   { animation-delay: .15s; }
+
+  /* Screen transitions (Phase 19 — MOBILE-06): native-feeling slide/push on
+     navigation. .shell-main gets screen-enter-forward/back applied by
+     ScreenShell based on navigate-direction (derived in App()); the
+     key={screenKey} prop forces a remount so the enter animation replays. */
+  .shell-main.screen-enter-forward { animation: slide-in-fwd .22s cubic-bezier(.34,1.4,.4,1) both; }
+  .shell-main.screen-enter-back    { animation: slide-in-back .22s cubic-bezier(.34,1.4,.4,1) both; }
+  @keyframes slide-in-fwd  { from { opacity:0; transform: translateX(20%); }  to { opacity:1; transform:none; } }
+  @keyframes slide-in-back { from { opacity:0; transform: translateX(-20%); } to { opacity:1; transform:none; } }
 }
 
 /* spring-weighted hover lift on interactive cards */
