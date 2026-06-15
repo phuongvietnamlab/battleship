@@ -2,7 +2,15 @@
   /* Responsive cell: never bigger than 32px (drag math in Placement depends on
      a fixed 32px pitch), but shrinks so the 10-col board fits mobile width.
      No A–J / 1–10 label gutter anymore, so less width is reserved. */
-  --cell: min(32px, calc((100vw - 40px) / 11));
+  /* Height-cap term: caps board size by available .shell-main height
+     (--main-h, written by useMainHeight via ResizeObserver). The 220px
+     reserved-space constant is a starting estimate (RESEARCH A5) — tune
+     against the rendered .scoreboard + .shell-footer heights at 360x640. */
+  --cell: min(
+    32px,
+    calc((100vw - 40px) / 11),
+    calc((var(--main-h, 100vh) - 220px) / 11)
+  );
   --navy: #07182f;
   --navy2: #0d2745;
   --steel: #1d4e7e;
@@ -21,14 +29,22 @@
 * { box-sizing: border-box; }
 
 html { scroll-behavior: smooth; }
-html, body { height: 100%; }
+/* Root viewport lock (MOBILE-01): 100vh declared before 100dvh so browsers
+   without dvh support fall back to 100vh; overflow:hidden means the page
+   itself never scrolls — only .shell-main may scroll. */
+html, body {
+  height: 100%;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+}
 
 body {
   margin: 0;
   padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
   font-family: "Be Vietnam Pro", system-ui, sans-serif;
   color: #eaf2ff;
-  min-height: 100dvh;
+  height: 100dvh;
   overflow-x: hidden;
   background: linear-gradient(180deg, #04101f 0%, #072142 40%, #0a325f 100%);
   /* app-like: no pinch-zoom / double-tap-zoom, no rubber-band bounce, no
@@ -70,7 +86,19 @@ body::after {
 .wave.w3 { bottom: -80px; opacity: .4; animation-duration: 22s; }
 @keyframes roll { from { transform: rotate(0deg) translateX(0); } to { transform: rotate(360deg); } }
 
-.app { max-width: 480px; margin: 0 auto; padding: 14px 14px 60px; position: relative; z-index: 1; }
+/* App shell root (MOBILE-01/02/08): flex column locked to the viewport height.
+   The 60px bottom reserve for .footer-note is removed — that content is
+   relocated to an avatar-menu "About" modal (Pitfall 5). Region gutters
+   (14px) are applied per-region (.shell-header/.shell-main/.shell-footer);
+   left/right safe-area insets stay here to avoid double-gutter. */
+.app {
+  max-width: 480px; margin: 0 auto; padding: 0;
+  padding-left: max(0px, env(safe-area-inset-left, 0px));
+  padding-right: max(0px, env(safe-area-inset-right, 0px));
+  position: relative; z-index: 1;
+  display: flex; flex-direction: column;
+  height: 100vh; height: 100dvh;
+}
 
 h1, h2, h3, .title, .ttl { font-family: "Oswald", sans-serif; letter-spacing: 1px; text-wrap: balance; }
 
@@ -275,6 +303,43 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 .bottom-sheet-title { font-family: "Oswald"; font-size: 18px; margin: 0 0 16px; letter-spacing: .5px; }
 .bottom-sheet-close { position: absolute; top: 16px; right: 16px; background: none; border: none; color: #a9ccec; font-size: 20px; cursor: pointer; padding: 4px 8px; }
 .bottom-sheet-close:hover { color: #fff; }
+
+/* ── App Shell Regions (MOBILE-02/07/11) ──
+   .shell-header / .shell-footer are fixed-height glass-panel chrome
+   (matches .lobby/.room-banner/.modal/.log treatment); .shell-main is the
+   ONLY scrollable region (min-height:0 is MANDATORY — Pitfall 2, without it
+   flex:1 + overflow-y:auto does not shrink and .shell-footer is pushed off
+   screen). All three regions guard against horizontal scroll (MOBILE-11). */
+.shell-header, .shell-main, .shell-footer { max-width: 100%; overflow-x: hidden; }
+
+.shell-header {
+  flex: none;
+  padding: 8px 14px;
+  padding-top: calc(8px + env(safe-area-inset-top, 0px));
+  background: var(--panel);
+  border: 1px solid var(--panel-brd);
+  backdrop-filter: blur(14px) saturate(1.2);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  display: flex; align-items: center; gap: 8px;
+}
+.shell-header h2 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.shell-main {
+  flex: 1;
+  min-height: 0; /* CRITICAL (Pitfall 2): flex children default to min-height:auto */
+  overflow-y: auto;
+  padding: 14px;
+}
+
+.shell-footer {
+  flex: none;
+  padding: 10px 14px;
+  padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  background: var(--panel);
+  border-top: 1px solid var(--panel-brd);
+  backdrop-filter: blur(14px) saturate(1.2);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+}
 
 /* ── Hero CTA ── */
 .hero-cta {
