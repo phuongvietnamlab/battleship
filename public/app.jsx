@@ -4330,14 +4330,18 @@ function App() {
       )}
 
       {screen === "battle" && (
-        <div>
+        // Fragment, not a wrapping <div>: ScreenShell's regions must be direct
+        // flex children of .app so .shell-main (flex:1) fills the viewport and
+        // .shell-footer (POWERS) sits flush at the bottom. A block wrapper here
+        // collapsed to content height and left the footer floating mid-screen.
+        <>
           {stake > 0 && !vsBot && (
             <div style={{ textAlign: "center", margin: "4px 0", fontSize: "0.85em", color: "#ffd700", fontWeight: "bold" }}>
               💰 {t("game.pot", { n: stake * 2 })}
             </div>
           )}
           <Battle myTurn={myTurn} vsBot={vsBot} occ={occ} incoming={incoming} myShots={myShots} onFire={fire} log={log} sunkOpp={sunkOpp} sunkMine={sunkMine} sunkEnemyCells={sunkEnemyCells} sunkMyCells={sunkMyCells} myScore={myScore} oppScore={oppScore} oppLabel={vsBot ? t("common.bot") : t("common.opponent")} myProfile={profile} oppProfile={vsBot ? null : oppProfile} myBubble={myBubble} oppBubble={vsBot ? null : oppBubble} flashEnemy={flashEnemy} flashMine={flashMine} turnDeadline={vsBot ? null : turnDeadline} turnDur={turnDur} shake={shake} inv={inv} aim={aim} onPower={activatePower} onCrossHover={handleCrossHover} hoverCells={crossHover} sonarScan={sonarScan} authUser={authUser} decoyCell={decoyCell} direction={screenDirection} />
-        </div>
+        </>
       )}
 
       {over && (

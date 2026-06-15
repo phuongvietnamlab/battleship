@@ -1317,6 +1317,20 @@ function buildOppProfile(player) {
   return { name: p.name || null, photo: p.photo || null, id: player.userId || null };
 }
 
+// Challenge matches are launched from the friends list, which never sends a
+// client profile (socket.data.profile is unused), so the seat had a null name
+// and the opponent showed as "Opponent". Build the seat profile from the
+// authenticated account's display_name/avatar instead. Falls back to whatever
+// the client supplied if the lookup fails.
+async function seatProfileForUser(uid, fallback) {
+  try {
+    const u = await getUserById(uid);
+    const prof = sanitizeProfile({ name: u?.display_name || null, photo: u?.avatar_url || null });
+    if (prof) return prof;
+  } catch { /* fall through to client-supplied fallback */ }
+  return sanitizeProfile(fallback || {});
+}
+
 // Validate and sanitize chat text (SEC-04). Returns null for invalid/empty input
 // so the chat handler can early-return cleanly.
 function sanitizeChat(text) {
@@ -2351,7 +2365,7 @@ io.on("connection", (socket) => {
     };
     rooms[code].players[clientId] = {
       sid: socket.id, ready: false, occ: null, hits: new Set(), online: true,
-      timer: null, bonus: 0, profile: sanitizeProfile(socket.data.profile || {}),
+      timer: null, bonus: 0, profile: await seatProfileForUser(uid, socket.data.profile),
       userId: uid, wagerId: hostWagerId,
       inv: newInv(), decoyCell: null,
     };
@@ -2413,7 +2427,7 @@ io.on("connection", (socket) => {
     const clientId = socket.data.clientId || socket.id;
     room.players[clientId] = {
       sid: socket.id, ready: false, occ: null, hits: new Set(), online: true,
-      timer: null, bonus: 0, profile: sanitizeProfile(socket.data.profile || {}),
+      timer: null, bonus: 0, profile: await seatProfileForUser(uid, socket.data.profile),
       userId: uid, wagerId: joinerWagerId,
       inv: newInv(), decoyCell: null,
     };
