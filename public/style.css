@@ -741,7 +741,11 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
   .boards.tab-enemy .wrap-own{ display:none; }
   .boards.tab-own .wrap-enemy{ display:none; }
   /* topbar gọn lại để không bị tràn / đè chữ */
-  .topbar{ padding:6px 2px 14px; gap:8px; }
+  /* Keep the safe-area-inset-top here: the shorthand padding would otherwise
+     reset padding-top to 6px and drop the notch/Dynamic-Island clearance, so
+     standalone-PWA battle/over screens (which render .topbar outside
+     .shell-header) slid under the status bar (MOBILE-07). */
+  .topbar{ padding:6px 2px 14px; padding-top: calc(6px + env(safe-area-inset-top, 0px)); gap:8px; }
   .logo{ gap:8px; min-width:0; flex:1; }
   .logo .badge{ width:38px; height:38px; border-radius:10px; font-size:20px; flex:none; }
   .logo h1{ font-size:21px; letter-spacing:1px; line-height:1.05; }
