@@ -71,6 +71,11 @@ const I18N = {
     "help.reconnectTitle": "📡 Reconnect", "help.reconnectBody": "If you disconnect or background the app, your seat is held for 3 minutes. Re-open to resume the match.",
     "footer": "Battleship Online · share the room code to invite friends",
     "shell.powersToggle": "⚡ Powers", "shell.about": "About",
+    "about.desc": "Battleship Online (Sea Battle / cờ hải chiến / bắn tàu) is a free browser game — no download, no sign-up. Create a room and share the 5-letter code to play a friend (2-player), or battle the bot. Classic and power-up modes. Desktop & mobile, EN & VI.",
+    "about.faqTitle": "FAQ",
+    "about.q1": "Is Battleship online free?", "about.a1": "Yes — 100% free, no download and no sign-up. It runs in your browser on desktop and mobile.",
+    "about.q2": "Can I play with a friend?", "about.a2": "Create a room, share the 5-letter room code, and your friend joins for a real-time 2-player match.",
+    "about.q3": "Can I play against the computer?", "about.a3": "Yes — choose Play vs Bot for a single-player game against the computer, no opponent needed.",
     "history.open": "📋 History", "history.title": "Match History", "history.empty": "No battles yet. ⚓", "history.back": "← Back",
     "history.all": "All", "history.win": "Won", "history.loss": "Lost", "history.wager": "Wagered", "history.free": "Free",
     "history.classic": "Classic", "history.advance": "Advance", "history.pts": "coin", "history.total": "{n} matches",
@@ -264,6 +269,11 @@ const I18N = {
     "help.reconnectTitle": "📡 Kết nối lại", "help.reconnectBody": "Nếu mất kết nối hoặc thoát nền app, ghế của bạn được giữ 3 phút. Mở lại để chơi tiếp.",
     "footer": "Battleship Online · chia sẻ mã phòng để mời bạn bè",
     "shell.powersToggle": "⚡ Vũ khí", "shell.about": "Giới thiệu",
+    "about.desc": "Battleship Online (cờ hải chiến / bắn tàu) là game trình duyệt miễn phí — không tải, không đăng ký. Tạo phòng, gửi mã 5 ký tự để đấu 2 người với bạn, hoặc chơi với máy. Có chế độ cổ điển và power-up. Máy tính & điện thoại, song ngữ Anh/Việt.",
+    "about.faqTitle": "Câu hỏi thường gặp",
+    "about.q1": "Có miễn phí không?", "about.a1": "Có — miễn phí 100%, không tải, không đăng ký. Chơi ngay trên trình duyệt, máy tính lẫn điện thoại.",
+    "about.q2": "Chơi với bạn được không?", "about.a2": "Tạo phòng, gửi mã 5 ký tự, bạn bè vào là đấu 2 người thời gian thực.",
+    "about.q3": "Đấu với máy được không?", "about.a3": "Được — chọn Chơi với Máy để chơi một mình, không cần đối thủ.",
     "history.open": "📋 Lịch sử", "history.title": "Lịch sử trận đấu", "history.empty": "Chưa có trận đấu nào. ⚓", "history.back": "← Quay lại",
     "history.all": "Tất cả", "history.win": "Thắng", "history.loss": "Thua", "history.wager": "Có cược", "history.free": "Không cược",
     "history.classic": "Classic", "history.advance": "Advance", "history.pts": "coin", "history.total": "{n} trận",
@@ -2402,9 +2412,8 @@ function ProfileChip({ user, onToggle, active }) {
 // ---------- AvatarMenu ----------
 // Dropdown menu for the signed-in user. Opens on chip click.
 // Closes on Escape, outside click, or item selection.
-function AvatarMenu({ open, user, onViewProfile, onSignOut, onCancel, setViewProfileId }) {
+function AvatarMenu({ open, user, onViewProfile, onSignOut, onCancel, onAbout, setViewProfileId }) {
   const menuRef = useRef(null);
-  const [aboutOpen, setAboutOpen] = useState(false);
 
   // Close on outside click
   useEffect(() => {
@@ -2432,35 +2441,52 @@ function AvatarMenu({ open, user, onViewProfile, onSignOut, onCancel, setViewPro
     return () => document.removeEventListener("keydown", handleKey);
   }, [open, onCancel]);
 
-  if (!open && !aboutOpen) return null;
+  if (!open) return null;
 
   return (
-    <>
-      {open && (
-        <div className="avatar-menu" ref={menuRef} role="menu">
-          <button className="avatar-menu-item" role="menuitem" onClick={() => { onViewProfile(); onCancel(); }}>
-            👤 {t("auth.viewProfile")}
-          </button>
-          <button className="avatar-menu-item" role="menuitem" onClick={() => { setAboutOpen(true); onCancel(); }}>
-            ℹ️ {t("shell.about")}
-          </button>
-          <button className="avatar-menu-item" role="menuitem" onClick={() => { onSignOut(); onCancel(); }}>
-            🚪 {t("auth.signOut")}
-          </button>
+    <div className="avatar-menu" ref={menuRef} role="menu">
+      <button className="avatar-menu-item" role="menuitem" onClick={() => { onViewProfile(); onCancel(); }}>
+        👤 {t("auth.viewProfile")}
+      </button>
+      <button className="avatar-menu-item" role="menuitem" onClick={() => { onAbout(); onCancel(); }}>
+        ℹ️ {t("shell.about")}
+      </button>
+      <button className="avatar-menu-item" role="menuitem" onClick={() => { onSignOut(); onCancel(); }}>
+        🚪 {t("auth.signOut")}
+      </button>
+    </div>
+  );
+}
+
+// ---------- AboutModal ----------
+// App-level so it is reachable by everyone (guests included) via the topbar
+// ℹ️ button, plus the signed-in avatar menu. Carries the visible product copy +
+// FAQ that used to live in the page-bottom footer (relocated for the viewport
+// lock); the crawlable SEO copy still lives statically in index.html.
+function AboutModal({ open, onClose }) {
+  if (!open) return null;
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="modal about-modal" onClick={(e) => e.stopPropagation()}>
+        <h2 style={{ fontSize: 22 }}>{t("shell.about")}</h2>
+        <div className="about-body" style={{ maxHeight: "55dvh", overflowY: "auto", textAlign: "left" }}>
+          <p>{t("about.desc")}</p>
+          <h3 style={{ margin: "14px 0 6px" }}>{t("about.faqTitle")}</h3>
+          <dl style={{ margin: 0 }}>
+            <dt style={{ fontWeight: 700 }}>{t("about.q1")}</dt>
+            <dd style={{ margin: "2px 0 10px" }}>{t("about.a1")}</dd>
+            <dt style={{ fontWeight: 700 }}>{t("about.q2")}</dt>
+            <dd style={{ margin: "2px 0 10px" }}>{t("about.a2")}</dd>
+            <dt style={{ fontWeight: 700 }}>{t("about.q3")}</dt>
+            <dd style={{ margin: "2px 0 0" }}>{t("about.a3")}</dd>
+          </dl>
+          <p style={{ marginTop: 14, opacity: .7, fontSize: 13 }}>{t("footer")}</p>
         </div>
-      )}
-      {aboutOpen && (
-        <div className="overlay" onClick={() => setAboutOpen(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h2 style={{ fontSize: 22 }}>{t("shell.about")}</h2>
-            <p>{t("footer")}</p>
-            <div style={{ display: "flex", gap: 10 }}>
-              <button className="btn primary" onClick={() => setAboutOpen(false)}>{t("common.ok")}</button>
-            </div>
-          </div>
+        <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
+          <button className="btn primary" onClick={onClose}>{t("common.ok")}</button>
         </div>
-      )}
-    </>
+      </div>
+    </div>
   );
 }
 
@@ -3267,6 +3293,7 @@ function App() {
   const [resetMode, setResetMode] = useState(false);    // true when "Forgot password?" clicked (request mode)
   // Avatar dropdown state (Plan 03)
   const [avatarMenuOpen, setAvatarMenuOpen] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false); // app-level About modal (reachable by guests too)
   // Profile screen state (Plan 04)
   const [viewProfileId, setViewProfileId] = useState(null); // opaque users.id to view
   const [profileReturn, setProfileReturn] = useState("lobby"); // screen to return to from ProfileView (e.g. battle when opened in-game)
@@ -4146,6 +4173,7 @@ function App() {
               user={authUser}
               onViewProfile={handleViewProfile}
               onSignOut={handleSignOut}
+              onAbout={() => setAboutOpen(true)}
               onCancel={() => { setAvatarMenuOpen(false); }}
             />
           </>
@@ -4160,6 +4188,7 @@ function App() {
           )
         )}
         <button className="btn ghost topbar-sound" title={t("topbar.soundToggle")} onClick={toggleSound}>{soundOn ? "🔊" : "🔇"}</button>
+        <button className="btn ghost topbar-sound" title={t("shell.about")} onClick={() => setAboutOpen(true)}>ℹ️</button>
       </div>
     </div>
   );
@@ -4256,6 +4285,7 @@ function App() {
       )}
 
       <HelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />
+      <AboutModal open={aboutOpen} onClose={() => setAboutOpen(false)} />
 
       {screen === "room" && (
         <ScreenShell
