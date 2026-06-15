@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 19 context gathered
-last_updated: "2026-06-15T06:50:31.352Z"
-last_activity: 2026-06-15 -- Phase 19 execution started
+stopped_at: Phase 19 complete (UAT passed)
+last_updated: "2026-06-15T14:00:00.000Z"
+last_activity: 2026-06-15 -- Phase 19 complete: mobile app shell + UAT fixes
 progress:
   total_phases: 13
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 42
-  completed_plans: 9
-  percent: 15
+  completed_plans: 13
+  percent: 31
 ---
 
 # Project State
@@ -25,10 +25,20 @@ See: .planning/PROJECT.md (updated 2026-06-01)
 
 ## Current Position
 
-Phase: 19 (mobile-native-app-shell-viewport-locked-single-screen-layout) — EXECUTING
-Plan: 1 of 4
-Status: Executing Phase 19
-Last activity: 2026-06-15 -- Phase 19 execution started
+Phase: 19 (mobile-native-app-shell-viewport-locked-single-screen-layout) — COMPLETE
+Plan: 4 of 4 complete
+Status: Phase 19 complete — UAT passed (all 4 plans + post-UAT fixes)
+Last activity: 2026-06-15 -- Phase 19 complete: mobile app shell + UAT fixes
+
+### Phase 19 post-UAT fixes (all committed)
+- Scoreboard full-width in shell-header; battle POWERS footer docked (Fragment, not block wrapper)
+- Power select closes BottomSheet → board targeting reachable
+- ProfileView Back returns to origin screen (in-game → battle, no F5)
+- About+FAQ moved to app-level modal (avatar menu); page-bottom SEO copy stays in index.html
+- shell-header overflow:visible + z-index:5 — avatar menu / opp-stats popup no longer clipped/hidden
+- Opponent name from DB account (seatProfileForUser) across challenge/createRoom/joinRoom/joinQueue
+- resume binds socket.data.clientId → premium emoji flies me→opp (was reversed)
+- friend:list socket payload now includes balance (was 0 until F5)
 
 ## Performance Metrics
 
@@ -147,10 +157,9 @@ Items acknowledged and deferred at milestone close on 2026-06-04:
 
 ## Session Continuity
 
-Last session: 2026-06-15T04:48:29.933Z
-Stopped at: Phase 19 context gathered
-Resume file: 
-.planning/phases/19-mobile-native-app-shell-viewport-locked-single-screen-layout/19-CONTEXT.md
+Last session: 2026-06-15T14:00:00.000Z
+Stopped at: Phase 19 complete (UAT passed)
+Resume file: —
 
 ## Operator Next Steps
 

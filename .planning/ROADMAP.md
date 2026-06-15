@@ -432,11 +432,11 @@ Plans:
 - MOBILE-12: Keyboard-open handling on mobile (chat composer) does not break the shell — input remains visible, layout adapts to the reduced viewport (`dvh`/visualViewport)
 
 **Depends on:** Phase 9 (lobby UI redesign), Phase 15 (power-up redesign), Phase 17 (friends UI), Phase 18 (bot match) — touches all existing screens
-**Plans:** 3/4 plans executed
+**Plans:** 4/4 plans complete
 
 Plans:
 
 - [x] 19-01-PLAN.md — Shell foundation + battle screen (ScreenShell, useMainHeight, root viewport lock, Powers sheet, Log removed, footer-note relocation, Wave 0 Playwright + i18n harness)
 - [x] 19-02-PLAN.md — Room-flow screens onto shell (lobby, queue, room, placement; leave-confirm back buttons)
 - [x] 19-03-PLAN.md — List/profile screens onto shell (profile, history, friends; IntersectionObserver root fix)
-- [ ] 19-04-PLAN.md — Native transitions + keyboard handling + safe-area pass + behavior regression (end-of-phase human verify)
+- [x] 19-04-PLAN.md — Native transitions + keyboard handling + safe-area pass + behavior regression (end-of-phase human verify)
