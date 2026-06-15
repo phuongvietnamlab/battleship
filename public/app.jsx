@@ -4188,7 +4188,6 @@ function App() {
           )
         )}
         <button className="btn ghost topbar-sound" title={t("topbar.soundToggle")} onClick={toggleSound}>{soundOn ? "🔊" : "🔇"}</button>
-        <button className="btn ghost topbar-sound" title={t("shell.about")} onClick={() => setAboutOpen(true)}>ℹ️</button>
       </div>
     </div>
   );
