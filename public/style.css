@@ -540,6 +540,10 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
   border-radius:12px; color:#cfe8ff;
 }
 .scoreboard > .pcard-wrap { flex:1; min-width:0; }
+/* Battle scoreboard lives inside the flex .shell-header — the standalone
+   max-width / auto side-margins / bottom-margin made it render offset and
+   narrow. Fill the header edge-to-edge (header padding owns the gutter). */
+.shell-header > .scoreboard { width:100%; max-width:none; margin:0; }
 .scoreboard b { font-size:20px; color:var(--gold); margin:0 4px; }
 .sc-sep { opacity:.5; }
 

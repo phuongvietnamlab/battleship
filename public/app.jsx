@@ -1989,7 +1989,10 @@ function Battle({ myTurn, vsBot, occ, incoming, myShots, onFire, log, sunkOpp, s
       </div>
       {aim === "cross" && <div className="aim-hint">{t("battle.aimingCross")}</div>}
       <BottomSheet open={powersOpen} onClose={() => setPowersOpen(false)} title={t("shell.powersToggle")}>
-        <PowerBar inv={inv} aim={aim} onPower={onPower} myTurn={myTurn} />
+        {/* Selecting a power closes the sheet so the board underneath becomes
+            reachable for targeting (sonar axis / cross aim). Without this the
+            sheet stayed open over the board and the power "hung" un-applied. */}
+        <PowerBar inv={inv} aim={aim} onPower={(type, payload) => { onPower(type, payload); setPowersOpen(false); }} myTurn={myTurn} />
       </BottomSheet>
     </ScreenShell>
   );
@@ -3266,6 +3269,7 @@ function App() {
   const [avatarMenuOpen, setAvatarMenuOpen] = useState(false);
   // Profile screen state (Plan 04)
   const [viewProfileId, setViewProfileId] = useState(null); // opaque users.id to view
+  const [profileReturn, setProfileReturn] = useState("lobby"); // screen to return to from ProfileView (e.g. battle when opened in-game)
   const [profileData, setProfileData] = useState(null);     // loaded profile JSON
   const [profileLoading, setProfileLoading] = useState(false); // skeleton while fetching
   const [myBubble, setMyBubble] = useState(null);   // {id, text} — speech bubble over my avatar
@@ -3478,6 +3482,9 @@ function App() {
     const id = userId != null ? userId : (authUser ? authUser.id : null);
     setViewProfileId(id);
     setProfileData(null);  // clear any prior loaded profile
+    // Remember where we came from so Back returns there (e.g. opened mid-game
+    // → return to battle, not the lobby). Guard against profile→profile.
+    setProfileReturn(screen === "profile" ? "lobby" : screen);
     setScreen("profile");
     setAvatarMenuOpen(false);
   }
@@ -4232,7 +4239,7 @@ function App() {
         <ProfileView
           userId={viewProfileId}
           currentUserId={authUser ? authUser.id : null}
-          onBack={() => setScreen("lobby")}
+          onBack={() => setScreen(profileReturn)}
           onSignOut={handleSignOut}
           onChallengeFriend={(friendId) => { setScreen("friends"); }}
           onUnfriend={(friendId) => { socket.emit("friend:remove", { friendId }); }}
