@@ -37,14 +37,16 @@ created: 2026-06-15
 
 ## Per-Task Verification Map
 
-| Task ID | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
-|---------|------|------|-------------|-----------|-------------------|-------------|--------|
-| _planner fills_ | | | MOBILE-01 | smoke | `npx playwright test -g "no page scroll"` | ❌ W0 | ⬜ pending |
-| _planner fills_ | | | MOBILE-03 | smoke | `npx playwright test -g "battle viewport fit"` | ❌ W0 | ⬜ pending |
-| _planner fills_ | | | MOBILE-05 | smoke | `npx playwright test test/e2e/shell-viewport.spec.js` | ❌ W0 | ⬜ pending |
-| _planner fills_ | | | MOBILE-08 | smoke | `npx playwright test -g "desktop phone frame"` | ❌ W0 | ⬜ pending |
-| _planner fills_ | | | MOBILE-11 | smoke | included in shell-viewport.spec.js | ❌ W0 | ⬜ pending |
-| _planner fills_ | | | MOBILE-09 | unit | `node` script comparing `I18N.en.shell` vs `I18N.vi.shell` key sets | ❌ W0 | ⬜ pending |
+> Wave 0 harness (`playwright.config.js`, `test/e2e/shell-viewport.spec.js`, `test/i18n-shell-parity.test.js`) is created in Plan 19-01. The per-screen rows below are covered by the parametrized `shell-viewport.spec.js` run after the screen's plan lands.
+
+| Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
+|------|------|-------------|-----------|-------------------|-------------|--------|
+| 19-01 | 1 | MOBILE-01 | smoke | `npx playwright test -g "no page scroll"` | ❌ W0 (Plan 01) | ⬜ pending |
+| 19-01 | 1 | MOBILE-03 | smoke | `npx playwright test -g "battle viewport fit"` | ❌ W0 (Plan 01) | ⬜ pending |
+| 19-02 / 19-03 | 2,3 | MOBILE-05 | smoke | `npx playwright test test/e2e/shell-viewport.spec.js` | ❌ W0 (Plan 01) | ⬜ pending |
+| 19-01 / 19-02 / 19-03 | 1,2,3 | MOBILE-08 | smoke | `npx playwright test -g "desktop phone frame"` | ❌ W0 (Plan 01) | ⬜ pending |
+| 19-01 / 19-02 / 19-03 | 1,2,3 | MOBILE-11 | smoke | included in shell-viewport.spec.js | ❌ W0 (Plan 01) | ⬜ pending |
+| 19-01 / 19-02 / 19-03 | 1,2,3 | MOBILE-09 | unit | `npx vitest run test/i18n-shell-parity.test.js` (I18N en/vi `shell.*` key parity) | ❌ W0 (Plan 01) | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 

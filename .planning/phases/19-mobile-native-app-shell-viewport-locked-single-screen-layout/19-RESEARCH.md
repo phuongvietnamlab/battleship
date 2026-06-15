@@ -494,19 +494,24 @@ function BottomSheet({ open, onClose, title, children }) {
 | A4 | The exact `visualViewport.offsetTop`/`height` repositioning math in Pattern 3 (saricden.com pattern, found via WebSearch, source page returned 404 on direct fetch — summary only from search snippet) | Pattern 3 | MEDIUM — the SHAPE of the fix (listen to `visualViewport.resize`, reposition with `top` instead of `bottom`) is corroborated by multiple search results, but the exact threshold/offset arithmetic should be validated on a real iOS device during implementation; budget a manual-device-test task for MOBILE-12 |
 | A5 | `220px` reserved-space constant in the `--cell` height-cap formula (Pattern 2) | Pattern 2 | LOW — explicitly marked "tune during implementation"; this is a starting estimate based on UI-SPEC's scoreboard+turn-ring+footer description, not a measured value |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Does `IntersectionObserver`-based infinite scroll (HIST-05, Phase 13) work correctly when its scrollable ancestor changes from `document`/`body` to `.shell-main`?**
+> All three resolved by concrete plan tasks during /gsd-plan-phase 19 (2026-06-15).
+> Q1 → Plan 03 Task 2 (set IntersectionObserver `root` to `.shell-main` ref).
+> Q2 → Plan 01 Task 3 (relocate `.footer-note` to an avatar-menu "About" modal item, same task as root `overflow:hidden` lock per Pitfall 5).
+> Q3 → Plan 01 Task 2 (`--cell` formula carries the ~220px reserved constant with a live-tuning comment).
+
+1. **RESOLVED (Plan 03 Task 2) — Does `IntersectionObserver`-based infinite scroll (HIST-05, Phase 13) work correctly when its scrollable ancestor changes from `document`/`body` to `.shell-main`?**
    - What we know: `IntersectionObserver` defaults to the browser viewport as `root` if not specified; if Phase 13's implementation didn't pass an explicit `root` option, the sentinel may stop triggering once `.shell-main` (not the document) is the scrolling container.
    - What's unclear: Whether Phase 13's `MatchHistory` component (app.jsx:2523) explicitly sets `root` on its `IntersectionObserver`.
    - Recommendation: Planner should add a verification task for the History screen specifically — check `IntersectionObserver` `root` option, set to `.shell-main`'s ref if needed.
 
-2. **Where exactly does `.footer-note` content get relocated (avatar menu vs. new "About" overlay)?**
+2. **RESOLVED (Plan 01 Task 3) — Where exactly does `.footer-note` content get relocated (avatar menu vs. new "About" overlay)?**
    - What we know: UI-SPEC says "relocated to a Settings/About entry inside the avatar menu or a dedicated overlay — not part of the primary shell." This is a UI-SPEC-level open decision, not fully pinned.
    - What's unclear: Avatar menu (`.avatar-menu`/`.avatar-menu-item`, style.css:668-687) already has several items (sign out, etc.) — does adding an "About" item fit, or does it need its own modal?
    - Recommendation: Planner's discretion per CONTEXT.md "Claude's Discretion" — likely simplest as a new `.avatar-menu-item` that opens a small modal reusing `.modal`/`.overlay` classes with `{t("footer")}` content.
 
-3. **Exact `220px` (or similar) reserved-height constant for the `--cell` height-cap formula** — see Assumption A5. Will require live measurement against the actual rendered scoreboard + turn-ring + footer-chip heights at 360×640.
+3. **RESOLVED (Plan 01 Task 2) — Exact `220px` (or similar) reserved-height constant for the `--cell` height-cap formula** — see Assumption A5. Will require live measurement against the actual rendered scoreboard + turn-ring + footer-chip heights at 360×640.
 
 ## Environment Availability
 
