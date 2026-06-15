@@ -325,6 +325,13 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
      compute to auto (a clip box) and cuts those popovers off. Page-level
      horizontal scroll is already prevented by body{overflow:hidden}. */
   overflow: visible;
+  /* backdrop-filter below makes this header its own stacking context, which
+     traps those popovers inside it; .shell-main comes later in the DOM and is
+     also a stacking context, so it paints OVER them. Lift the whole header
+     context above .shell-main so its popovers win. Header and main don't
+     overlap in normal flow, so this only affects the dropdown area. */
+  position: relative;
+  z-index: 5;
   padding: 8px 14px;
   padding-top: calc(8px + env(safe-area-inset-top, 0px));
   background: var(--panel);
