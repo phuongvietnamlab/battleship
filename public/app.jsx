@@ -1098,7 +1098,7 @@ function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onHelp, onHistory, onFri
       {verifyNotice === "error" && <div className="error verify-notice">{t("auth.verifyError")}</div>}
 
       {/* Hero CTA — Quick Play */}
-      <button className={"btn primary hero-cta" + (showOnboarding ? " onboarding-pulse" : "")} onClick={() => { dismissOnboarding(); if (authUser) { setStakeSheetOpen(true); } else { onQuickMatch(0); } }}>
+      <button className={"btn primary hero-cta" + (showOnboarding ? " onboarding-pulse" : "")} onClick={() => { dismissOnboarding(); if (authUser) { setSheetStake(0); setStakeSheetOpen(true); } else { onQuickMatch(0); } }}>
         <span className="hero-icon">⚡</span>
         <span className="hero-text">
           <strong>{t("lobby.quickPlay")}</strong>

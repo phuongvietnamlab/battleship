@@ -1405,15 +1405,15 @@ function scheduleSeatRelease(room, code, clientId, ms) {
     }
     // Fire-and-forget match record after opponentLeft emit (D-07)
     if (disconnectRecord) {
-      recordMatch(disconnectRecord.wId, disconnectRecord.lId, "disconnect", disconnectRecord.mode, disconnectRecord.startedAt, disconnectRecord.stake || 0).catch(() => {});
-      // Phase 7: push balance update to winner after wagered disconnect-forfeit
-      if (disconnectRecord.stake > 0 && disconnectRecord.wId) {
-        getWalletBalance(disconnectRecord.wId).then((bal) => {
-          // Winner is the remaining player in the room (disconnected player was removed)
-          const winId = r2.order[0];
-          if (winId && r2.players[winId]) emitToClient(r2, winId, "balanceUpdate", { balance: bal });
-        }).catch(() => {});
-      }
+      // Phase 7: await recordMatch so payout is committed BEFORE reading balance (BUG-FIX: race condition)
+      recordMatch(disconnectRecord.wId, disconnectRecord.lId, "disconnect", disconnectRecord.mode, disconnectRecord.startedAt, disconnectRecord.stake || 0).then(() => {
+        if (disconnectRecord.stake > 0 && disconnectRecord.wId) {
+          getWalletBalance(disconnectRecord.wId).then((bal) => {
+            const winId = r2.order[0];
+            if (winId && r2.players[winId]) emitToClient(r2, winId, "balanceUpdate", { balance: bal });
+          }).catch(() => {});
+        }
+      }).catch(() => {});
     }
   }, ms != null ? ms : GRACE_MS);
 }
@@ -1723,13 +1723,14 @@ function endGameForfeit(room, loserId, reason) {
     room.recorded = true; // synchronous dedup guard (D-06) — set BEFORE the promise
     const wId = room.players[winnerId]?.userId ?? null;
     const lId = room.players[loserId]?.userId ?? null;
-    recordMatch(wId, lId, reason, room.mode, room.startedAt, room.stake || 0).catch(() => {});
-    // Phase 7: push balance update to winner after wagered forfeit
-    if (room.stake > 0 && wId) {
-      getWalletBalance(wId).then((bal) => {
-        emitToClient(room, winnerId, "balanceUpdate", { balance: bal });
-      }).catch(() => {});
-    }
+    // Phase 7: await recordMatch so payout is committed BEFORE reading balance (BUG-FIX: race condition)
+    recordMatch(wId, lId, reason, room.mode, room.startedAt, room.stake || 0).then(() => {
+      if (room.stake > 0 && wId) {
+        getWalletBalance(wId).then((bal) => {
+          emitToClient(room, winnerId, "balanceUpdate", { balance: bal });
+        }).catch(() => {});
+      }
+    }).catch(() => {});
   }
 }
 
@@ -1801,13 +1802,14 @@ function doShot(room, clientId, cells, opts = {}) {
       room.recorded = true;
       const wId = room.players[clientId]?.userId ?? null;
       const lId = room.players[opp]?.userId ?? null;
-      recordMatch(wId, lId, "normal", room.mode || "classic", room.startedAt, room.stake || 0).catch(() => {});
-      // Phase 7: push balance update to winner after wagered win
-      if (room.stake > 0 && wId) {
-        getWalletBalance(wId).then((bal) => {
-          emitToClient(room, clientId, "balanceUpdate", { balance: bal });
-        }).catch(() => {});
-      }
+      // Phase 7: await recordMatch so payout is committed BEFORE reading balance (BUG-FIX: race condition)
+      recordMatch(wId, lId, "normal", room.mode || "classic", room.startedAt, room.stake || 0).then(() => {
+        if (room.stake > 0 && wId) {
+          getWalletBalance(wId).then((bal) => {
+            emitToClient(room, clientId, "balanceUpdate", { balance: bal });
+          }).catch(() => {});
+        }
+      }).catch(() => {});
     }
     return { ok: true, cells: results, sunkCells, sunkCount, newSunk, win, anyHit };
   }
@@ -2205,13 +2207,14 @@ function executeBotShot(code) {
     // Record match: bot wins
     if (!room.recorded) {
       room.recorded = true;
-      recordMatch(room.botUserId, humanPlayer.userId, 'normal', room.mode || 'classic', room.startedAt, room.stake || 0).catch(() => {});
-      // Push updated balance to human
-      if (humanPlayer.userId) {
-        getWalletBalance(humanPlayer.userId).then(bal => {
-          emitToClient(room, humanClientId, 'balanceUpdate', { balance: bal });
-        }).catch(() => {});
-      }
+      // Phase 7: await recordMatch so balance is accurate AFTER payout (BUG-FIX: race condition)
+      recordMatch(room.botUserId, humanPlayer.userId, 'normal', room.mode || 'classic', room.startedAt, room.stake || 0).then(() => {
+        if (humanPlayer.userId) {
+          getWalletBalance(humanPlayer.userId).then(bal => {
+            emitToClient(room, humanClientId, 'balanceUpdate', { balance: bal });
+          }).catch(() => {});
+        }
+      }).catch(() => {});
     }
     // Clean up
     activeBotMatches.delete(room.botUserId);
@@ -3266,13 +3269,14 @@ io.on("connection", (socket) => {
           room.recorded = true; // synchronous dedup guard (D-06) — set BEFORE promise
           const wId = room.players[winnerId]?.userId ?? null;
           const lId = room.players[clientId]?.userId ?? null;
-          recordMatch(wId, lId, "leave", room.mode, room.startedAt, room.stake || 0).catch(() => {});
-          // Phase 7: push balance update to winner after wagered leave-forfeit
-          if (room.stake > 0 && wId) {
-            getWalletBalance(wId).then((bal) => {
-              emitToClient(room, winnerId, "balanceUpdate", { balance: bal });
-            }).catch(() => {});
-          }
+          // Phase 7: await recordMatch so payout is committed BEFORE reading balance (BUG-FIX: race condition)
+          recordMatch(wId, lId, "leave", room.mode, room.startedAt, room.stake || 0).then(() => {
+            if (room.stake > 0 && wId) {
+              getWalletBalance(wId).then((bal) => {
+                emitToClient(room, winnerId, "balanceUpdate", { balance: bal });
+              }).catch(() => {});
+            }
+          }).catch(() => {});
         }
       }
       // Phase 7: refund wagered pre-start leave (game not started yet)
