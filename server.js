@@ -2761,6 +2761,12 @@ io.on("connection", (socket) => {
   // their clientId survived in localStorage.
   socket.on("resume", (arg, cb) => {
     const clientId = arg && arg.clientId;
+    // Bind the socket to the persisted clientId on connect even when no room is
+    // resumed. Otherwise a challenge launched from the lobby falls back to
+    // socket.id as the seat id, so emoji senderId != the client's clientId and
+    // the flight animation reverses (and reconnect identity is weaker). Matches
+    // how createRoom/joinQueue/joinRoom already adopt arg.clientId.
+    if (clientId) socket.data.clientId = clientId;
     // Exact clientId seat — works when the id (localStorage) survived.
     if (clientId) {
       for (const code in rooms) {
