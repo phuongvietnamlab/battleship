@@ -3,13 +3,17 @@
      a fixed 32px pitch), but shrinks so the 10-col board fits mobile width.
      No A–J / 1–10 label gutter anymore, so less width is reserved. */
   /* Height-cap term: caps board size by available .shell-main height
-     (--main-h, written by useMainHeight via ResizeObserver). The 220px
-     reserved-space constant is a starting estimate (RESEARCH A5) — tune
-     against the rendered .scoreboard + .shell-footer heights at 360x640. */
+     (--main-h = .shell-main clientHeight, written on :root by useMainHeight).
+     --main-h already excludes the header/footer/safe-areas (they live outside
+     .shell-main), so the reserve only has to cover the in-main chrome that
+     sits alongside the grid: .shell-main padding (28px) + board-title +
+     .counter, plus a little slack for the placement hint/shop. 150px fits both
+     the battle and placement screens without scrolling. Falls back to 100vh
+     until the first measurement lands. */
   --cell: min(
     32px,
     calc((100vw - 40px) / 11),
-    calc((var(--main-h, 100vh) - 220px) / 11)
+    calc((var(--main-h, 100vh) - 150px) / 11)
   );
   --navy: #07182f;
   --navy2: #0d2745;
@@ -347,15 +351,33 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
   padding-top: calc(8px + env(safe-area-inset-top, 0px));
   background: var(--panel);
   border: 1px solid var(--panel-brd);
+  /* Soft rounded panel (matches the cards/.lobby/.modal) instead of a hard
+     edge-to-edge bar — small inset margin lets it read as a floating panel. */
+  border-radius: 16px;
+  margin: 6px 8px 0;
   backdrop-filter: blur(14px) saturate(1.2);
   -webkit-backdrop-filter: blur(14px) saturate(1.2);
   display: flex; align-items: center; gap: 8px;
 }
-.shell-header h2 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; margin: 0; }
+.shell-header h2 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; margin: 0; text-align: center; }
 /* .btn defaults to width:100% — override so header back-buttons size to
    their content instead of filling the flex row (Pitfall: width:100% +
    flex:none resolves flex-basis to 100% of the header). */
 .shell-header .btn.ghost.compact { flex: none; width: auto; }
+
+/* "Back + title" headers (profile / room / friends / history): lay them out as
+   a 1fr | auto | 1fr grid so the title is centered in the FULL header width,
+   regardless of the back button's (locale-dependent) width — not just centered
+   in the leftover space beside it. Scoped with :has() so it never touches the
+   logo / scoreboard / room-banner headers (which have no <h2>). Where :has() is
+   unsupported it falls back to the flex layout + the centered <h2> text below. */
+.shell-header:has(> h2):has(> .btn.ghost.compact) {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 8px;
+}
+.shell-header:has(> h2):has(> .btn.ghost.compact) > .btn { justify-self: start; }
 
 /* Lobby's .topbar is nested inside .shell-header (Phase 19 Plan 02) — avoid
    doubling the glass-panel chrome's padding and let .topbar fill the
@@ -401,7 +423,11 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
   padding: 10px 14px;
   padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
   background: var(--panel);
-  border-top: 1px solid var(--panel-brd);
+  /* Full border + rounding so it matches the rounded header panel (was a
+     top-only separator line on a hard-edged bar). */
+  border: 1px solid var(--panel-brd);
+  border-radius: 16px;
+  margin: 0 8px 6px;
   backdrop-filter: blur(14px) saturate(1.2);
   -webkit-backdrop-filter: blur(14px) saturate(1.2);
 }
@@ -571,7 +597,13 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 /* Battle scoreboard lives inside the flex .shell-header — the standalone
    max-width / auto side-margins / bottom-margin made it render offset and
    narrow. Fill the header edge-to-edge (header padding owns the gutter). */
-.shell-header > .scoreboard { width:100%; max-width:none; margin:0; }
+/* The scoreboard lives INSIDE .shell-header, which is already a glass panel
+   (background + border + blur). Its own card chrome stacked a second rounded
+   box inside the header and, with the active .pcard's highlight box, read as
+   "boxes within boxes". Strip the scoreboard's own background/border/padding so
+   it blends into the header — leaving one clean panel with a single soft
+   highlight on the active player. */
+.shell-header > .scoreboard { width:100%; max-width:none; margin:0; padding:0; background:none; border:none; border-radius:0; }
 .scoreboard b { font-size:20px; color:var(--gold); margin:0 4px; }
 .sc-sep { opacity:.5; }
 
@@ -657,10 +689,12 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 .controls { display:flex; gap:8px; }
 .controls .btn { padding:11px; font-size:13px; }
 
-/* floating ghost that follows finger/cursor while dragging */
-.drag-ghost { position:fixed; z-index:999; pointer-events:none; opacity:.92;
+/* dragged-ship ghost — rendered in-grid (absolute, same coords as cells) so it
+   lines up with the preview highlight. Lifted above placed ships, ignores
+   pointer events, and reads as "lifted" via opacity + a stronger shadow. */
+.ship-overlay.ghost { z-index:6; pointer-events:none; opacity:.9; cursor:grabbing;
   filter: drop-shadow(0 8px 16px rgba(0,0,0,.6)); }
-.drag-ghost .ship-fig { position:relative; }
+.ship-overlay.ghost.invalid { opacity:.65; filter: drop-shadow(0 6px 12px rgba(180,30,40,.6)); }
 
 /* ship figure (svg wrapper); rotates for vertical orientation */
 .ship-fig { position:relative; }
@@ -757,6 +791,20 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 @media (max-width:560px){
   /* keep cell pitch fixed (drag math depends on it); just tighten layout */
   .boards{gap:20px;}
+  /* Battle chrome compaction (MOBILE): the scoreboard card was eating vertical
+     space (empty band above the avatars) and squeezing the board into a scroll.
+     Trim the header/footer gutters and the scoreboard so the single board fits
+     one viewport. The notch clearance (safe-area-inset-top) is kept but the
+     fixed 8px on top of it is dropped — that flat band was the "empty top". */
+  .shell-header{ padding-top: calc(2px + env(safe-area-inset-top, 0px)); padding-bottom:4px; }
+  .shell-footer{ padding-top:6px; padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px)); }
+  .scoreboard{ padding:4px 8px; gap:8px; }
+  .pc-avatar{ width:34px; height:34px; }
+  .board-title{ font-size:13px; letter-spacing:1px; margin-bottom:4px; }
+  .counter{ margin-top:6px; }
+  /* The pot/reward chip relocated into .shell-main (see app.jsx) — keep it
+     compact so it costs almost no board height. */
+  .battle-pot{ margin:0 0 4px; font-size:12px; }
   /* Placement: trim the vertical footprint of the hint + shop so the board
      fits one viewport without scrolling (MOBILE-08). */
   .place-wrap{ gap:8px; }
@@ -1392,6 +1440,27 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
   .history-view { padding:18px 14px; margin:3vh auto 0; }
   .match-card { padding:10px 12px; gap:10px; }
   .match-avatar { width:32px; height:32px; font-size:13px; }
+}
+
+/* Profile view on mobile: the desktop card uses 32px padding + a 6vh top margin,
+   which on a narrow phone leaves a big empty band above the card and a
+   bottom-heavy interior (the email box's inline 20px margin stacks on top of the
+   32px bottom padding). Tighten padding, pull the card up, and even out the
+   vertical rhythm so top/bottom breathing room match. */
+@media (max-width:560px) {
+  .profile-view { padding:22px 18px; margin:18px auto 0; border-radius:18px; }
+  .profile-header { gap:14px; margin-bottom:20px; }
+  .profile-stats { margin-bottom:0; }
+  .profile-no-games { margin:14px 0 0; }
+  /* Neutralise the email box's inline bottom margin so the gap below it equals
+     the card's bottom padding (override needed because it's an inline style). */
+  .profile-view .profile-link-email { margin:16px 0 0 !important; }
+}
+@media (max-width:360px) {
+  .profile-view { padding:18px 14px; }
+  .profile-name { font-size:20px; }
+  .profile-avatar, .profile-avatar-fallback { width:56px; height:56px; }
+  .profile-avatar-fallback { font-size:24px; }
 }
 
 /* ─── Premium Emoji (Phase 14) ──────────────────────────────────────────────── */

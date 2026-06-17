@@ -926,17 +926,22 @@ function useMainHeight(ref) {
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
+    // Write --main-h on :root, NOT on the .shell-main element. --cell is
+    // declared on :root and references var(--main-h); custom properties resolve
+    // their var() at the element that DECLARES them, so a --main-h set on a
+    // descendant (.shell-main) is invisible to :root's --cell and the height
+    // cap silently fell back to 100vh — letting the board overflow / scroll on
+    // shorter viewports. Setting it on documentElement makes the cap real.
+    // clientHeight (border-box minus border = padding+content) is used in both
+    // paths so the reserve constant in --cell is tuned against one definition.
+    const root = document.documentElement;
+    const write = () => root.style.setProperty("--main-h", el.clientHeight + "px");
     if (typeof ResizeObserver === "undefined") {
-      const set = () => { el.style.setProperty("--main-h", el.clientHeight + "px"); };
-      set();
-      window.addEventListener("resize", set);
-      return () => window.removeEventListener("resize", set);
+      write();
+      window.addEventListener("resize", write);
+      return () => window.removeEventListener("resize", write);
     }
-    const ro = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        el.style.setProperty("--main-h", entry.contentRect.height + "px");
-      }
-    });
+    const ro = new ResizeObserver(write);
     ro.observe(el);
     return () => ro.disconnect();
   }, [ref]);
@@ -1564,12 +1569,21 @@ function Placement({ onConfirm, onUnready, ready, waiting, stake, balance, authU
 
   // live preview while dragging
   let hoverKeys = new Set(), hoverBad = new Set();
+  let ghostAnchor = null;
   if (drag) {
     const { r, c } = anchorFromPoint(pos.x, pos.y, drag);
     const cells = cellsFor(r, c, drag.sz, drag.dir);
     const valid = validAt(cells, drag.id);
     const ks = cells.filter((x) => x.r >= 0 && x.r < BOARD && x.c >= 0 && x.c < BOARD).map((x) => key(x.r, x.c));
     if (valid) hoverKeys = new Set(ks); else hoverBad = new Set(ks);
+    // The dragged ship renders INSIDE the grid at this anchor cell (same
+    // cellEdge() coordinate system as the placed ships and the preview
+    // highlight), so it always lines up exactly. It must NOT be a
+    // position:fixed overlay: .shell-main keeps a (identity) transform from its
+    // screen-enter animation (animation-fill-mode:both), which turns any fixed
+    // descendant's coordinates into shell-main-relative ones — that was the
+    // real cause of the ship drifting away from the blue/green target cells.
+    ghostAnchor = { r, c, valid };
   }
 
   // build occupied cells set for decoy validation
@@ -1591,12 +1605,6 @@ function Placement({ onConfirm, onUnready, ready, waiting, stake, balance, authU
       onDecoyPlace({ r, c });
     } : undefined;
     gridCells.push(<div key={k} className={cls} onClick={handleDecoyClick} />);
-  }
-
-  function ghostBox(d) {
-    return d.dir === "h"
-      ? { width: spanLen(d.sz), height: CELLV }
-      : { width: CELLV, height: spanLen(d.sz) };
   }
 
   const showShop = stake > 0 && authUser && !vsBot;
@@ -1677,6 +1685,20 @@ function Placement({ onConfirm, onUnready, ready, waiting, stake, balance, authU
                   </div>
                 );
               })}
+              {/* Dragged-ship ghost: rendered IN-GRID (absolute, cellEdge math)
+                  so it shares the cells' coordinate system and always lines up
+                  with the preview highlight. */}
+              {drag && ghostAnchor && (
+                <div className={"ship-overlay ghost" + (ghostAnchor.valid ? "" : " invalid")} style={
+                  drag.dir === "h"
+                    ? { left: cellEdge(ghostAnchor.c), top: cellEdge(ghostAnchor.r), width: spanLen(drag.sz), height: CELLV }
+                    : { left: cellEdge(ghostAnchor.c), top: cellEdge(ghostAnchor.r), width: CELLV, height: spanLen(drag.sz) }
+                }>
+                  <div className={"ship-fig " + drag.dir} style={{ width: spanLen(drag.sz), height: CELLV }}>
+                    <ShipSVG len={drag.sz} />
+                  </div>
+                </div>
+              )}
               {/* Decoy marker */}
               {decoyCell && (
                 <div className="decoy-marker" style={{ left: cellEdge(decoyCell.c), top: cellEdge(decoyCell.r), width: CELLV, height: CELLV }}>
@@ -1686,16 +1708,6 @@ function Placement({ onConfirm, onUnready, ready, waiting, stake, balance, authU
             </div>
           </div>
         </div>
-
-        {/* floating ghost following the finger / cursor */}
-        {drag && (
-          <div className="drag-ghost" style={Object.assign(
-            { left: pos.x - drag.dx, top: pos.y - drag.dy }, ghostBox(drag))}>
-            <div className={"ship-fig " + drag.dir} style={{ width: spanLen(drag.sz), height: CELLV }}>
-              <ShipSVG len={drag.sz} />
-            </div>
-          </div>
-        )}
       </div>
     </ScreenShell>
   );
@@ -1828,7 +1840,7 @@ function SonarDrag({ onDrop, onCancel }) {
   );
 }
 
-function Battle({ myTurn, vsBot, occ, incoming, myShots, onFire, log, sunkOpp, sunkMine, sunkEnemyCells, sunkMyCells, myScore, oppScore, oppLabel, myProfile, oppProfile, myBubble, oppBubble, flashEnemy, flashMine, turnDeadline, turnDur, shake, inv, aim, onPower, onCrossHover, hoverCells, sonarScan, authUser, onAddFriend, decoyCell, direction }) {
+function Battle({ myTurn, vsBot, occ, incoming, myShots, onFire, log, sunkOpp, sunkMine, sunkEnemyCells, sunkMyCells, myScore, oppScore, oppLabel, myProfile, oppProfile, myBubble, oppBubble, flashEnemy, flashMine, turnDeadline, turnDur, shake, inv, aim, onPower, onCrossHover, hoverCells, sonarScan, authUser, onAddFriend, decoyCell, direction, stake }) {
   const [tab, setTab] = useState("enemy"); // enemy | own (mobile)
   const [oppStats, setOppStats] = useState(null); // { winRate, gamesPlayed, myWins, theirWins, ... }
   const [oppStatsOpen, setOppStatsOpen] = useState(false);
@@ -1917,10 +1929,17 @@ function Battle({ myTurn, vsBot, occ, incoming, myShots, onFire, log, sunkOpp, s
     const t = setTimeout(() => setTab(myTurn ? "enemy" : "own"), 1300);
     return () => clearTimeout(t);
   }, [myTurn]);
-  // Bot mode: synthetic turn indicator (no server deadline, but show a visual ring)
-  const showRing = turnDeadline != null || vsBot;
+  // Always render the ring so the scoreboard never collapses to an empty gap
+  // (the two player cards would otherwise spread to the edges). At the very
+  // start of a match turnDeadline is briefly null — between gameStart and the
+  // first turnTimer — so we show a neutral placeholder ("·") instead of hiding
+  // the whole ring. Bot mode has no server deadline and shows ⚡/⏳.
+  const showRing = true;
   const botFrac = vsBot ? (myTurn ? 1 : 0) : frac;
   const botSecs = vsBot ? (myTurn ? "⚡" : "⏳") : secs;
+  const ringActive = turnDeadline != null;
+  const ringSecs = ringActive ? secs : (vsBot ? botSecs : "·");
+  const ringFrac = ringActive ? frac : (vsBot ? botFrac : 1);
   // Powers footer chip (D-05): only show when at least one purchasable
   // power-up is in inventory — mirrors PowerBar's own items.filter (Phase 19).
   const [powersOpen, setPowersOpen] = useState(false);
@@ -1931,7 +1950,7 @@ function Battle({ myTurn, vsBot, occ, incoming, myShots, onFire, log, sunkOpp, s
       <div className="pcard-wrap">
         <PlayerCard side="me" profile={myProfile} fallbackName={t("battle.you")} score={myScore} active={myTurn} bubble={myBubble} />
       </div>
-      <TurnRing secs={turnDeadline != null ? secs : botSecs} frac={turnDeadline != null ? frac : botFrac} show={showRing} myTurn={myTurn} />
+      <TurnRing secs={ringSecs} frac={ringFrac} show={showRing} myTurn={myTurn} />
       <div className="pcard-wrap" style={{position:"relative"}}>
         <PlayerCard side="opp" profile={oppProfile} fallbackName={oppLabel} score={oppScore} active={!myTurn} isBot={vsBot} bubble={oppBubble} onClick={handleOppClick} />
         {oppStatsOpen && oppStats && (
@@ -1982,6 +2001,11 @@ function Battle({ myTurn, vsBot, occ, incoming, myShots, onFire, log, sunkOpp, s
 
   return (
     <ScreenShell header={header} footer={footer} screenKey="battle" direction={direction}>
+      {stake > 0 && !vsBot && (
+        <div className="battle-pot" style={{ textAlign: "center", color: "#ffd700", fontWeight: "bold" }}>
+          💰 {t("game.pot", { n: stake * 2 })}
+        </div>
+      )}
       <div className={"boards tab-" + tab + (shake ? " shake" : "")}>
         <div className="board-wrap wrap-enemy">
           <div className="board-title enemy">{t("battle.enemyWaters")} {myTurn && !aim ? t("battle.fireSuffix") : ""}</div>
@@ -4344,18 +4368,11 @@ function App() {
       )}
 
       {screen === "battle" && (
-        // Fragment, not a wrapping <div>: ScreenShell's regions must be direct
-        // flex children of .app so .shell-main (flex:1) fills the viewport and
-        // .shell-footer (POWERS) sits flush at the bottom. A block wrapper here
-        // collapsed to content height and left the footer floating mid-screen.
-        <>
-          {stake > 0 && !vsBot && (
-            <div style={{ textAlign: "center", margin: "4px 0", fontSize: "0.85em", color: "#ffd700", fontWeight: "bold" }}>
-              💰 {t("game.pot", { n: stake * 2 })}
-            </div>
-          )}
-          <Battle myTurn={myTurn} vsBot={vsBot} occ={occ} incoming={incoming} myShots={myShots} onFire={fire} log={log} sunkOpp={sunkOpp} sunkMine={sunkMine} sunkEnemyCells={sunkEnemyCells} sunkMyCells={sunkMyCells} myScore={myScore} oppScore={oppScore} oppLabel={vsBot ? t("common.bot") : t("common.opponent")} myProfile={profile} oppProfile={vsBot ? null : oppProfile} myBubble={myBubble} oppBubble={vsBot ? null : oppBubble} flashEnemy={flashEnemy} flashMine={flashMine} turnDeadline={vsBot ? null : turnDeadline} turnDur={turnDur} shake={shake} inv={inv} aim={aim} onPower={activatePower} onCrossHover={handleCrossHover} hoverCells={crossHover} sonarScan={sonarScan} authUser={authUser} decoyCell={decoyCell} direction={screenDirection} />
-        </>
+        // Battle renders ScreenShell directly, whose header/main/footer become
+        // direct flex children of .app (so .shell-main fills the viewport and
+        // .shell-footer sits flush at the bottom). The pot/reward chip now lives
+        // inside .shell-main (was a stray sibling that rendered under the notch).
+        <Battle myTurn={myTurn} vsBot={vsBot} occ={occ} incoming={incoming} myShots={myShots} onFire={fire} log={log} sunkOpp={sunkOpp} sunkMine={sunkMine} sunkEnemyCells={sunkEnemyCells} sunkMyCells={sunkMyCells} myScore={myScore} oppScore={oppScore} oppLabel={vsBot ? t("common.bot") : t("common.opponent")} myProfile={profile} oppProfile={vsBot ? null : oppProfile} myBubble={myBubble} oppBubble={vsBot ? null : oppBubble} flashEnemy={flashEnemy} flashMine={flashMine} turnDeadline={vsBot ? null : turnDeadline} turnDur={turnDur} shake={shake} inv={inv} aim={aim} onPower={activatePower} onCrossHover={handleCrossHover} hoverCells={crossHover} sonarScan={sonarScan} authUser={authUser} decoyCell={decoyCell} direction={screenDirection} stake={stake} />
       )}
 
       {over && (
