@@ -805,24 +805,26 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
      Trim the header/footer gutters and the scoreboard so the single board fits
      one viewport. The notch clearance (safe-area-inset-top) is kept but the
      fixed 8px on top of it is dropped — that flat band was the "empty top". */
-  .shell-header{ padding-top:6px; padding-bottom:4px; }
+  .shell-header{ padding-top:6px; padding-bottom:4px; margin-top:4px; }
   /* Back-button headers (profile/friends/history/room): use even padding all
      around so the button sits centered within the card border visually. */
   .shell-header:has(> .btn.ghost.compact){ padding:8px 10px; }
-  /* Tighter shell-main padding on mobile so the board uses more screen area. */
+  /* Tighter shell-main padding on mobile so the board uses more screen area.
+     Battle screen (.boards child) drops to minimal padding for max grid size. */
   .shell-main{ padding:8px; }
-  /* Recalculate cell size with reduced horizontal padding (8*2 + grid 6*2 = 28px)
-     and reduced vertical reserve (120px for compact mobile chrome). */
+  .shell-main:has(> .boards){ padding:4px; }
+  /* Recalculate cell size: battle padding 4*2 + grid padding 6*2 = 20px total
+     horizontal reserve; vertical reserve 90px for board-title + counter only. */
   :root{
     --cell: min(
       32px,
-      calc((100vw - 28px) / 11),
-      calc((var(--main-h, 100vh) - 120px) / 11)
+      calc((100vw - 20px) / 11),
+      calc((var(--main-h, 100vh) - 90px) / 11)
     );
   }
   /* Back button itself: compact for mobile. */
   .shell-header .btn.ghost.compact{ padding:6px 10px; font-size:12px; }
-  .shell-footer{ padding:8px 10px; }
+  .shell-footer{ padding:6px 10px; }
   .scoreboard{ padding:4px 8px; gap:8px; }
   .pc-avatar{ width:34px; height:34px; }
   .board-title{ font-size:13px; letter-spacing:1px; margin-bottom:4px; }
@@ -848,7 +850,9 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
      reset padding-top to 6px and drop the notch/Dynamic-Island clearance, so
      standalone-PWA battle/over screens (which render .topbar outside
      .shell-header) slid under the status bar (MOBILE-07). */
-  .topbar{ padding:6px 2px 14px; padding-top: calc(6px + env(safe-area-inset-top, 0px)); gap:8px; }
+  .topbar{ padding:6px 2px 8px; padding-top: calc(6px + env(safe-area-inset-top, 0px)); gap:8px; }
+  /* Roombar: reduce bottom margin to close gap with scoreboard below. */
+  .roombar{ margin-bottom:4px; padding:6px 10px; }
   .logo{ gap:8px; min-width:0; flex:1; }
   .logo .badge{ width:38px; height:38px; border-radius:10px; font-size:20px; flex:none; }
   .logo h1{ font-size:21px; letter-spacing:1px; line-height:1.05; }
