@@ -1395,11 +1395,14 @@ function scheduleSeatRelease(room, code, clientId, ms) {
       if (dcPurchases > 0 && dcUserId) {
         const puPrice = Math.round(r2.stake * POWERUP_PRICE_PCT);
         const refundAmt = dcPurchases * puPrice;
-        creditWallet(dcUserId, refundAmt, "powerup_refund", "dc_pu_" + code + "_" + clientId + "_" + Date.now()).catch(() => {});
+        creditWallet(dcUserId, refundAmt, "powerup_refund", "powerup_refund_" + code + "_" + clientId).catch(() => {});
       }
-      // Also refund wager for the disconnected player
+      // Also refund wager for the disconnected player. Deterministic reference_id
+      // (the seat's wagerId) so this dedupes against a prior leaveRoom/sweep
+      // refund of the same seat — Date.now() refs could double-refund the same
+      // wager (e.g. opponent leaves pre-start, then this player disconnects).
       if (dcUserId) {
-        creditWallet(dcUserId, r2.stake, "wager_refund", "dc_wager_" + code + "_" + clientId + "_" + Date.now()).catch(() => {});
+        creditWallet(dcUserId, r2.stake, "wager_refund", (dcPlayer && dcPlayer.wagerId) || ("wager_refund_" + code + "_" + clientId)).catch(() => {});
       }
       // Refund opponent's power-ups + wager too (room is being torn down)
       const oppId2 = r2.order.find(id => id !== clientId);
@@ -1409,10 +1412,10 @@ function scheduleSeatRelease(room, code, clientId, ms) {
         const oppPurchases2 = (r2.purchases && r2.purchases[oppId2]) || 0;
         if (oppPurchases2 > 0 && oppUserId2) {
           const puPrice = Math.round(r2.stake * POWERUP_PRICE_PCT);
-          creditWallet(oppUserId2, oppPurchases2 * puPrice, "powerup_refund", "dc_pu_" + code + "_" + oppId2 + "_" + Date.now()).catch(() => {});
+          creditWallet(oppUserId2, oppPurchases2 * puPrice, "powerup_refund", "powerup_refund_" + code + "_" + oppId2).catch(() => {});
         }
         if (oppUserId2) {
-          creditWallet(oppUserId2, r2.stake, "wager_refund", "dc_wager_" + code + "_" + oppId2 + "_" + Date.now()).catch(() => {});
+          creditWallet(oppUserId2, r2.stake, "wager_refund", (oppPlayer2 && oppPlayer2.wagerId) || ("wager_refund_" + code + "_" + oppId2)).catch(() => {});
           getWalletBalance(oppUserId2).then((bal) => {
             if (r2.players[oppId2]) emitToClient(r2, oppId2, "balanceUpdate", { balance: bal });
           }).catch(() => {});
@@ -3009,16 +3012,21 @@ io.on("connection", (socket) => {
     const me = room.players[clientId];
     if (!me.userId) return cb && cb({ ok: false, code: "AUTH_REQUIRED" });
     if (!me.inv || !me.inv[type] || me.inv[type] <= 0) return cb && cb({ ok: false, code: "NO_POWERUP" });
-    // Refund
+    // Decrement inventory + purchase count BEFORE the await. creditWallet yields
+    // the event loop, so without this a rapid double-refund of the same power-up
+    // would let both calls pass the inv>0 guard and credit twice (TOCTOU coin
+    // farm). Roll the decrement back if the credit fails.
     const price = Math.round(room.stake * POWERUP_PRICE_PCT);
-    const referenceId = `pu_refund_${code}_${type}_${clientId}_${Date.now()}`;
-    const creditResult = await creditWallet(me.userId, price, "powerup_refund", referenceId);
-    if (!creditResult.ok) return cb && cb({ ok: false, code: "REFUND_FAILED" });
-    // Remove power-up
     me.inv[type]--;
     room.purchases[clientId] = Math.max(0, (room.purchases[clientId] || 0) - 1);
-    // If decoy was refunded, clear decoy cell
     if (type === "decoy") me.decoyCell = null;
+    const referenceId = `pu_refund_${code}_${type}_${clientId}_${Date.now()}`;
+    const creditResult = await creditWallet(me.userId, price, "powerup_refund", referenceId);
+    if (!creditResult.ok) {
+      me.inv[type]++;
+      room.purchases[clientId] = (room.purchases[clientId] || 0) + 1;
+      return cb && cb({ ok: false, code: "REFUND_FAILED" });
+    }
     socket.emit("balanceUpdate", { balance: creditResult.balance });
     cb && cb({ ok: true, type, newBalance: creditResult.balance, remaining: POWERUP_MAX_PER_MATCH - (room.purchases[clientId] || 0) });
   });
@@ -3326,7 +3334,7 @@ io.on("connection", (socket) => {
         if (leavingPurchases > 0 && leavingUserId) {
           const powerupPrice = Math.round(room.stake * POWERUP_PRICE_PCT);
           const refundAmount = leavingPurchases * powerupPrice;
-          creditWallet(leavingUserId, refundAmount, "powerup_refund", "leave_pu_" + code + "_" + clientId).then((res) => {
+          creditWallet(leavingUserId, refundAmount, "powerup_refund", "powerup_refund_" + code + "_" + clientId).then((res) => {
             if (res.ok) socket.emit("balanceUpdate", { balance: res.balance });
           }).catch(() => {});
         }
@@ -3342,7 +3350,7 @@ io.on("connection", (socket) => {
             if (oppPurchases > 0) {
               const powerupPrice = Math.round(room.stake * POWERUP_PRICE_PCT);
               const oppRefund = oppPurchases * powerupPrice;
-              creditWallet(oppUserId, oppRefund, "powerup_refund", "leave_pu_" + code + "_" + oppId).catch(() => {});
+              creditWallet(oppUserId, oppRefund, "powerup_refund", "powerup_refund_" + code + "_" + oppId).catch(() => {});
             }
             emitToClient(room, oppId, "balanceUpdate", { balance: -1 }); // client will re-fetch
             getWalletBalance(oppUserId).then((bal) => {
