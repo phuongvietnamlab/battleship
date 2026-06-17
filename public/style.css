@@ -348,13 +348,14 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
   position: relative;
   z-index: 5;
   padding: 8px 14px;
-  padding-top: calc(8px + env(safe-area-inset-top, 0px));
   background: var(--panel);
   border: 1px solid var(--panel-brd);
   /* Soft rounded panel (matches the cards/.lobby/.modal) instead of a hard
      edge-to-edge bar — small inset margin lets it read as a floating panel. */
   border-radius: 16px;
-  margin: 6px 8px 0;
+  /* Safe-area inset goes into margin (outside the card) so internal padding
+     stays symmetric and content is visually centered within the card border. */
+  margin: calc(6px + env(safe-area-inset-top, 0px)) 8px 0;
   backdrop-filter: blur(14px) saturate(1.2);
   -webkit-backdrop-filter: blur(14px) saturate(1.2);
   display: flex; align-items: center; gap: 8px;
@@ -796,10 +797,10 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
      Trim the header/footer gutters and the scoreboard so the single board fits
      one viewport. The notch clearance (safe-area-inset-top) is kept but the
      fixed 8px on top of it is dropped — that flat band was the "empty top". */
-  .shell-header{ padding-top: calc(2px + env(safe-area-inset-top, 0px)); padding-bottom:4px; }
+  .shell-header{ padding-top:6px; padding-bottom:4px; }
   /* Back-button headers (profile/friends/history/room): use even padding all
      around so the button sits centered within the card border visually. */
-  .shell-header:has(> .btn.ghost.compact){ padding:8px 10px; padding-top: calc(8px + env(safe-area-inset-top, 0px)); }
+  .shell-header:has(> .btn.ghost.compact){ padding:8px 10px; }
   /* Back button itself: compact for mobile. */
   .shell-header .btn.ghost.compact{ padding:6px 10px; font-size:12px; }
   .shell-footer{ padding-top:6px; padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px)); }
