@@ -3665,6 +3665,8 @@ function App() {
       if (st.turnDur) setTurnDur(st.turnDur);
       if (st.oppProfile !== undefined) setOppProfile(st.oppProfile || null);
       if (typeof st.stake === "number") setStake(st.stake);
+      // Restore power-up inventory on reconnect
+      if (st.inv) setInv(st.inv);
       if (st.started) { setMyTurn(st.yourTurn); setScreen("battle"); }
       else if (st.youReady) { setIReady(true); setScreen("placement"); }
       else { setScreen(st.oppPresent ? "placement" : "room"); }
