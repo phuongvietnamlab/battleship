@@ -248,7 +248,7 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 .grid {
   display:grid; gap:2px; padding:6px; border-radius:12px; position:relative;
   background:
-    repeating-linear-gradient(0deg, rgba(120,190,255,.05) 0 1px, transparent 1px 34px),
+    repeating-linear-gradient(0deg, rgba(120,190,255,.05) 0 1px, transparent 1px calc(var(--cell) + 2px)),
     linear-gradient(180deg, #0c3a6e, #08284c);
   box-shadow: 0 18px 50px rgba(2,12,30,.55), inset 0 0 0 1px rgba(120,190,255,.18), inset 0 0 60px rgba(0,0,0,.4);
 }
@@ -373,8 +373,11 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
   box-shadow: none; margin: 0; padding: 0; flex: 1; min-width: 0;
   gap: 8px; flex-wrap: nowrap;
 }
-.shell-header .room-banner .room-code-box { min-width: 0; overflow: hidden; }
-.shell-header .room-banner .room-code-box .code { font-size: 18px !important; padding: 4px 10px; letter-spacing: 4px; }
+.shell-header .room-banner .room-code-box { min-width: 0; overflow: hidden; gap: 6px; flex-wrap: nowrap; }
+/* The "Mã phòng:" label was forcing the dashed code box to wrap in the cramped
+   header — keep it on one line, small, and let the code box never shrink to 0. */
+.shell-header .room-banner .room-code-box > span { font-size: 11px; white-space: nowrap; flex: none; opacity: .75; }
+.shell-header .room-banner .room-code-box .code { font-size: 18px !important; padding: 4px 8px; letter-spacing: 3px; flex: none; }
 .shell-header .room-banner .status-pill { flex: none; white-space: nowrap; font-size: 11px; padding: 5px 10px; }
 
 .shell-main {
@@ -676,10 +679,12 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 /* Placement shop (Phase 15) */
 .placement-shop { text-align:center; width:100%; max-width:440px; padding:6px 0; position:relative; }
 .shop-header { font-size:12px; color:#a9ccec; margin-bottom:6px; font-weight:600; }
-.shop-row { display:flex; gap:6px; justify-content:center; flex-wrap:wrap; }
-.shop-item { display:flex; flex-direction:column; align-items:center; gap:2px; padding:8px 10px;
+/* 4 equal columns so cards stay the same width regardless of name length
+   (was flex+nowrap → "Tên lửa chữ thập" stretched its card wider than the rest). */
+.shop-row { display:grid; grid-template-columns:repeat(4, 1fr); gap:6px; }
+.shop-item { display:flex; flex-direction:column; align-items:center; justify-content:flex-start; gap:2px; padding:8px 4px;
   border:1px solid rgba(255,255,255,.15); border-radius:10px; background:rgba(255,255,255,.06);
-  cursor:pointer; transition: background .15s, border-color .15s, opacity .15s; min-width:64px; }
+  cursor:pointer; transition: background .15s, border-color .15s, opacity .15s; min-width:0; }
 .shop-item:hover:not(:disabled) { background:rgba(255,255,255,.12); border-color:rgba(255,255,255,.3); }
 .shop-item:disabled { opacity:.4; cursor:not-allowed; }
 .shop-item.selected { border-color:#f0c040; background:rgba(240,192,64,.18); box-shadow: 0 0 8px rgba(240,192,64,.3); }
@@ -691,7 +696,7 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 .shop-tooltip-content strong { display:block; font-size:14px; margin-bottom:4px; color:#fff; }
 .shop-tooltip-content p { font-size:12px; color:#b0d0f0; margin:0; line-height:1.4; }
 .shop-icon { font-size:22px; line-height:1; }
-.shop-name { font-size:10px; color:#cfe3f8; white-space:nowrap; }
+.shop-name { font-size:10px; color:#cfe3f8; white-space:normal; line-height:1.1; text-align:center; }
 .shop-cap { font-size:11px; color:#ffa64d; margin-top:4px; }
 .decoy-hint { color:#ffd06a !important; font-weight:600; }
 
@@ -749,6 +754,13 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 @media (max-width:560px){
   /* keep cell pitch fixed (drag math depends on it); just tighten layout */
   .boards{gap:20px;}
+  /* Placement: trim the vertical footprint of the hint + shop so the board
+     fits one viewport without scrolling (MOBILE-08). */
+  .place-wrap{ gap:8px; }
+  .place-hint{ font-size:11px; line-height:1.4; max-width:340px; }
+  .placement-shop{ padding:2px 0; }
+  .shop-header{ font-size:11px; margin-bottom:4px; }
+  .shop-icon{ font-size:20px; }
   /* single board on mobile: auto-switches by turn (no manual tab buttons). */
   .boards.tab-enemy .wrap-own{ display:none; }
   .boards.tab-own .wrap-enemy{ display:none; }

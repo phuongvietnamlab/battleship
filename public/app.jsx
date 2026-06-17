@@ -560,6 +560,13 @@ function persistRoom(code) { saveRoom(code); }
 
 // pixel geometry of a grid cell (must match style.css)
 const CELL = 32, GAP = 2, PAD = 6, PITCH = CELL + GAP; // 34
+// Phase 19: cells render at the responsive var(--cell), not a fixed 32px. Position
+// ships/overlays via calc() off --cell instead of the old fixed PITCH math, which
+// left ships drifting from their grid cells on mobile (ship one place, cell another).
+// PAD/GAP are the grid's fixed padding/gap (.grid { padding:6px; gap:2px }).
+const cellEdge = (i) => `calc(${PAD}px + ${i} * (var(--cell) + ${GAP}px))`;
+const spanLen  = (n) => `calc(${n} * (var(--cell) + ${GAP}px) - ${GAP}px)`;
+const CELLV = "var(--cell)";
 
 // ---------- realistic warship SVG ----------
 function ShipSVG({ len }) {
@@ -1464,11 +1471,18 @@ function Placement({ onConfirm, onUnready, ready, waiting, stake, balance, authU
     return cells.every((x) => !occ.has(key(x.r, x.c)));
   }
 
+  // Measured cell pitch (px) — cells render at the responsive var(--cell), so
+  // hit-testing must use the actual rendered size, not the fixed 32px PITCH.
+  function gridPitch() {
+    const cellEl = gridRef.current && gridRef.current.querySelector(".cell");
+    return (cellEl ? cellEl.getBoundingClientRect().width : CELL) + GAP;
+  }
   // anchor cell (top-left of ship) from a screen point, given active drag
   function anchorFromPoint(cx, cy, d) {
     const rect = gridRef.current.getBoundingClientRect();
-    let c = Math.floor((cx - rect.left - PAD) / PITCH);
-    let r = Math.floor((cy - rect.top - PAD) / PITCH);
+    const pitch = gridPitch();
+    let c = Math.floor((cx - rect.left - PAD) / pitch);
+    let r = Math.floor((cy - rect.top - PAD) / pitch);
     if (d.dir === "h") c -= d.offset; else r -= d.offset;
     return { r, c };
   }
@@ -1482,7 +1496,7 @@ function Placement({ onConfirm, onUnready, ready, waiting, stake, balance, authU
     const dx = e.clientX - rect.left;
     const dy = e.clientY - rect.top;
     const along = useDir === "h" ? dx : dy;
-    const offset = Math.min(sz - 1, Math.max(0, Math.floor(along / PITCH)));
+    const offset = Math.min(sz - 1, Math.max(0, Math.floor(along / gridPitch())));
     movedRef.current = false;
     startRef.current = { x: e.clientX, y: e.clientY };
     setDrag({ id, dir: useDir, offset, dx, dy, sz, fromBoard });
@@ -1581,8 +1595,8 @@ function Placement({ onConfirm, onUnready, ready, waiting, stake, balance, authU
 
   function ghostBox(d) {
     return d.dir === "h"
-      ? { width: d.sz * PITCH - GAP, height: CELL }
-      : { width: CELL, height: d.sz * PITCH - GAP };
+      ? { width: spanLen(d.sz), height: CELLV }
+      : { width: CELLV, height: spanLen(d.sz) };
   }
 
   const showShop = stake > 0 && authUser && !vsBot;
@@ -1650,14 +1664,14 @@ function Placement({ onConfirm, onUnready, ready, waiting, stake, balance, authU
                 if (drag && drag.id === id) return null; // hide while dragging
                 const sz = sizeOf(id);
                 const box = p.dir === "h"
-                  ? { left: PAD + p.c * PITCH, top: PAD + p.r * PITCH, width: sz * PITCH - GAP, height: CELL }
-                  : { left: PAD + p.c * PITCH, top: PAD + p.r * PITCH, width: CELL, height: sz * PITCH - GAP };
+                  ? { left: cellEdge(p.c), top: cellEdge(p.r), width: spanLen(sz), height: CELLV }
+                  : { left: cellEdge(p.c), top: cellEdge(p.r), width: CELLV, height: spanLen(sz) };
                 return (
                   <div key={id} className="ship-overlay" style={box}
                     onPointerDown={(e) => startDrag(e, id, true)}
                     onDoubleClick={() => rotatePlaced(id)}
                     title={t("place.shipTitle")}>
-                    <div className={"ship-fig " + p.dir} style={{ width: sz * PITCH - GAP, height: CELL }}>
+                    <div className={"ship-fig " + p.dir} style={{ width: spanLen(sz), height: CELLV }}>
                       <ShipSVG len={sz} />
                     </div>
                   </div>
@@ -1665,7 +1679,7 @@ function Placement({ onConfirm, onUnready, ready, waiting, stake, balance, authU
               })}
               {/* Decoy marker */}
               {decoyCell && (
-                <div className="decoy-marker" style={{ left: PAD + decoyCell.c * PITCH, top: PAD + decoyCell.r * PITCH, width: CELL, height: CELL }}>
+                <div className="decoy-marker" style={{ left: cellEdge(decoyCell.c), top: cellEdge(decoyCell.r), width: CELLV, height: CELLV }}>
                   🎭
                 </div>
               )}
@@ -1677,7 +1691,7 @@ function Placement({ onConfirm, onUnready, ready, waiting, stake, balance, authU
         {drag && (
           <div className="drag-ghost" style={Object.assign(
             { left: pos.x - drag.dx, top: pos.y - drag.dy }, ghostBox(drag))}>
-            <div className={"ship-fig " + drag.dir} style={{ width: drag.sz * PITCH - GAP, height: CELL }}>
+            <div className={"ship-fig " + drag.dir} style={{ width: spanLen(drag.sz), height: CELLV }}>
               <ShipSVG len={drag.sz} />
             </div>
           </div>
