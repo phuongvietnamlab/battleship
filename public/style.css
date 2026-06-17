@@ -37,6 +37,12 @@ html, body {
   height: 100vh;
   height: 100dvh;
   overflow: hidden;
+  /* Solid dark fallback behind the gradient: iOS Safari samples background-COLOR
+     (not the gradient image) to tint the status bar / toolbar and to fill the
+     safe-area regions. Without it those bars rendered white, clashing with the
+     dark app. body's `background:` shorthand resets ITS background-color to
+     transparent, so html keeps this color and Safari samples through to it. */
+  background-color: #07182f;
 }
 
 body {
