@@ -797,13 +797,11 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
      one viewport. The notch clearance (safe-area-inset-top) is kept but the
      fixed 8px on top of it is dropped — that flat band was the "empty top". */
   .shell-header{ padding-top: calc(2px + env(safe-area-inset-top, 0px)); padding-bottom:4px; }
-  /* Back button in header: reduce vertical padding and font-size to look
-     proportional within the compact mobile header; keep horizontal breathing
-     room balanced against the card border. */
+  /* Back-button headers (profile/friends/history/room): use even padding all
+     around so the button sits centered within the card border visually. */
+  .shell-header:has(> .btn.ghost.compact){ padding:8px 10px; padding-top: calc(8px + env(safe-area-inset-top, 0px)); }
+  /* Back button itself: compact for mobile. */
   .shell-header .btn.ghost.compact{ padding:6px 10px; font-size:12px; }
-  /* Even out the left/right gutters so the back-button box and the title
-     appear equally spaced from the header card border on both sides. */
-  .shell-header:has(> h2):has(> .btn.ghost.compact){ padding-left:10px; padding-right:10px; }
   .shell-footer{ padding-top:6px; padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px)); }
   .scoreboard{ padding:4px 8px; gap:8px; }
   .pc-avatar{ width:34px; height:34px; }
