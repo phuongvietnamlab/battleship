@@ -57,7 +57,12 @@ body {
   color: #eaf2ff;
   height: 100dvh;
   overflow-x: hidden;
-  background: linear-gradient(180deg, #04101f 0%, #072142 40%, #0a325f 100%);
+  /* background-IMAGE (not the `background` shorthand) so the #07182f
+     background-color set on html,body survives — iOS Safari samples
+     background-color to tint the status bar / bottom toolbar. The shorthand
+     reset it to transparent, which is why the bars stayed white. */
+  background-color: #07182f;
+  background-image: linear-gradient(180deg, #04101f 0%, #072142 40%, #0a325f 100%);
   /* app-like: no pinch-zoom / double-tap-zoom, no rubber-band bounce, no
      long-press text selection or grey tap flash. Inputs re-enable selection. */
   touch-action: manipulation;
@@ -376,6 +381,7 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
   flex: 1;
   min-height: 0; /* CRITICAL (Pitfall 2): flex children default to min-height:auto */
   overflow-y: auto;
+  overscroll-behavior: contain; /* no rubber-band bleed to the page on iOS */
   padding: 14px;
 }
 /* Final safe-area pass (MOBILE-07): screens with no .shell-footer (friends,
