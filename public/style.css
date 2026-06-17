@@ -805,7 +805,7 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
      Trim the header/footer gutters and the scoreboard so the single board fits
      one viewport. The notch clearance (safe-area-inset-top) is kept but the
      fixed 8px on top of it is dropped — that flat band was the "empty top". */
-  .shell-header{ padding-top:6px; padding-bottom:4px; margin-top:4px; }
+  .shell-header{ padding-top:4px; padding-bottom:4px; margin-top:2px; }
   /* Back-button headers (profile/friends/history/room): use even padding all
      around so the button sits centered within the card border visually. */
   .shell-header:has(> .btn.ghost.compact){ padding:8px 10px; }
@@ -814,19 +814,19 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
   .shell-main{ padding:8px; }
   .shell-main:has(> .boards){ padding:4px; }
   /* Recalculate cell size: battle padding 4*2 + grid padding 6*2 = 20px total
-     horizontal reserve; vertical reserve 90px for board-title + counter only. */
+     horizontal reserve; vertical reserve 80px for board-title + counter only. */
   :root{
     --cell: min(
       32px,
       calc((100vw - 20px) / 11),
-      calc((var(--main-h, 100vh) - 90px) / 11)
+      calc((var(--main-h, 100vh) - 80px) / 11)
     );
   }
   /* Back button itself: compact for mobile. */
   .shell-header .btn.ghost.compact{ padding:6px 10px; font-size:12px; }
   .shell-footer{ padding:6px 10px; }
-  .scoreboard{ padding:4px 8px; gap:8px; }
-  .pc-avatar{ width:34px; height:34px; }
+  .scoreboard{ padding:2px 6px; gap:6px; }
+  .pc-avatar{ width:28px; height:28px; }
   .board-title{ font-size:13px; letter-spacing:1px; margin-bottom:4px; }
   .counter{ margin-top:6px; }
   /* The pot/reward chip relocated into .shell-main (see app.jsx) — keep it
@@ -850,13 +850,17 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
      reset padding-top to 6px and drop the notch/Dynamic-Island clearance, so
      standalone-PWA battle/over screens (which render .topbar outside
      .shell-header) slid under the status bar (MOBILE-07). */
-  .topbar{ padding:6px 2px 8px; padding-top: calc(6px + env(safe-area-inset-top, 0px)); gap:8px; }
-  /* Roombar: reduce bottom margin to close gap with scoreboard below. */
-  .roombar{ margin-bottom:4px; padding:6px 10px; }
-  .logo{ gap:8px; min-width:0; flex:1; }
-  .logo .badge{ width:38px; height:38px; border-radius:10px; font-size:20px; flex:none; }
-  .logo h1{ font-size:21px; letter-spacing:1px; line-height:1.05; }
-  .logo small{ font-size:9px; letter-spacing:2px; white-space:nowrap; }
+  .topbar{ padding:4px 2px 4px; padding-top: calc(4px + env(safe-area-inset-top, 0px)); gap:6px; }
+  /* Roombar: reduce gap and padding to minimize vertical footprint. */
+  .roombar{ margin-bottom:2px; padding:4px 10px; font-size:12px; gap:6px; }
+  .roombar-info{ font-size:12px; }
+  .roombar .roomcode{ font-size:14px; }
+  .roombar-actions .btn{ padding:4px 8px; font-size:11px; }
+  .roombar-actions .chat-toggle{ padding:4px 8px !important; font-size:11px !important; }
+  .logo{ gap:6px; min-width:0; flex:1; }
+  .logo .badge{ width:32px; height:32px; border-radius:8px; font-size:16px; flex:none; }
+  .logo h1{ font-size:18px; letter-spacing:1px; line-height:1.05; }
+  .logo small{ font-size:8px; letter-spacing:2px; white-space:nowrap; }
   .topbar .btn.ghost{ padding:5px 8px !important; font-size:11px !important; white-space:nowrap; }
   .topbar .status-pill{ font-size:11px; padding:4px 8px; white-space:nowrap; }
   /* room-banner: cho phép xuống hàng, không bóp méo pill trạng thái */

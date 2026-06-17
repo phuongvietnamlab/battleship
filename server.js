@@ -1425,7 +1425,12 @@ function scheduleSeatRelease(room, code, clientId, ms) {
     r2.order = r2.order.filter((id) => id !== clientId);
     delete r2.players[clientId];
     clearTurnTimer(r2);
-    if (r2.order.length === 0) {
+    // Phase 18: clean up bot match when human's grace expires
+    if (r2.isBotMatch) {
+      if (r2.botTurnTimer) { clearTimeout(r2.botTurnTimer); r2.botTurnTimer = null; }
+      activeBotMatches.delete(r2.botUserId);
+      delete rooms[code];
+    } else if (r2.order.length === 0) {
       delete rooms[code];
     } else {
       io.to(code).emit("opponentLeft");
@@ -1875,6 +1880,14 @@ function reclaimSeat(room, code, seatId, newClientId, socket) {
   const oppId = opponentOf(room, newClientId);
   if (oppId) emitToClient(room, oppId, "opponentOnline");
   emitToClient(room, newClientId, "sync", syncPayload(room, code, newClientId));
+  // Restart turn/bot timers after reconnect (paused on disconnect for bot matches)
+  if (room.started) {
+    if (room.isBotMatch && room.turn === room.botClientId) {
+      scheduleBotTurn(code);
+    } else if (room.turn && !room.turnTimer) {
+      armTurnTimer(room);
+    }
+  }
   return true;
 }
 
@@ -3483,19 +3496,15 @@ io.on("connection", (socket) => {
     p.online = false;
     const oppId = opponentOf(room, clientId);
 
-    // Phase 18: if human disconnects during a bot match, bot wins by forfeit
+    // Phase 18: if human disconnects during a bot match, give a short grace
+    // period to allow reconnect (e.g. Safari killed by OS, PWA restart).
+    // Bot does not need real-time notification, so just pause the bot turn timer
+    // and schedule seat release like PvP (but with a shorter grace for bot matches).
     if (room.isBotMatch && room.started && clientId !== room.botClientId) {
-      room.started = false;
       clearTurnTimer(room);
       if (room.botTurnTimer) { clearTimeout(room.botTurnTimer); room.botTurnTimer = null; }
-      if (!room.recorded) {
-        room.recorded = true;
-        const humanUserId = room.players[clientId]?.userId ?? null;
-        recordMatch(room.botUserId, humanUserId, 'disconnect', room.mode || 'classic', room.startedAt, room.stake || 0).catch(() => {});
-      }
-      activeBotMatches.delete(room.botUserId);
-      delete rooms[code];
-      console.log(`[bot-match] human ${clientId} disconnected, bot wins by forfeit in room ${code}`);
+      // Give 60 seconds to reconnect for bot matches (shorter than PvP's 3 min)
+      scheduleSeatRelease(room, code, clientId, 60000);
       return;
     }
 
