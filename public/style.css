@@ -373,12 +373,12 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
   box-shadow: none; margin: 0; padding: 0; flex: 1; min-width: 0;
   gap: 8px; flex-wrap: nowrap;
 }
-.shell-header .room-banner .room-code-box { min-width: 0; overflow: hidden; gap: 6px; flex-wrap: nowrap; }
-/* The "Mã phòng:" label was forcing the dashed code box to wrap in the cramped
-   header — keep it on one line, small, and let the code box never shrink to 0. */
+/* The room code must always show in full — give the code box priority and let
+   the status pill be the thing that shrinks/ellipsizes when space is tight. */
+.shell-header .room-banner .room-code-box { min-width: 0; gap: 6px; flex-wrap: nowrap; flex: none; }
 .shell-header .room-banner .room-code-box > span { font-size: 11px; white-space: nowrap; flex: none; opacity: .75; }
 .shell-header .room-banner .room-code-box .code { font-size: 18px !important; padding: 4px 8px; letter-spacing: 3px; flex: none; }
-.shell-header .room-banner .status-pill { flex: none; white-space: nowrap; font-size: 11px; padding: 5px 10px; }
+.shell-header .room-banner .status-pill { flex: 0 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 11px; padding: 5px 10px; }
 
 .shell-main {
   flex: 1;
@@ -761,6 +761,9 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
   .placement-shop{ padding:2px 0; }
   .shop-header{ font-size:11px; margin-bottom:4px; }
   .shop-icon{ font-size:20px; }
+  /* Drop the "Mã phòng:" label on mobile — the gold dashed box already reads as
+     the room code, and the label was crowding the code + status pill. */
+  .shell-header .room-banner .room-code-box > span{ display:none; }
   /* single board on mobile: auto-switches by turn (no manual tab buttons). */
   .boards.tab-enemy .wrap-own{ display:none; }
   .boards.tab-own .wrap-enemy{ display:none; }
