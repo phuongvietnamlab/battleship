@@ -353,12 +353,17 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
   /* Soft rounded panel (matches the cards/.lobby/.modal) instead of a hard
      edge-to-edge bar — small inset margin lets it read as a floating panel. */
   border-radius: 16px;
-  /* Safe-area inset goes into margin (outside the card) so internal padding
-     stays symmetric and content is visually centered within the card border. */
-  margin: calc(6px + env(safe-area-inset-top, 0px)) 8px 0;
+  margin: 6px 8px 0;
   backdrop-filter: blur(14px) saturate(1.2);
   -webkit-backdrop-filter: blur(14px) saturate(1.2);
   display: flex; align-items: center; gap: 8px;
+}
+/* Only the FIRST shell-header (no topbar/roombar above it) needs the
+   safe-area-inset-top clearance. When topbar renders above, it already
+   handles the notch — so shell-header just uses its normal 6px margin. */
+.app > .shell-header:first-child,
+.app > .ocean-bg + .shell-header {
+  margin-top: calc(6px + env(safe-area-inset-top, 0px));
 }
 .shell-header h2 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; margin: 0; text-align: center; }
 /* .btn defaults to width:100% — override so header back-buttons size to
@@ -421,17 +426,20 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 
 .shell-footer {
   flex: none;
-  padding: 10px 14px;
-  padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  padding: 12px 14px;
   background: var(--panel);
   /* Full border + rounding so it matches the rounded header panel (was a
      top-only separator line on a hard-edged bar). */
   border: 1px solid var(--panel-brd);
   border-radius: 16px;
-  margin: 0 8px 6px;
+  /* Safe-area inset (home indicator) goes into margin (outside the card) so
+     the button content is centered within the card border symmetrically. */
+  margin: 0 8px calc(6px + env(safe-area-inset-bottom, 0px));
   backdrop-filter: blur(14px) saturate(1.2);
   -webkit-backdrop-filter: blur(14px) saturate(1.2);
 }
+/* Ensure child elements fill footer width (profile-actions, placement buttons). */
+.shell-footer > * { width: 100%; }
 
 /* ── Hero CTA ── */
 .hero-cta {
@@ -801,9 +809,20 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
   /* Back-button headers (profile/friends/history/room): use even padding all
      around so the button sits centered within the card border visually. */
   .shell-header:has(> .btn.ghost.compact){ padding:8px 10px; }
+  /* Tighter shell-main padding on mobile so the board uses more screen area. */
+  .shell-main{ padding:8px; }
+  /* Recalculate cell size with reduced horizontal padding (8*2 + grid 6*2 = 28px)
+     and reduced vertical reserve (120px for compact mobile chrome). */
+  :root{
+    --cell: min(
+      32px,
+      calc((100vw - 28px) / 11),
+      calc((var(--main-h, 100vh) - 120px) / 11)
+    );
+  }
   /* Back button itself: compact for mobile. */
   .shell-header .btn.ghost.compact{ padding:6px 10px; font-size:12px; }
-  .shell-footer{ padding-top:6px; padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px)); }
+  .shell-footer{ padding:8px 10px; }
   .scoreboard{ padding:4px 8px; gap:8px; }
   .pc-avatar{ width:34px; height:34px; }
   .board-title{ font-size:13px; letter-spacing:1px; margin-bottom:4px; }
