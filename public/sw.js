@@ -24,6 +24,8 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET') return;
+  // Only handle http/https — chrome-extension:// and other schemes cannot be cached
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') return;
   if (url.pathname.startsWith('/socket.io')) return;
   if (url.pathname.startsWith('/api/')) return;
   if (url.pathname.startsWith('/auth/')) return;
