@@ -3600,12 +3600,20 @@ function App() {
   }, []);
 
   // Fetch wallet balance on auth state change (Phase 7)
+  const prevAuthRef = useRef(authUser);
   useEffect(() => {
     if (authUser) {
       fetch("/api/wallet").then((r) => r.json()).then((d) => setBalance(d.balance)).catch(() => {});
+      // When signing in mid-session (prev was null → now signed in), the existing
+      // socket still carries userId=null from its initial connect. Reconnect so
+      // the server reads the fresh session cookie with the real userId.
+      if (prevAuthRef.current === null && socket.connected) {
+        socket.disconnect().connect();
+      }
     } else {
       setBalance(null);
     }
+    prevAuthRef.current = authUser;
   }, [authUser]);
 
   // Prevent pinch-zoom and horizontal pan on battle screen (Phase 15)
