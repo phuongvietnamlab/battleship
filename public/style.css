@@ -944,12 +944,12 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 .roombar {
   display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;
   background: var(--panel); border:1px solid var(--panel-brd); border-radius:12px;
-  padding:8px 12px; margin-bottom:14px;
+  padding:8px 12px; margin:0 8px 14px;
 }
 .roombar-info { font-size:14px; color:#cfe4fb; }
 .roombar .roomcode { letter-spacing:3px; color:var(--gold); font-size:16px; }
 .roombar-actions { display:flex; gap:8px; align-items:center; }
-.roombar-actions .btn { width:auto; padding:7px 12px; font-size:13px; white-space:nowrap; }
+.roombar-actions .btn { width:auto; padding:7px 12px; font-size:13px; white-space:nowrap; height:32px; display:inline-flex; align-items:center; }
 .chat-toggle { position:relative; }
 
 /* Chat composer: bottom sheet to type/send (no message log). */
