@@ -1254,7 +1254,7 @@ function Lobby({ onCreate, onJoin, onBot, onQuickMatch, onHelp, onHistory, onFri
           <button className="btn ghost compact" onClick={onHistory}>{t("history.open")}</button>
         )}
         {!authUser && (
-          <button className="btn ghost compact" onClick={() => setAuthSheetOpen(true)}>{t("auth.signIn")}</button>
+          <button className="btn steel compact" onClick={() => setAuthSheetOpen(true)}>{t("auth.signIn")}</button>
         )}
       </div>
 
