@@ -895,11 +895,11 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 
 /* Room bar: own row under the topbar (room code + invite + leave). Keeps the
    topbar uncluttered so the logo/room/leave no longer overlap on mobile. */
-.topbar-sound { width:auto !important; padding:6px 10px !important; font-size:14px; }
+.topbar-sound { width:auto !important; padding:0 10px !important; font-size:14px; height:32px; display:inline-flex !important; align-items:center; }
 .topbar-right { display:flex; align-items:center; gap:6px; flex-shrink:0; max-width:60%; }
 .profile-chip {
-  display:flex; align-items:center; gap:5px; max-width:120px;
-  background:var(--panel); border:1px solid var(--panel-brd); border-radius:20px; padding:3px 8px 3px 3px;
+  display:flex; align-items:center; gap:5px; max-width:120px; height:32px;
+  background:var(--panel); border:1px solid var(--panel-brd); border-radius:20px; padding:0 8px 0 3px;
   flex-shrink:1; min-width:0;
 }
 .profile-chip .avatar { width:26px; height:26px; border-radius:50%; object-fit:cover; flex:none; background:#0d2236; }
@@ -909,13 +909,14 @@ input.code-input::placeholder { letter-spacing: 6px; color: #5f81a8; }
 .profile-chip .pname { font-size:12px; color:#dbe7f3; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:70px; }
 .profile-chip:hover { border-color: var(--gold); }
 .profile-chip.active { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(240,193,75,0.25); }
-@media (max-width:420px){ .profile-chip .pname { display:none; } .profile-chip { padding:3px; max-width:36px; } }
+@media (max-width:420px){ .profile-chip .pname { display:none; } .profile-chip { padding:0 3px; max-width:36px; } }
 
 /* Balance badge — always visible in topbar when logged in */
 .topbar-balance {
   font-size:12px; font-weight:700; color:#ffd700; white-space:nowrap;
   background:rgba(255,215,0,0.1); border:1px solid rgba(255,215,0,0.25);
-  border-radius:12px; padding:2px 8px; flex-shrink:0;
+  border-radius:12px; padding:0 8px; flex-shrink:0;
+  height:32px; display:inline-flex; align-items:center;
 }
 
 /* Avatar dropdown menu — anchored to .topbar-right, z-index 80 (above overlay:50, below notice-toast:200) */
